@@ -1,0 +1,44 @@
+// Configuration de base
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Table des Utilisateurs
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  password    String
+  name        String?
+  role        String   @default("CANDIDAT") 
+  isVerified  Boolean  @default(false)      
+  createdAt   DateTime @default(now())
+  jobs        Job[]    
+}
+
+// 2. Table des Offres d'Emploi
+model Job {
+  id          Int      @id @default(autoincrement())
+  title       String
+  company     String
+  location    String
+  description String
+  salary      String?
+  status      String   @default("PENDING") 
+  author      User     @relation(fields: [authorId], references: [id])
+  authorId    Int
+  createdAt   DateTime @default(now())
+}
+
+// 3. Table des Signalements (Pour la sécurité)
+model Report {
+  id          Int      @id @default(autoincrement())
+  reason      String
+  targetType  String   
+  targetId    Int
+  status      String   @default("OPEN")    
+  createdAt   DateTime @default(now())
+}

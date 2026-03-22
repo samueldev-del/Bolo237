@@ -1,0 +1,31 @@
+<svg width="1600" height="1200" viewBox="0 0 1600 1200" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#052e16"/>
+      <stop offset="55%" stop-color="#166534"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#dcfce7" stop-opacity="0.95"/>
+      <stop offset="100%" stop-color="#bbf7d0" stop-opacity="0.55"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="1200" fill="url(#bg)"/>
+  <circle cx="1320" cy="160" r="240" fill="#86efac" fill-opacity="0.18"/>
+  <circle cx="240" cy="980" r="260" fill="#22c55e" fill-opacity="0.2"/>
+
+  <rect x="110" y="210" width="520" height="360" rx="26" fill="url(#card)"/>
+  <rect x="150" y="250" width="200" height="18" rx="9" fill="#166534" fill-opacity="0.35"/>
+  <rect x="150" y="290" width="430" height="12" rx="6" fill="#166534" fill-opacity="0.2"/>
+  <rect x="150" y="318" width="380" height="12" rx="6" fill="#166534" fill-opacity="0.2"/>
+  <rect x="150" y="346" width="410" height="12" rx="6" fill="#166534" fill-opacity="0.2"/>
+
+  <circle cx="470" cy="760" r="138" fill="#d9f99d" fill-opacity="0.9"/>
+  <rect x="380" y="860" width="180" height="220" rx="26" fill="#84cc16"/>
+  <circle cx="1080" cy="690" r="150" fill="#fef08a" fill-opacity="0.95"/>
+  <rect x="980" y="810" width="210" height="260" rx="28" fill="#f59e0b"/>
+
+  <rect x="730" y="360" width="740" height="150" rx="24" fill="#ffffff" fill-opacity="0.08"/>
+  <rect x="760" y="404" width="300" height="16" rx="8" fill="#ffffff" fill-opacity="0.35"/>
+  <rect x="760" y="438" width="650" height="12" rx="6" fill="#ffffff" fill-opacity="0.22"/>
+</svg>

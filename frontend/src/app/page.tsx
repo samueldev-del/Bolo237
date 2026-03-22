@@ -430,11 +430,33 @@ export default function Home() {
             </div>
           )}
 
-          {resultats.length === 0 && (
-            <div className="bg-white p-8 rounded-xl border border-gray-200 text-center text-gray-600 font-medium">
-              {isEn
-                ? 'No result with these filters. Adjust your criteria to see more profiles.'
-                : 'Aucun résultat avec ces filtres. Ajustez les critères pour voir plus de profils.'}
+          {jobsLoading && resultats.length === 0 && (
+            <div className="bg-white p-8 rounded-xl border border-gray-200 text-center text-gray-500 font-medium">
+              {isEn ? 'Loading...' : 'Chargement...'}
+            </div>
+          )}
+
+          {!jobsLoading && resultats.length === 0 && searchMode === 'emploi' && (
+            <div className="bg-white p-10 rounded-xl border border-gray-200 text-center">
+              <p className="text-4xl mb-4">📋</p>
+              <h4 className="font-bold text-black text-[15px] mb-2">{isEn ? 'No offers available yet' : 'Aucune offre disponible pour le moment'}</h4>
+              <p className="text-sm text-gray-500 font-medium">
+                {isEn
+                  ? 'New job listings will appear here as they are published and approved.'
+                  : 'Les nouvelles offres apparaitront ici au fur et a mesure de leur publication et validation.'}
+              </p>
+            </div>
+          )}
+
+          {!jobsLoading && resultats.length === 0 && searchMode === 'artisan' && (
+            <div className="bg-white p-10 rounded-xl border border-gray-200 text-center">
+              <p className="text-4xl mb-4">🛠️</p>
+              <h4 className="font-bold text-black text-[15px] mb-2">{isEn ? 'No artisans available yet' : 'Aucun artisan disponible pour le moment'}</h4>
+              <p className="text-sm text-gray-500 font-medium">
+                {isEn
+                  ? 'Artisan profiles will appear here once registered on the platform.'
+                  : 'Les profils artisans apparaitront ici une fois inscrits sur la plateforme.'}
+              </p>
             </div>
           )}
         </section>

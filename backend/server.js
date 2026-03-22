@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 const { Pool } = require('pg');
@@ -21,6 +22,7 @@ app.use(cors({
     'https://237jobs.vercel.app',
     'https://admin-237jobs.vercel.app',
     // Vercel preview URLs
+    /https:\/\/237jobs-.*\.vercel\.app$/,
     /https:\/\/.*\.vercel\.app$/,
   ],
   credentials: true,
@@ -217,7 +219,7 @@ app.get('/api/users/:id', async (req, res) => {
 // POST /api/users — Créer un utilisateur
 app.post('/api/users', async (req, res) => {
   try {
-    const { email, password, name, role } = req.body;
+    const { email, password, name, role, phone } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email et mot de passe requis.' });
@@ -226,14 +228,17 @@ app.post('/api/users', async (req, res) => {
     const existing = await prisma.user.findUnique({ where: { email: String(email) } });
     if (existing) return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
 
+    const hashedPassword = bcrypt.hashSync(String(password), 10);
+
     const user = await prisma.user.create({
       data: {
         email: String(email),
-        password: String(password),
+        password: hashedPassword,
         name: name ? String(name) : null,
         role: role ? String(role) : 'CANDIDAT',
+        phone: phone ? String(phone) : null,
       },
-      select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, phone: true, isVerified: true, isBanned: true, createdAt: true },
     });
 
     res.status(201).json(user);
@@ -311,6 +316,42 @@ app.delete('/api/users/:id', async (req, res) => {
     console.error('DELETE /api/users/:id error:', error);
     if (error.code === 'P2025') return res.status(404).json({ error: 'Utilisateur non trouvé.' });
     res.status(500).json({ error: 'Erreur lors de la suppression.' });
+  }
+});
+
+// =============================================
+// ROUTES: Auth (Authentification)
+// =============================================
+
+// POST /api/auth/login — Connexion utilisateur
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email et mot de passe requis.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { email: String(email) } });
+    if (!user) {
+      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+    }
+
+    const valid = bcrypt.compareSync(String(password), user.password);
+    if (!valid) {
+      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
+    }
+
+    // Return user data without password
+    const { password: _pw, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('POST /api/auth/login error:', error);
+    res.status(500).json({ error: 'Erreur lors de la connexion.' });
   }
 });
 
@@ -512,6 +553,7 @@ app.get('/', (_req, res) => {
       users: 'GET /api/users',
       reports: 'GET /api/reports',
       admin: 'GET /api/admin/stats',
+      auth_login: 'POST /api/auth/login',
       otp_send: 'POST /api/otp/send',
       otp_verify: 'POST /api/otp/verify',
     },

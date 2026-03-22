@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://237jobs.com"),
   title: "237jobs - Emplois et Services au Cameroun",
   description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
   alternates: {
     canonical: "/fr",
     languages: {

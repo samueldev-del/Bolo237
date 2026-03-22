@@ -142,6 +142,16 @@ export async function createUser(data: {
   });
 }
 
+export async function loginUser(data: {
+  email: string;
+  password: string;
+}): Promise<ApiUser> {
+  return apiFetch<ApiUser>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 // ── Reports ──────────────────────────────────────────────────────
 
 export async function fetchReports(status?: string): Promise<ApiReport[]> {

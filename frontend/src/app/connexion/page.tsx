@@ -5,12 +5,25 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
-import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
+import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp, createUser, loginUser } from '@/lib/api';
 
 type Role = 'chercheur' | 'entreprise' | 'artisan';
 
 const ROLE_STORAGE_KEY = '237jobs-account-role';
 const PHONE_VERIFIED_KEY = '237jobs-phone-verified';
+const USER_KEY = '237jobs-user';
+
+const ROLE_MAP: Record<Role, string> = {
+  chercheur: 'CANDIDAT',
+  entreprise: 'ENTREPRISE',
+  artisan: 'ARTISAN',
+};
+
+const BACKEND_ROLE_TO_LOCAL: Record<string, Role> = {
+  CANDIDAT: 'chercheur',
+  ENTREPRISE: 'entreprise',
+  ARTISAN: 'artisan',
+};
 
 export default function Connexion() {
   const router = useRouter();
@@ -18,12 +31,19 @@ export default function Connexion() {
   const [isLogin, setIsLogin] = useState(true);
   const [selectedRole, setSelectedRole] = useState<Role>('chercheur');
   const [accountRole, setAccountRole] = useState<Role>('chercheur');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpInput, setOtpInput] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isEn = locale === 'en';
 
@@ -33,44 +53,86 @@ export default function Connexion() {
     return localizePath('/dashboard');
   };
 
-  const saveRole = (role: Role) => {
-    setAccountRole(role);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(ROLE_STORAGE_KEY, role);
-    }
-  };
-
-  const readStoredRole = (): Role => {
-    if (typeof window === 'undefined') {
-      return accountRole;
-    }
-    const value = window.localStorage.getItem(ROLE_STORAGE_KEY);
-    if (value === 'chercheur' || value === 'entreprise' || value === 'artisan') {
-      return value;
-    }
-    return accountRole;
-  };
-
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!otpVerified) {
       setAuthError(isEn ? 'Phone verification is required before creating your account.' : 'La verification du numero est obligatoire avant de creer un compte.');
       return;
     }
-    saveRole(selectedRole);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(PHONE_VERIFIED_KEY, 'true');
-    }
-    router.push(getDashboardRoute(selectedRole));
-  };
-
-  const handleLogin = () => {
-    if (typeof window !== 'undefined' && window.localStorage.getItem(PHONE_VERIFIED_KEY) !== 'true') {
-      setAuthError(isEn ? 'Your account is not phone-verified yet. Please complete OTP verification first.' : 'Votre compte n est pas encore verifie par numero de telephone. Completez la verification OTP d abord.');
+    if (!firstName.trim() || !lastName.trim()) {
+      setAuthError(isEn ? 'Please enter your first and last name.' : 'Veuillez saisir votre prenom et nom.');
       return;
     }
-    const role = readStoredRole();
-    setAccountRole(role);
-    router.push(getDashboardRoute(role));
+    if (!email.trim()) {
+      setAuthError(isEn ? 'Please enter a valid email address.' : 'Veuillez saisir une adresse email valide.');
+      return;
+    }
+    if (!password.trim() || password.length < 4) {
+      setAuthError(isEn ? 'Please enter a password (minimum 4 characters).' : 'Veuillez saisir un mot de passe (minimum 4 caracteres).');
+      return;
+    }
+
+    setAuthError('');
+    setIsSubmitting(true);
+
+    try {
+      const user = await createUser({
+        email: email.trim(),
+        password: password,
+        name: `${firstName.trim()} ${lastName.trim()}`,
+        role: ROLE_MAP[selectedRole],
+      });
+
+      // Save user info to localStorage
+      if (typeof window !== 'undefined') {
+        const localRole = BACKEND_ROLE_TO_LOCAL[user.role] || 'chercheur';
+        window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+        window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
+        window.localStorage.setItem(PHONE_VERIFIED_KEY, 'true');
+        setAccountRole(localRole);
+        router.push(getDashboardRoute(localRole));
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : (isEn ? 'Account creation failed. Please try again.' : 'Echec de la creation du compte. Veuillez reessayer.');
+      setAuthError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!loginEmail.trim()) {
+      setAuthError(isEn ? 'Please enter your email address.' : 'Veuillez saisir votre adresse email.');
+      return;
+    }
+    if (!loginPassword.trim()) {
+      setAuthError(isEn ? 'Please enter your password.' : 'Veuillez saisir votre mot de passe.');
+      return;
+    }
+
+    setAuthError('');
+    setIsSubmitting(true);
+
+    try {
+      const user = await loginUser({
+        email: loginEmail.trim(),
+        password: loginPassword,
+      });
+
+      // Save user info to localStorage
+      if (typeof window !== 'undefined') {
+        const localRole = BACKEND_ROLE_TO_LOCAL[user.role] || 'chercheur';
+        window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+        window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
+        window.localStorage.setItem(PHONE_VERIFIED_KEY, 'true');
+        setAccountRole(localRole);
+        router.push(getDashboardRoute(localRole));
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : (isEn ? 'Login failed. Please check your credentials.' : 'Echec de la connexion. Verifiez vos identifiants.');
+      setAuthError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const sendOtp = async () => {
@@ -224,22 +286,30 @@ export default function Connexion() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                     <input
                       type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
                       placeholder={isEn ? 'First name' : 'Prenom'}
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-600 outline-none"
                     />
                     <input
                       type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
                       placeholder={isEn ? 'Last name' : 'Nom'}
                       className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-600 outline-none"
                     />
                   </div>
                   <input
                     type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     placeholder="Email"
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-600 outline-none mb-3"
                   />
                   <input
                     type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
                     placeholder={isEn ? 'Password' : 'Mot de passe'}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-600 outline-none"
                   />
@@ -294,17 +364,10 @@ export default function Connexion() {
 
                 <button
                   onClick={handleSignup}
-                  className="w-full border border-gray-300 rounded-xl py-3 font-bold hover:bg-gray-50 transition flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="w-full text-center bg-green-600 text-white font-extrabold py-3.5 rounded-xl hover:bg-green-700 transition shadow-sm block disabled:opacity-60"
                 >
-                  <span className="text-blue-600 font-extrabold">G</span>
-                  {isEn ? 'Sign up with Google' : 'S inscrire avec Google'}
-                </button>
-
-                <button
-                  onClick={handleSignup}
-                  className="w-full text-center bg-green-600 text-white font-extrabold py-3.5 rounded-xl hover:bg-green-700 transition shadow-sm block"
-                >
-                  {isEn ? 'Create my account' : 'Creer mon compte'}
+                  {isSubmitting ? (isEn ? 'Creating account...' : 'Creation du compte...') : (isEn ? 'Create my account' : 'Creer mon compte')}
                 </button>
               </>
             )}
@@ -319,6 +382,8 @@ export default function Connexion() {
                 <div>
                   <input
                     type="email"
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
                     placeholder="Email"
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-600 outline-none mb-3"
                   />
@@ -332,6 +397,8 @@ export default function Connexion() {
 
                   <input
                     type="password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
                     placeholder="••••••••"
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-600 outline-none"
                   />
@@ -339,17 +406,10 @@ export default function Connexion() {
 
                 <button
                   onClick={handleLogin}
-                  className="w-full border border-gray-300 rounded-xl py-3 font-bold hover:bg-gray-50 transition flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  className="w-full text-center bg-green-600 text-white font-extrabold py-3.5 rounded-xl hover:bg-green-700 transition shadow-sm block disabled:opacity-60"
                 >
-                  <span className="text-blue-600 font-extrabold">G</span>
-                  {isEn ? 'Sign in with Google' : 'Se connecter avec Google'}
-                </button>
-
-                <button
-                  onClick={handleLogin}
-                  className="w-full text-center bg-green-600 text-white font-extrabold py-3.5 rounded-xl hover:bg-green-700 transition shadow-sm block"
-                >
-                  {isEn ? 'Sign in' : 'Se connecter'}
+                  {isSubmitting ? (isEn ? 'Signing in...' : 'Connexion...') : (isEn ? 'Sign in' : 'Se connecter')}
                 </button>
 
                 <p className="text-xs text-gray-500 font-medium">

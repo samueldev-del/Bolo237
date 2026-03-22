@@ -421,11 +421,11 @@ export default function DashboardCandidat() {
 
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
-              <h2 className="font-extrabold text-black">{isEn ? 'Profile completion: 75%' : 'Profil complete a 75%'}</h2>
-              <span className="text-sm font-bold text-green-700">75%</span>
+              <h2 className="font-extrabold text-black">{isEn ? 'Profile completion: 0%' : 'Profil complete a 0%'}</h2>
+              <span className="text-sm font-bold text-green-700">0%</span>
             </div>
             <div className="w-full h-3 rounded-full bg-gray-100 overflow-hidden">
-              <div className="h-full w-[75%] bg-green-600 rounded-full"></div>
+              <div className="h-full w-[0%] bg-green-600 rounded-full"></div>
             </div>
             <div className="flex flex-wrap gap-2 mt-4">
               <button className="px-4 py-2 rounded-lg text-sm font-bold bg-green-50 text-green-700 border border-green-100 hover:bg-green-100 transition">
@@ -440,15 +440,15 @@ export default function DashboardCandidat() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
               <p className="text-xs uppercase text-gray-500 font-extrabold mb-1">{isEn ? 'Profile views' : 'Vues du profil'}</p>
-              <p className="text-2xl font-extrabold text-black">124</p>
+              <p className="text-2xl font-extrabold text-black">0</p>
             </div>
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
               <p className="text-xs uppercase text-gray-500 font-extrabold mb-1">{isEn ? 'Applications sent' : 'Candidatures envoyees'}</p>
-              <p className="text-2xl font-extrabold text-black">18</p>
+              <p className="text-2xl font-extrabold text-black">0</p>
             </div>
             <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
               <p className="text-xs uppercase text-gray-500 font-extrabold mb-1">{isEn ? 'Saved jobs' : 'Annonces sauvegardees'}</p>
-              <p className="text-2xl font-extrabold text-black">7</p>
+              <p className="text-2xl font-extrabold text-black">0</p>
             </div>
           </div>
         </section>
@@ -737,37 +737,57 @@ export default function DashboardCandidat() {
 
         <section className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8">
           <h2 className="text-xl md:text-2xl font-extrabold mb-5">{isEn ? 'My Applications' : 'Mes Candidatures'}</h2>
-          <div className="space-y-3">
-            {candidatures.map((item) => (
-              <article key={item.id} className="border border-gray-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                <div>
-                  <h3 className="font-extrabold text-black">{item.poste}</h3>
-                  <p className="text-sm text-gray-600">{item.entreprise}</p>
-                  <p className="text-xs text-gray-500 mt-1">{isEn ? `Sent on ${item.date}` : `Envoyee le ${item.date}`}</p>
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-extrabold border w-fit ${statusClass(item.statut)}`}>
-                  {item.statut}
-                </span>
-              </article>
-            ))}
-          </div>
+          {candidatures.length > 0 ? (
+            <div className="space-y-3">
+              {candidatures.map((item) => (
+                <article key={item.id} className="border border-gray-200 rounded-xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <div>
+                    <h3 className="font-extrabold text-black">{item.poste}</h3>
+                    <p className="text-sm text-gray-600">{item.entreprise}</p>
+                    <p className="text-xs text-gray-500 mt-1">{isEn ? `Sent on ${item.date}` : `Envoyee le ${item.date}`}</p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-extrabold border w-fit ${statusClass(item.statut)}`}>
+                    {item.statut}
+                  </span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10">
+              <p className="text-4xl mb-4">📨</p>
+              <h4 className="font-bold text-black text-[15px] mb-2">{isEn ? 'No applications yet' : 'Aucune candidature'}</h4>
+              <p className="text-sm text-gray-500 font-medium">
+                {isEn ? 'Your applications will appear here once you apply to job listings.' : 'Vos candidatures apparaitront ici une fois que vous postulerez a des offres.'}
+              </p>
+            </div>
+          )}
         </section>
 
         <section className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8">
           <h2 className="text-xl md:text-2xl font-extrabold mb-5">{isEn ? 'Saved Jobs' : 'Emplois Sauvegardes'}</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {emploisSauvegardes.map((job) => (
-              <article key={job.id} className="border border-gray-200 rounded-xl p-4 bg-white hover:border-green-600 transition">
-                <h3 className="font-extrabold text-black mb-1">{job.titre}</h3>
-                <p className="text-sm text-gray-700 font-bold">{job.entreprise}</p>
-                <p className="text-sm text-gray-500">{job.lieu} • {job.type}</p>
-                <p className="text-xs text-gray-400 mt-2">{job.temps}</p>
-                <button className="mt-4 w-full py-2.5 rounded-lg bg-green-600 text-white text-sm font-extrabold hover:bg-green-700 transition">
-                  {isEn ? 'Apply now' : 'Postuler maintenant'}
-                </button>
-              </article>
-            ))}
-          </div>
+          {emploisSauvegardes.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {emploisSauvegardes.map((job) => (
+                <article key={job.id} className="border border-gray-200 rounded-xl p-4 bg-white hover:border-green-600 transition">
+                  <h3 className="font-extrabold text-black mb-1">{job.titre}</h3>
+                  <p className="text-sm text-gray-700 font-bold">{job.entreprise}</p>
+                  <p className="text-sm text-gray-500">{job.lieu} • {job.type}</p>
+                  <p className="text-xs text-gray-400 mt-2">{job.temps}</p>
+                  <button className="mt-4 w-full py-2.5 rounded-lg bg-green-600 text-white text-sm font-extrabold hover:bg-green-700 transition">
+                    {isEn ? 'Apply now' : 'Postuler maintenant'}
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-10">
+              <p className="text-4xl mb-4">🔖</p>
+              <h4 className="font-bold text-black text-[15px] mb-2">{isEn ? 'No saved jobs' : 'Aucun emploi sauvegarde'}</h4>
+              <p className="text-sm text-gray-500 font-medium">
+                {isEn ? 'Jobs you save will appear here for quick access.' : 'Les offres que vous sauvegardez apparaitront ici pour un acces rapide.'}
+              </p>
+            </div>
+          )}
         </section>
 
         <section className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8">

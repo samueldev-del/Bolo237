@@ -180,7 +180,7 @@ app.get('/api/users', async (req, res) => {
         orderBy: { createdAt: 'desc' },
         skip,
         take,
-        select: { id: true, email: true, name: true, role: true, isVerified: true, createdAt: true },
+        select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
       }),
       prisma.user.count({ where }),
     ]);
@@ -203,7 +203,7 @@ app.get('/api/users/:id', async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true, name: true, role: true, isVerified: true, createdAt: true, jobs: true },
+      select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true, jobs: true },
     });
 
     if (!user) return res.status(404).json({ error: 'Utilisateur non trouvé.' });
@@ -233,13 +233,84 @@ app.post('/api/users', async (req, res) => {
         name: name ? String(name) : null,
         role: role ? String(role) : 'CANDIDAT',
       },
-      select: { id: true, email: true, name: true, role: true, isVerified: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, createdAt: true },
     });
 
     res.status(201).json(user);
   } catch (error) {
     console.error('POST /api/users error:', error);
     res.status(500).json({ error: "Erreur lors de la création de l'utilisateur." });
+  }
+});
+
+// PUT /api/users/:id — Modifier un utilisateur (role, verification, etc.)
+app.put('/api/users/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
+
+    const { name, role, isVerified } = req.body;
+    const data = {};
+    if (name !== undefined) data.name = String(name);
+    if (role !== undefined) data.role = String(role);
+    if (isVerified !== undefined) data.isVerified = Boolean(isVerified);
+
+    const user = await prisma.user.update({
+      where: { id },
+      data,
+      select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
+    });
+
+    res.json(user);
+  } catch (error) {
+    console.error('PUT /api/users/:id error:', error);
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+    res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
+  }
+});
+
+// PUT /api/users/:id/ban — Bannir ou débannir un utilisateur
+app.put('/api/users/:id/ban', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
+
+    const { banned, reason } = req.body;
+    const isBanned = Boolean(banned);
+
+    const user = await prisma.user.update({
+      where: { id },
+      data: {
+        isBanned,
+        bannedAt: isBanned ? new Date() : null,
+        banReason: isBanned ? (reason ? String(reason) : 'Banni par l administrateur') : null,
+      },
+      select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
+    });
+
+    res.json(user);
+  } catch (error) {
+    console.error('PUT /api/users/:id/ban error:', error);
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+    res.status(500).json({ error: 'Erreur lors du bannissement.' });
+  }
+});
+
+// DELETE /api/users/:id — Supprimer un utilisateur et ses annonces
+app.delete('/api/users/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
+
+    // Supprimer d'abord les jobs liés (contrainte FK)
+    await prisma.job.deleteMany({ where: { authorId: id } });
+    await prisma.user.delete({ where: { id } });
+
+    res.json({ ok: true, message: 'Utilisateur et ses annonces supprimés.' });
+  } catch (error) {
+    console.error('DELETE /api/users/:id error:', error);
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+    res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
 });
 

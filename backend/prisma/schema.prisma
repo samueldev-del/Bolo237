@@ -13,10 +13,13 @@ model User {
   email       String   @unique
   password    String
   name        String?
-  role        String   @default("CANDIDAT") 
-  isVerified  Boolean  @default(false)      
+  role        String   @default("CANDIDAT")
+  isVerified  Boolean  @default(false)
+  isBanned    Boolean  @default(false)
+  bannedAt    DateTime?
+  banReason   String?
   createdAt   DateTime @default(now())
-  jobs        Job[]    
+  jobs        Job[]
 }
 
 // 2. Table des Offres d'Emploi

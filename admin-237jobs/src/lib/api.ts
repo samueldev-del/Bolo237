@@ -21,6 +21,9 @@ export type User = {
   name: string | null;
   role: 'CANDIDAT' | 'ENTREPRISE' | 'ARTISAN' | 'ADMIN';
   isVerified: boolean;
+  isBanned: boolean;
+  banReason: string | null;
+  bannedAt: string | null;
   createdAt: string;
 };
 
@@ -122,6 +125,24 @@ export function fetchUsers(filters: {
 
 export function fetchUser(id: number): Promise<User & { jobs: Job[] }> {
   return apiFetch(`/api/users/${id}`);
+}
+
+export function updateUser(id: number, data: Partial<Pick<User, 'name' | 'role' | 'isVerified'>>): Promise<User> {
+  return apiFetch<User>(`/api/users/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export function banUser(id: number, banned: boolean, reason?: string): Promise<User> {
+  return apiFetch<User>(`/api/users/${id}/ban`, {
+    method: 'PUT',
+    body: JSON.stringify({ banned, reason }),
+  });
+}
+
+export function deleteUser(id: number): Promise<void> {
+  return apiFetch(`/api/users/${id}`, { method: 'DELETE' });
 }
 
 // ── Reports ──────────────────────────────────────────────────────

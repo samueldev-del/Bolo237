@@ -1,0 +1,13 @@
+{
+  "name": "237jobs-workspace",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "npm --prefix frontend run dev",
+    "dev:clean": "npm --prefix frontend run dev:clean",
+    "build": "npm --prefix frontend run build",
+    "start:frontend": "npm --prefix frontend run start",
+    "lint": "npm --prefix frontend run lint"
+  }
+}

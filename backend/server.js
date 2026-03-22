@@ -23,6 +23,7 @@ app.use(cors({
     // Vercel preview URLs
     /https:\/\/.*\.vercel\.app$/,
   ],
+  credentials: true,
 }));
 app.use(express.json());
 

@@ -8,17 +8,15 @@ import { useLocale } from '@/components/LocaleProvider';
 import { fetchJobs, type ApiJob } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 
-// Helper : calcule "il y a Xh" depuis createdAt
 function timeAgo(createdAt: string, isEn: boolean): string {
   const diff = Date.now() - new Date(createdAt).getTime();
   const hours = Math.floor(diff / (1000 * 60 * 60));
   if (hours < 1) return isEn ? 'just now' : "à l'instant";
   if (hours < 24) return isEn ? `${hours}h ago` : `il y a ${hours}h`;
   const days = Math.floor(hours / 24);
-  return isEn ? `${days}d ago` : `il y a ${days} jour${days > 1 ? 's' : ''}`;
+  return isEn ? `${days}d ago` : `il y a ${days}j`;
 }
 
-// Helper : convertit un ApiJob en format local pour les filtres
 function apiJobToLocal(job: ApiJob, isEn: boolean) {
   const hours = Math.floor((Date.now() - new Date(job.createdAt).getTime()) / (1000 * 60 * 60));
   return {
@@ -26,266 +24,219 @@ function apiJobToLocal(job: ApiJob, isEn: boolean) {
     titre: job.title,
     entreprise: job.company,
     lieu: job.location,
-    contrat: 'CDI', // default, could be extended in the DB model later
+    contrat: 'CDI',
     mode: 'Sur site',
     publishedHours: hours,
     temps: timeAgo(job.createdAt, isEn),
   };
 }
 
-// Plus de mock data — on attend les vraies données du backend
-
 export default function Home() {
   const { t, localizePath, locale } = useLocale();
   const isEn = locale === 'en';
   const [searchMode, setSearchMode] = useState<'emploi' | 'artisan'>('emploi');
 
-  // Fetch jobs depuis le backend avec fallback mock
   const { data: jobsData, loading: jobsLoading } = useApi(
     () => fetchJobs({ status: 'APPROVED', limit: 10 }),
     null,
     []
   );
 
-  // Offres depuis le backend (tableau vide si rien)
   const emplois = jobsData && jobsData.jobs.length > 0
     ? jobsData.jobs.map((j) => apiJobToLocal(j, isEn))
     : [];
 
-  // Artisans — vide en attendant la future route /api/artisans
   const artisans: { id: number; titre: string; entreprise: string; lieu: string; note: number; disponibilite: string; verifie: boolean; image: string; temps: string }[] = [];
 
   const [jobDate24h, setJobDate24h] = useState(false);
   const [jobDate7j, setJobDate7j] = useState(false);
   const [jobContrats, setJobContrats] = useState<string[]>([]);
   const [jobModes, setJobModes] = useState<string[]>([]);
-
   const [artisanNote4, setArtisanNote4] = useState(false);
   const [artisanDispoImmediate, setArtisanDispoImmediate] = useState(false);
   const [artisanVerifie, setArtisanVerifie] = useState<boolean | null>(null);
 
   const toggleInArray = (value: string, values: string[], setter: (next: string[]) => void) => {
-    if (values.includes(value)) {
-      setter(values.filter((v) => v !== value));
-      return;
-    }
-    setter([...values, value]);
+    setter(values.includes(value) ? values.filter((v) => v !== value) : [...values, value]);
   };
 
-  const resetJobFilters = () => {
-    setJobDate24h(false);
-    setJobDate7j(false);
-    setJobContrats([]);
-    setJobModes([]);
-  };
-
-  const resetArtisanFilters = () => {
-    setArtisanNote4(false);
-    setArtisanDispoImmediate(false);
-    setArtisanVerifie(null);
-  };
+  const resetJobFilters = () => { setJobDate24h(false); setJobDate7j(false); setJobContrats([]); setJobModes([]); };
+  const resetArtisanFilters = () => { setArtisanNote4(false); setArtisanDispoImmediate(false); setArtisanVerifie(null); };
 
   const emploisFiltres = emplois.filter((job) => {
-    const datePass =
-      (!jobDate24h && !jobDate7j) ||
-      (jobDate24h && job.publishedHours <= 24) ||
-      (jobDate7j && job.publishedHours <= 168);
-
-    const contratPass = jobContrats.length === 0 || jobContrats.includes(job.contrat);
-    const modePass = jobModes.length === 0 || jobModes.includes(job.mode);
-
-    return datePass && contratPass && modePass;
+    const datePass = (!jobDate24h && !jobDate7j) || (jobDate24h && job.publishedHours <= 24) || (jobDate7j && job.publishedHours <= 168);
+    return datePass && (jobContrats.length === 0 || jobContrats.includes(job.contrat)) && (jobModes.length === 0 || jobModes.includes(job.mode));
   });
 
-  const artisansFiltres = artisans.filter((artisan) => {
-    const notePass = !artisanNote4 || artisan.note >= 4;
-    const dispoPass = !artisanDispoImmediate || ["Immédiate", "Urgente"].includes(artisan.disponibilite);
-    const verifiePass = artisanVerifie === null || artisan.verifie === artisanVerifie;
-
-    return notePass && dispoPass && verifiePass;
+  const artisansFiltres = artisans.filter((a) => {
+    return (!artisanNote4 || a.note >= 4) && (!artisanDispoImmediate || ["Immédiate", "Urgente"].includes(a.disponibilite)) && (artisanVerifie === null || a.verifie === artisanVerifie);
   });
 
   const resultats = searchMode === 'emploi' ? emploisFiltres : artisansFiltres;
 
-  const jobDateBase = emplois.filter((job) => {
-    const contratPass = jobContrats.length === 0 || jobContrats.includes(job.contrat);
-    const modePass = jobModes.length === 0 || jobModes.includes(job.mode);
-    return contratPass && modePass;
-  });
-  const countJob24h = jobDateBase.filter((job) => job.publishedHours <= 24).length;
-  const countJob7j = jobDateBase.filter((job) => job.publishedHours <= 168).length;
-
-  const jobContratBase = emplois.filter((job) => {
-    const datePass =
-      (!jobDate24h && !jobDate7j) ||
-      (jobDate24h && job.publishedHours <= 24) ||
-      (jobDate7j && job.publishedHours <= 168);
-    const modePass = jobModes.length === 0 || jobModes.includes(job.mode);
-    return datePass && modePass;
-  });
-  const countCDI = jobContratBase.filter((job) => job.contrat === 'CDI').length;
-  const countCDD = jobContratBase.filter((job) => job.contrat === 'CDD').length;
-  const countStage = jobContratBase.filter((job) => job.contrat === 'Stage').length;
-
-  const jobModeBase = emplois.filter((job) => {
-    const datePass =
-      (!jobDate24h && !jobDate7j) ||
-      (jobDate24h && job.publishedHours <= 24) ||
-      (jobDate7j && job.publishedHours <= 168);
-    const contratPass = jobContrats.length === 0 || jobContrats.includes(job.contrat);
-    return datePass && contratPass;
-  });
-  const countSurSite = jobModeBase.filter((job) => job.mode === 'Sur site').length;
-  const countTeletravail = jobModeBase.filter((job) => job.mode === 'Télétravail').length;
-
-  const artisanNoteBase = artisans.filter((artisan) => {
-    const dispoPass = !artisanDispoImmediate || ["Immédiate", "Urgente"].includes(artisan.disponibilite);
-    const verifiePass = artisanVerifie === null || artisan.verifie === artisanVerifie;
-    return dispoPass && verifiePass;
-  });
-  const countNote4 = artisanNoteBase.filter((artisan) => artisan.note >= 4).length;
-
-  const artisanDispoBase = artisans.filter((artisan) => {
-    const notePass = !artisanNote4 || artisan.note >= 4;
-    const verifiePass = artisanVerifie === null || artisan.verifie === artisanVerifie;
-    return notePass && verifiePass;
-  });
-  const countUrgentImmediate = artisanDispoBase.filter((artisan) => ["Immédiate", "Urgente"].includes(artisan.disponibilite)).length;
-
-  const artisanVerifieBase = artisans.filter((artisan) => {
-    const notePass = !artisanNote4 || artisan.note >= 4;
-    const dispoPass = !artisanDispoImmediate || ["Immédiate", "Urgente"].includes(artisan.disponibilite);
-    return notePass && dispoPass;
-  });
-  const countVerifieOui = artisanVerifieBase.filter((artisan) => artisan.verifie).length;
-  const countVerifieNon = artisanVerifieBase.filter((artisan) => !artisan.verifie).length;
+  const countJob24h = emplois.filter((j) => j.publishedHours <= 24).length;
+  const countJob7j = emplois.filter((j) => j.publishedHours <= 168).length;
+  const countCDI = emplois.filter((j) => j.contrat === 'CDI').length;
+  const countCDD = emplois.filter((j) => j.contrat === 'CDD').length;
+  const countStage = emplois.filter((j) => j.contrat === 'Stage').length;
+  const countSurSite = emplois.filter((j) => j.mode === 'Sur site').length;
+  const countTeletravail = emplois.filter((j) => j.mode === 'Télétravail').length;
+  const countNote4 = artisans.filter((a) => a.note >= 4).length;
+  const countUrgentImmediate = artisans.filter((a) => ["Immédiate", "Urgente"].includes(a.disponibilite)).length;
+  const countVerifieOui = artisans.filter((a) => a.verifie).length;
+  const countVerifieNon = artisans.filter((a) => !a.verifie).length;
 
   return (
     <div className="w-full font-sans bg-white text-black min-h-screen flex flex-col">
-      
       <Header />
-      
-      {/* 1. SECTION RECHERCHE (Épurée) */}
-      <div className="bg-green-50/50 py-10 border-b border-green-100">
-        <div className="max-w-[1400px] mx-auto px-4 text-center">
-          
-          <h1 className="text-3xl font-extrabold text-black mb-6 leading-tight">
-            {t.home.find} <span className="text-green-600">{searchMode === 'emploi' ? t.home.matchingJob : t.home.matchingArtisan}</span> {t.home.forYou}
+
+      {/* ═══════════ HERO SECTION ═══════════ */}
+      <section className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-green-50 via-white to-emerald-50"></div>
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #16a34a 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
+
+        <div className="relative max-w-[1400px] mx-auto px-4 pt-16 pb-20">
+          {/* Badge animé */}
+          <div className="flex justify-center mb-6">
+            <span className="inline-flex items-center gap-2 bg-green-100 text-green-800 px-4 py-1.5 rounded-full text-xs font-bold tracking-wide">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              {isEn ? 'The #1 job platform in Cameroon' : 'La plateforme #1 de l\'emploi au Cameroun'}
+            </span>
+          </div>
+
+          {/* Titre principal avec highlight */}
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-center leading-tight mb-6 tracking-tight">
+            {t.home.find}{' '}
+            <span className="relative inline-block">
+              <span className="relative z-10 text-green-600">
+                {searchMode === 'emploi' ? t.home.matchingJob : t.home.matchingArtisan}
+              </span>
+              <span className="absolute bottom-1 left-0 right-0 h-3 bg-green-200/60 -z-0 rounded-sm"></span>
+            </span>
+            {' '}{t.home.forYou}
           </h1>
 
-          {/* Sélecteur simple */}
+          <p className="text-center text-gray-500 text-lg font-medium max-w-2xl mx-auto mb-10">
+            {isEn
+              ? 'Search thousands of job offers and skilled artisans across all regions of Cameroon.'
+              : 'Parcourez des milliers d\'offres d\'emploi et d\'artisans qualifiés dans toutes les régions du Cameroun.'}
+          </p>
+
+          {/* Toggle */}
           <div className="flex justify-center mb-8">
-            <div className="bg-white border border-gray-200 p-1 rounded-full inline-flex shadow-sm">
-              <button 
+            <div className="bg-white border border-gray-200 p-1.5 rounded-full inline-flex shadow-lg shadow-green-100/50">
+              <button
                 onClick={() => setSearchMode('emploi')}
-                className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${searchMode === 'emploi' ? 'bg-green-600 text-white shadow-md' : 'text-gray-500 hover:text-black'}`}
+                className={`px-7 py-3 rounded-full text-sm font-bold transition-all duration-200 ${searchMode === 'emploi' ? 'bg-green-600 text-white shadow-md shadow-green-200' : 'text-gray-500 hover:text-black'}`}
               >
                 💼 {t.home.searchJob}
               </button>
-              <button 
+              <button
                 onClick={() => setSearchMode('artisan')}
-                className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${searchMode === 'artisan' ? 'bg-green-600 text-white shadow-md' : 'text-gray-500 hover:text-black'}`}
+                className={`px-7 py-3 rounded-full text-sm font-bold transition-all duration-200 ${searchMode === 'artisan' ? 'bg-green-600 text-white shadow-md shadow-green-200' : 'text-gray-500 hover:text-black'}`}
               >
                 🛠️ {t.home.findArtisan}
               </button>
             </div>
           </div>
 
-          {/* Barre de recherche */}
-          <div className="flex flex-col md:flex-row gap-2 justify-center max-w-5xl mx-auto">
-            <div className="relative flex-1">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-black font-bold">🔍</span>
-              <input 
-                type="text" 
-                placeholder={searchMode === 'emploi' ? t.home.searchPlaceholderJob : t.home.searchPlaceholderArtisan} 
-                className="w-full pl-12 pr-4 py-4 rounded-full border border-gray-300 focus:ring-2 focus:ring-green-600 outline-none text-[15px] font-medium text-black shadow-sm" 
-              />
+          {/* Barre de recherche moderne */}
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-2 flex flex-col md:flex-row gap-2">
+              <div className="relative flex-1">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</span>
+                <input
+                  type="text"
+                  placeholder={searchMode === 'emploi' ? t.home.searchPlaceholderJob : t.home.searchPlaceholderArtisan}
+                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-gray-50 border-0 focus:ring-2 focus:ring-green-500 focus:bg-white outline-none text-[15px] font-medium text-black transition"
+                />
+              </div>
+              <div className="relative flex-1">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">📍</span>
+                <input
+                  type="text"
+                  placeholder={t.home.locationPlaceholder}
+                  className="w-full pl-12 pr-4 py-4 rounded-xl bg-gray-50 border-0 focus:ring-2 focus:ring-green-500 focus:bg-white outline-none text-[15px] font-medium text-black transition"
+                />
+              </div>
+              <button className="bg-green-600 text-white px-8 py-4 rounded-xl font-bold hover:bg-green-700 transition text-[15px] shadow-md hover:shadow-lg whitespace-nowrap">
+                {searchMode === 'emploi' ? t.home.submitJob : t.home.submitArtisan}
+              </button>
             </div>
-            
-            <div className="relative flex-1">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-black font-bold">📍</span>
-              <input 
-                type="text" 
-                placeholder={t.home.locationPlaceholder} 
-                className="w-full pl-12 pr-4 py-4 rounded-full border border-gray-300 focus:ring-2 focus:ring-green-600 outline-none text-[15px] font-medium text-black shadow-sm" 
-              />
+          </div>
+
+          {/* Mini stats */}
+          <div className="flex justify-center gap-8 mt-10 text-sm">
+            <div className="flex items-center gap-2 text-gray-500">
+              <span className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-green-700 font-bold text-xs">{emplois.length}+</span>
+              <span className="font-medium">{isEn ? 'Active offers' : 'Offres actives'}</span>
             </div>
-            
-            <button className="w-full md:w-auto bg-green-600 text-white px-8 py-4 rounded-full font-bold hover:bg-green-700 transition text-[15px] shadow-md">
-              {searchMode === 'emploi' ? t.home.submitJob : t.home.submitArtisan}
-            </button>
+            <div className="flex items-center gap-2 text-gray-500">
+              <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 font-bold text-xs">10</span>
+              <span className="font-medium">{isEn ? 'Regions' : 'Régions'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-gray-500">
+              <span className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-700 font-bold text-xs">⚡</span>
+              <span className="font-medium">{isEn ? 'Real-time' : 'Temps réel'}</span>
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* 2. CORPS (Split Screen 30/70) */}
-      <div className="max-w-[1400px] w-full mx-auto mt-8 px-4 flex flex-col lg:flex-row gap-8 flex-grow mb-12">
-        
-        {/* Colonne gauche 30%: filtres dynamiques */}
-        <aside className="w-full lg:basis-[30%] lg:max-w-none shrink-0 space-y-4 h-fit">
+      {/* ═══════════ CONTENU (Filtres + Résultats) ═══════════ */}
+      <div className="max-w-[1400px] w-full mx-auto px-4 flex flex-col lg:flex-row gap-8 flex-grow mb-16 -mt-2">
+
+        {/* Filtres */}
+        <aside className="w-full lg:basis-[28%] lg:max-w-none shrink-0 space-y-4 h-fit lg:sticky lg:top-24">
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-gray-100 bg-gray-50/50 font-bold text-black text-sm">
+            <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white font-bold text-black text-sm flex items-center gap-2">
+              <span className="w-5 h-5 bg-green-100 rounded flex items-center justify-center text-green-700 text-[10px]">⚙</span>
               {t.home.dynamicFilters}
             </div>
 
             {searchMode === 'emploi' && (
-              <div className="p-4 space-y-6">
+              <div className="p-4 space-y-5">
                 <div className="flex justify-end">
-                  <button onClick={resetJobFilters} className="text-xs font-bold text-green-700 hover:underline">
-                    {t.home.resetFilters}
-                  </button>
+                  <button onClick={resetJobFilters} className="text-xs font-bold text-green-700 hover:underline">{t.home.resetFilters}</button>
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">{isEn ? 'Publication date' : 'Date de publication'}</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">{isEn ? 'Publication date' : 'Date de publication'}</h3>
                   <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={jobDate24h} onChange={() => setJobDate24h(!jobDate24h)} className="accent-green-600" />
-                      {isEn ? 'Less than 24h' : 'Moins de 24h'}
-                      <span className="ml-auto text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{countJob24h}</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={jobDate7j} onChange={() => setJobDate7j(!jobDate7j)} className="accent-green-600" />
-                      {isEn ? 'Less than 7 days' : 'Moins de 7 jours'}
-                      <span className="ml-auto text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{countJob7j}</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">{isEn ? 'Contract type' : 'Type de contrat'}</h3>
-                  <div className="space-y-2">
-                    {['CDI', 'CDD', 'Stage'].map((contrat) => (
-                      <label key={contrat} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={jobContrats.includes(contrat)}
-                          onChange={() => toggleInArray(contrat, jobContrats, setJobContrats)}
-                          className="accent-green-600"
-                        />
-                        {contrat}
-                        <span className="ml-auto text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                          {contrat === 'CDI' ? countCDI : contrat === 'CDD' ? countCDD : countStage}
-                        </span>
+                    {[
+                      { checked: jobDate24h, toggle: () => setJobDate24h(!jobDate24h), label: isEn ? 'Less than 24h' : 'Moins de 24h', count: countJob24h },
+                      { checked: jobDate7j, toggle: () => setJobDate7j(!jobDate7j), label: isEn ? 'Less than 7 days' : 'Moins de 7 jours', count: countJob7j },
+                    ].map((f) => (
+                      <label key={f.label} className="flex items-center gap-2 text-sm cursor-pointer group">
+                        <input type="checkbox" checked={f.checked} onChange={f.toggle} className="accent-green-600 w-4 h-4" />
+                        <span className="group-hover:text-green-700 transition">{f.label}</span>
+                        <span className="ml-auto text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{f.count}</span>
                       </label>
                     ))}
                   </div>
                 </div>
-
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">{isEn ? 'Work mode' : 'Mode de travail'}</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">{isEn ? 'Contract type' : 'Type de contrat'}</h3>
                   <div className="space-y-2">
-                    {['Sur site', 'Télétravail'].map((mode) => (
-                      <label key={mode} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={jobModes.includes(mode)}
-                          onChange={() => toggleInArray(mode, jobModes, setJobModes)}
-                          className="accent-green-600"
-                        />
-                        {mode === 'Sur site' ? (isEn ? 'On-site' : 'Sur site') : (isEn ? 'Remote' : 'Télétravail')}
-                        <span className="ml-auto text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-                          {mode === 'Sur site' ? countSurSite : countTeletravail}
-                        </span>
+                    {[{ v: 'CDI', count: countCDI }, { v: 'CDD', count: countCDD }, { v: 'Stage', count: countStage }].map(({ v, count }) => (
+                      <label key={v} className="flex items-center gap-2 text-sm cursor-pointer group">
+                        <input type="checkbox" checked={jobContrats.includes(v)} onChange={() => toggleInArray(v, jobContrats, setJobContrats)} className="accent-green-600 w-4 h-4" />
+                        <span className="group-hover:text-green-700 transition">{v}</span>
+                        <span className="ml-auto text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{count}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">{isEn ? 'Work mode' : 'Mode de travail'}</h3>
+                  <div className="space-y-2">
+                    {[
+                      { v: 'Sur site', label: isEn ? 'On-site' : 'Sur site', count: countSurSite },
+                      { v: 'Télétravail', label: isEn ? 'Remote' : 'Télétravail', count: countTeletravail },
+                    ].map(({ v, label, count }) => (
+                      <label key={v} className="flex items-center gap-2 text-sm cursor-pointer group">
+                        <input type="checkbox" checked={jobModes.includes(v)} onChange={() => toggleInArray(v, jobModes, setJobModes)} className="accent-green-600 w-4 h-4" />
+                        <span className="group-hover:text-green-700 transition">{label}</span>
+                        <span className="ml-auto text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{count}</span>
                       </label>
                     ))}
                   </div>
@@ -294,65 +245,41 @@ export default function Home() {
             )}
 
             {searchMode === 'artisan' && (
-              <div className="p-4 space-y-6">
+              <div className="p-4 space-y-5">
                 <div className="flex justify-end">
-                  <button onClick={resetArtisanFilters} className="text-xs font-bold text-green-700 hover:underline">
-                    {t.home.resetFilters}
-                  </button>
+                  <button onClick={resetArtisanFilters} className="text-xs font-bold text-green-700 hover:underline">{t.home.resetFilters}</button>
                 </div>
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">{isEn ? 'Minimum rating' : 'Note minimum'}</h3>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input type="checkbox" checked={artisanNote4} onChange={() => setArtisanNote4(!artisanNote4)} className="accent-green-600" />
-                    {isEn ? '⭐⭐⭐⭐ and above' : '⭐⭐⭐⭐ et plus'}
-                    <span className="ml-auto text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{countNote4}</span>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">{isEn ? 'Minimum rating' : 'Note minimum'}</h3>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={artisanNote4} onChange={() => setArtisanNote4(!artisanNote4)} className="accent-green-600 w-4 h-4" />
+                    {isEn ? '4+ stars' : '4+ étoiles'}
+                    <span className="ml-auto text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{countNote4}</span>
                   </label>
                 </div>
-
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">{isEn ? 'Availability' : 'Disponibilité'}</h3>
-                  <label className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={artisanDispoImmediate}
-                      onChange={() => setArtisanDispoImmediate(!artisanDispoImmediate)}
-                      className="accent-green-600"
-                    />
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">{isEn ? 'Availability' : 'Disponibilité'}</h3>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={artisanDispoImmediate} onChange={() => setArtisanDispoImmediate(!artisanDispoImmediate)} className="accent-green-600 w-4 h-4" />
                     {isEn ? 'Urgent / Immediate' : 'Urgente / Immédiate'}
-                    <span className="ml-auto text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{countUrgentImmediate}</span>
+                    <span className="ml-auto text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{countUrgentImmediate}</span>
                   </label>
                 </div>
-
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-500 mb-3">{isEn ? 'Verified profile' : 'Profil vérifié'}</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400 mb-3">{isEn ? 'Verified profile' : 'Profil vérifié'}</h3>
                   <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="artisan-verifie"
-                        checked={artisanVerifie === true}
-                        onChange={() => setArtisanVerifie(true)}
-                        className="accent-green-600"
-                      />
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="radio" name="verifie" checked={artisanVerifie === true} onChange={() => setArtisanVerifie(true)} className="accent-green-600" />
                       {isEn ? 'Yes' : 'Oui'}
-                      <span className="ml-auto text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{countVerifieOui}</span>
+                      <span className="ml-auto text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{countVerifieOui}</span>
                     </label>
-                    <label className="flex items-center gap-2 text-sm">
-                      <input
-                        type="radio"
-                        name="artisan-verifie"
-                        checked={artisanVerifie === false}
-                        onChange={() => setArtisanVerifie(false)}
-                        className="accent-green-600"
-                      />
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="radio" name="verifie" checked={artisanVerifie === false} onChange={() => setArtisanVerifie(false)} className="accent-green-600" />
                       {isEn ? 'No' : 'Non'}
-                      <span className="ml-auto text-xs font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{countVerifieNon}</span>
+                      <span className="ml-auto text-xs font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{countVerifieNon}</span>
                     </label>
-                    <button
-                      onClick={() => setArtisanVerifie(null)}
-                      className="text-xs font-bold text-green-700 hover:underline mt-1"
-                    >
-                      {isEn ? 'Reset this filter' : 'Réinitialiser ce filtre'}
+                    <button onClick={() => setArtisanVerifie(null)} className="text-xs font-bold text-green-700 hover:underline mt-1">
+                      {isEn ? 'Reset' : 'Réinitialiser'}
                     </button>
                   </div>
                 </div>
@@ -361,130 +288,187 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* Colonne droite 70%: résultats */}
-        <section className="w-full lg:basis-[70%]">
+        {/* Résultats */}
+        <section className="w-full lg:basis-[72%]">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-[15px] text-gray-700 font-medium">
-              <span className="font-bold text-gray-900">{resultats.length} {isEn ? 'results' : 'résultats'}</span> {isEn ? 'for' : 'pour'} « {searchMode === 'emploi' ? (isEn ? 'Jobs' : 'Emplois') : (isEn ? 'Artisans' : 'Artisans')} »
+            <h2 className="text-[15px] text-gray-600 font-medium">
+              <span className="font-extrabold text-gray-900">{resultats.length}</span> {isEn ? 'results' : 'résultats'}
             </h2>
           </div>
 
-          {searchMode === 'emploi' && (
+          {/* Liste emplois */}
+          {searchMode === 'emploi' && emploisFiltres.length > 0 && (
             <div className="space-y-3">
               {emploisFiltres.map((job) => (
-                <div key={job.id} className="space-y-2">
-                  <Link href={localizePath(`/annonce/${job.id}`)} className="block">
-                    <article className="bg-white p-5 rounded-xl border border-gray-200 hover:border-green-600 transition">
-                      <h3 className="text-lg font-bold text-black mb-1">{job.titre}</h3>
-                      <div className="text-sm text-gray-700 font-medium flex flex-wrap gap-x-3 gap-y-1">
-                        <span>{job.entreprise}</span>
-                        <span>•</span>
-                        <span>{job.lieu}</span>
-                        <span>•</span>
-                        <span>{job.temps}</span>
+                <Link key={job.id} href={localizePath(`/annonce/${job.id}`)} className="block group">
+                  <article className="bg-white p-5 rounded-2xl border border-gray-200 hover:border-green-500 hover:shadow-lg hover:shadow-green-50 transition-all duration-200">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-bold text-black mb-1 group-hover:text-green-700 transition">{job.titre}</h3>
+                        <div className="text-sm text-gray-600 font-medium flex flex-wrap items-center gap-x-3 gap-y-1">
+                          <span className="flex items-center gap-1">🏢 {job.entreprise}</span>
+                          <span className="text-gray-300">•</span>
+                          <span className="flex items-center gap-1">📍 {job.lieu}</span>
+                          <span className="text-gray-300">•</span>
+                          <span className="text-gray-400">{job.temps}</span>
+                        </div>
                       </div>
-                      <div className="mt-3 text-sm font-extrabold text-green-700">
-                        {isEn ? 'View ad →' : 'Voir l offre →'}
-                      </div>
-                    </article>
-                  </Link>
-                </div>
+                      <span className="text-green-600 font-bold text-sm opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
+                        {isEn ? 'View →' : 'Voir →'}
+                      </span>
+                    </div>
+                  </article>
+                </Link>
               ))}
             </div>
           )}
 
-          {searchMode === 'artisan' && (
+          {/* Grille artisans */}
+          {searchMode === 'artisan' && artisansFiltres.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {artisansFiltres.map((artisan) => (
-                <div key={artisan.id} className="space-y-2">
-                  <Link href={localizePath(`/artisan/${artisan.id}`)} className="block">
-                    <article className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-green-600 transition">
-                      <div className="h-36 bg-green-50 border-b border-green-100 flex items-center justify-center text-4xl">
-                        {artisan.image}
+                <Link key={artisan.id} href={localizePath(`/artisan/${artisan.id}`)} className="block group">
+                  <article className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:border-green-500 hover:shadow-lg hover:shadow-green-50 transition-all duration-200">
+                    <div className="h-36 bg-gradient-to-br from-green-50 to-emerald-100 border-b border-green-100 flex items-center justify-center text-4xl">
+                      {artisan.image}
+                    </div>
+                    <div className="p-4">
+                      <div className="flex justify-between items-start gap-3 mb-2">
+                        <h3 className="text-base font-bold text-black leading-tight group-hover:text-green-700 transition">{artisan.titre}</h3>
+                        <span className="text-sm font-extrabold text-amber-500">⭐ {artisan.note.toFixed(1)}</span>
                       </div>
-
-                      <div className="p-4">
-                        <div className="flex justify-between items-start gap-3 mb-2">
-                          <h3 className="text-base font-bold text-black leading-tight">{artisan.titre}</h3>
-                          <span className="text-sm font-extrabold text-amber-500">⭐ {artisan.note.toFixed(1)}</span>
-                        </div>
-
-                        <p className="text-sm text-gray-700 font-medium mb-1">{artisan.entreprise}</p>
-                        <p className="text-sm text-gray-500 mb-3">{artisan.lieu}</p>
-
-                        <div className="flex items-center justify-between text-xs font-bold">
-                          <span className="text-green-700 bg-green-50 border border-green-100 px-2 py-1 rounded-full">
-                            {artisan.disponibilite}
-                          </span>
-                          <span className={artisan.verifie ? 'text-blue-700' : 'text-gray-400'}>
-                            {artisan.verifie ? (isEn ? 'Verified profile' : 'Profil vérifié') : (isEn ? 'Not verified' : 'Non vérifié')}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-3">{artisan.temps}</p>
-                        <p className="text-sm font-extrabold text-green-700 mt-2">{isEn ? 'View profile →' : 'Voir le profil →'}</p>
+                      <p className="text-sm text-gray-600 font-medium mb-1">{artisan.entreprise}</p>
+                      <p className="text-sm text-gray-400 mb-3">{artisan.lieu}</p>
+                      <div className="flex items-center justify-between text-xs font-bold">
+                        <span className="text-green-700 bg-green-50 border border-green-100 px-2.5 py-1 rounded-full">{artisan.disponibilite}</span>
+                        <span className={artisan.verifie ? 'text-blue-700' : 'text-gray-400'}>
+                          {artisan.verifie ? (isEn ? '✓ Verified' : '✓ Vérifié') : (isEn ? 'Not verified' : 'Non vérifié')}
+                        </span>
                       </div>
-                    </article>
-                  </Link>
-                </div>
+                    </div>
+                  </article>
+                </Link>
               ))}
             </div>
           )}
 
+          {/* Loading */}
           {jobsLoading && resultats.length === 0 && (
-            <div className="bg-white p-8 rounded-xl border border-gray-200 text-center text-gray-500 font-medium">
-              {isEn ? 'Loading...' : 'Chargement...'}
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-10 h-10 border-4 border-green-200 border-t-green-600 rounded-full animate-spin mb-4"></div>
+              <p className="text-gray-500 font-medium">{isEn ? 'Loading...' : 'Chargement...'}</p>
             </div>
           )}
 
+          {/* Empty — Emplois */}
           {!jobsLoading && resultats.length === 0 && searchMode === 'emploi' && (
-            <div className="bg-white p-10 rounded-xl border border-gray-200 text-center">
-              <p className="text-4xl mb-4">📋</p>
-              <h4 className="font-bold text-black text-[15px] mb-2">{isEn ? 'No offers available yet' : 'Aucune offre disponible pour le moment'}</h4>
-              <p className="text-sm text-gray-500 font-medium">
+            <div className="flex flex-col items-center justify-center py-20 px-8">
+              <div className="w-20 h-20 bg-green-50 rounded-2xl flex items-center justify-center text-4xl mb-6">📋</div>
+              <h4 className="font-bold text-black text-xl mb-2 text-center">
+                {isEn ? 'No offers available yet' : 'Aucune offre disponible pour le moment'}
+              </h4>
+              <p className="text-gray-500 font-medium text-center max-w-md">
                 {isEn
-                  ? 'New job listings will appear here as they are published and approved.'
-                  : 'Les nouvelles offres apparaitront ici au fur et a mesure de leur publication et validation.'}
+                  ? 'New job listings will appear here as they are published and approved by our team.'
+                  : 'Les nouvelles offres apparaîtront ici au fur et à mesure de leur publication et validation par notre équipe.'}
               </p>
+              <Link href={localizePath('/connexion')} className="mt-6 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 transition text-sm">
+                {isEn ? 'Create an account to get notified' : 'Créer un compte pour être notifié'}
+              </Link>
             </div>
           )}
 
+          {/* Empty — Artisans */}
           {!jobsLoading && resultats.length === 0 && searchMode === 'artisan' && (
-            <div className="bg-white p-10 rounded-xl border border-gray-200 text-center">
-              <p className="text-4xl mb-4">🛠️</p>
-              <h4 className="font-bold text-black text-[15px] mb-2">{isEn ? 'No artisans available yet' : 'Aucun artisan disponible pour le moment'}</h4>
-              <p className="text-sm text-gray-500 font-medium">
+            <div className="flex flex-col items-center justify-center py-20 px-8">
+              <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center text-4xl mb-6">🛠️</div>
+              <h4 className="font-bold text-black text-xl mb-2 text-center">
+                {isEn ? 'No artisans available yet' : 'Aucun artisan disponible pour le moment'}
+              </h4>
+              <p className="text-gray-500 font-medium text-center max-w-md">
                 {isEn
-                  ? 'Artisan profiles will appear here once registered on the platform.'
-                  : 'Les profils artisans apparaitront ici une fois inscrits sur la plateforme.'}
+                  ? 'Artisan profiles will appear here once registered and verified on the platform.'
+                  : 'Les profils artisans apparaîtront ici une fois inscrits et vérifiés sur la plateforme.'}
               </p>
+              <Link href={localizePath('/connexion')} className="mt-6 bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-green-700 transition text-sm">
+                {isEn ? 'Register as an artisan' : 'S\'inscrire comme artisan'}
+              </Link>
             </div>
           )}
         </section>
-
       </div>
 
-      {/* FAQ UNIQUEMENT ICI */}
-      <div className="max-w-[1400px] w-full mx-auto px-4 mb-16">
-        <div className="bg-[#fdfaf6] border border-[#e8e3d8] rounded-2xl p-8">
-          <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center gap-2">
-            ❓ {isEn ? 'Frequently asked questions' : 'Foire aux questions'}
+      {/* ═══════════ POURQUOI 237JOBS ═══════════ */}
+      <section className="bg-gradient-to-b from-white to-gray-50 py-20 border-t border-gray-100">
+        <div className="max-w-[1400px] mx-auto px-4">
+          <h2 className="text-3xl font-extrabold text-center mb-3 tracking-tight">
+            {isEn ? 'Why choose' : 'Pourquoi choisir'}{' '}
+            <span className="text-green-600">237jobs</span> ?
           </h2>
-          <div className="space-y-6 text-sm">
-            <div>
-              <h3 className="font-bold text-gray-900 mb-1">
-                {isEn
-                  ? 'How many job opportunities are currently open in Cameroon?'
-                  : 'Combien d offres d emploi sont actuellement ouvertes au Cameroun ?'}
-              </h3>
-              <p className="text-gray-700">
-                {isEn
-                  ? 'Currently, 237jobs lists new opportunities across multiple sectors and profile types. Check back soon!'
-                  : 'Actuellement, 237jobs propose de nouvelles offres dans plusieurs secteurs. Revenez bientot !'}
-              </p>
-            </div>
+          <p className="text-center text-gray-500 font-medium mb-12 max-w-xl mx-auto">
+            {isEn
+              ? 'A platform built by Cameroonians, for Cameroonians.'
+              : 'Une plateforme créée par des Camerounais, pour les Camerounais.'}
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: '🔒', bg: 'bg-green-100',
+                title: isEn ? 'Anti-fraud protection' : 'Protection anti-fraude',
+                desc: isEn
+                  ? 'Every listing is moderated. Suspicious profiles are automatically flagged and hidden.'
+                  : 'Chaque annonce est modérée. Les profils suspects sont automatiquement signalés et masqués.',
+              },
+              {
+                icon: '🌍', bg: 'bg-blue-100',
+                title: isEn ? 'All 10 regions' : 'Les 10 régions',
+                desc: isEn
+                  ? 'Find opportunities near you — Douala, Yaoundé, Bafoussam, Bamenda, and beyond.'
+                  : 'Trouvez des opportunités près de chez vous — Douala, Yaoundé, Bafoussam, Bamenda et au-delà.',
+              },
+              {
+                icon: '⚡', bg: 'bg-amber-100',
+                title: isEn ? 'Jobs + Artisans' : 'Emplois + Artisans',
+                desc: isEn
+                  ? 'The only platform combining formal job offers and skilled artisan services in one place.'
+                  : 'La seule plateforme combinant offres d\'emploi formelles et services d\'artisans qualifiés.',
+              },
+            ].map((card) => (
+              <div key={card.title} className="bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl hover:shadow-gray-100/80 transition-all duration-300 group">
+                <div className={`w-14 h-14 ${card.bg} rounded-2xl flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform`}>
+                  {card.icon}
+                </div>
+                <h3 className="font-bold text-lg text-black mb-2">{card.title}</h3>
+                <p className="text-gray-500 text-sm leading-relaxed font-medium">{card.desc}</p>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      </section>
+
+      {/* ═══════════ CTA ═══════════ */}
+      <section className="bg-green-600 py-16 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+        <div className="relative max-w-3xl mx-auto px-4 text-center">
+          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4 tracking-tight">
+            {isEn ? 'Ready to get started?' : 'Prêt à commencer ?'}
+          </h2>
+          <p className="text-green-100 font-medium text-lg mb-8 max-w-xl mx-auto">
+            {isEn
+              ? 'Create your free account in 2 minutes and access all opportunities.'
+              : 'Créez votre compte gratuit en 2 minutes et accédez à toutes les opportunités.'}
+          </p>
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link href={localizePath('/connexion')} className="bg-white text-green-700 px-8 py-4 rounded-xl font-bold text-[15px] hover:bg-green-50 transition shadow-lg">
+              {isEn ? 'Create my account' : 'Créer mon compte'}
+            </Link>
+            <Link href={localizePath('/publier')} className="border-2 border-white text-white px-8 py-4 rounded-xl font-bold text-[15px] hover:bg-white/10 transition">
+              {isEn ? 'Post a job listing' : 'Publier une annonce'}
+            </Link>
+          </div>
+        </div>
+      </section>
 
       <Footer />
     </div>

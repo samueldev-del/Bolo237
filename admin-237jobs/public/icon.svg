@@ -1,4 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
-  <rect x="2" y="2" width="44" height="44" rx="10" ry="10" fill="#16a34a"/>
-  <text x="24" y="30" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="bold" fill="#ffffff" text-anchor="middle">237</text>
+  <defs>
+    <linearGradient id="iconGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#15803d;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Carré arrondi avec dégradé -->
+  <rect x="2" y="2" width="44" height="44" rx="12" ry="12" fill="url(#iconGrad)"/>
+  <!-- 237 centré -->
+  <text x="24" y="30.5" font-family="'Inter', 'SF Pro Display', -apple-system, system-ui, Arial, sans-serif" font-size="19" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="-0.5">237</text>
 </svg>

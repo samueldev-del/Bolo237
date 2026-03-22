@@ -15,7 +15,14 @@ const app = express();
 
 // --- Middleware ---
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://237jobs.vercel.app',
+    'https://admin-237jobs.vercel.app',
+    // Vercel preview URLs
+    /https:\/\/.*\.vercel\.app$/,
+  ],
 }));
 app.use(express.json());
 

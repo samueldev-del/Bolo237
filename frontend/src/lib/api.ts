@@ -173,6 +173,34 @@ export async function fetchAdminStats(): Promise<AdminStats> {
   return apiFetch<AdminStats>('/api/admin/stats');
 }
 
+// ── OTP (Verification telephone) ─────────────────────────────────
+
+export type OtpSendResponse = {
+  message: string;
+  demoCode?: string; // uniquement en dev
+  expiresIn: string;
+};
+
+export type OtpVerifyResponse = {
+  verified: boolean;
+  message?: string;
+  error?: string;
+};
+
+export async function sendOtp(phone: string): Promise<OtpSendResponse> {
+  return apiFetch<OtpSendResponse>('/api/otp/send', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function verifyOtp(phone: string, code: string): Promise<OtpVerifyResponse> {
+  return apiFetch<OtpVerifyResponse>('/api/otp/verify', {
+    method: 'POST',
+    body: JSON.stringify({ phone, code }),
+  });
+}
+
 // ── Health ───────────────────────────────────────────────────────
 
 export async function checkHealth(): Promise<{ status: string; timestamp: string }> {

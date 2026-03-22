@@ -338,6 +338,96 @@ app.get('/api/admin/stats', async (req, res) => {
   }
 });
 
+// =============================================
+// ROUTES: OTP (Verification telephone)
+// =============================================
+
+// Stockage en memoire des codes OTP (en prod : Redis ou DB)
+const otpStore = new Map(); // phone -> { code, expiresAt }
+const MASTER_OTP = process.env.MASTER_OTP || '0000';
+
+// POST /api/otp/send — Envoyer un code OTP
+app.post('/api/otp/send', (req, res) => {
+  try {
+    const { phone } = req.body;
+
+    if (!phone || typeof phone !== 'string') {
+      return res.status(400).json({ error: 'Numero de telephone requis.' });
+    }
+
+    // Nettoyer le numero (garder uniquement les chiffres)
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length < 9) {
+      return res.status(400).json({ error: 'Numero de telephone invalide.' });
+    }
+
+    // Generer un code 6 chiffres
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+    otpStore.set(cleanPhone, { code, expiresAt });
+
+    // En production, ici on enverrait le SMS via Twilio/Africa's Talking/etc.
+    // Pour le dev/test, on affiche le code dans les logs serveur
+    console.log(`[OTP] Code pour ${cleanPhone}: ${code} (ou utilisez le code maitre: ${MASTER_OTP})`);
+
+    res.json({
+      message: 'Code OTP envoye avec succes.',
+      // En dev, on renvoie le code pour faciliter les tests
+      ...(process.env.NODE_ENV !== 'production' && { demoCode: code }),
+      expiresIn: '10 minutes',
+    });
+  } catch (error) {
+    console.error('POST /api/otp/send error:', error);
+    res.status(500).json({ error: "Erreur lors de l'envoi du code OTP." });
+  }
+});
+
+// POST /api/otp/verify — Verifier un code OTP
+app.post('/api/otp/verify', (req, res) => {
+  try {
+    const { phone, code } = req.body;
+
+    if (!phone || !code) {
+      return res.status(400).json({ error: 'Telephone et code requis.' });
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    const userCode = String(code).trim();
+
+    // ★ Code maitre : toujours accepte (pour les tests)
+    if (userCode === MASTER_OTP) {
+      console.log(`[OTP] Code maitre utilise pour ${cleanPhone}`);
+      otpStore.delete(cleanPhone); // Nettoyer si un vrai code existait
+      return res.json({ verified: true, message: 'Telephone verifie avec succes.' });
+    }
+
+    // Verifier le vrai code
+    const stored = otpStore.get(cleanPhone);
+
+    if (!stored) {
+      return res.status(400).json({ verified: false, error: 'Aucun code envoye pour ce numero. Renvoyez un code.' });
+    }
+
+    if (Date.now() > stored.expiresAt) {
+      otpStore.delete(cleanPhone);
+      return res.status(400).json({ verified: false, error: 'Code expire. Renvoyez un nouveau code.' });
+    }
+
+    if (stored.code !== userCode) {
+      return res.status(400).json({ verified: false, error: 'Code incorrect.' });
+    }
+
+    // Code correct !
+    otpStore.delete(cleanPhone);
+    console.log(`[OTP] Telephone ${cleanPhone} verifie avec succes.`);
+    res.json({ verified: true, message: 'Telephone verifie avec succes.' });
+  } catch (error) {
+    console.error('POST /api/otp/verify error:', error);
+    res.status(500).json({ error: 'Erreur lors de la verification.' });
+  }
+});
+
 // --- Health check ---
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

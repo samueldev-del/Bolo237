@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
-import { getOtpDemoCode } from '@/lib/trustShield';
+import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
 
 type Role = 'chercheur' | 'entreprise' | 'artisan';
 
@@ -72,26 +72,50 @@ export default function Connexion() {
     router.push(getDashboardRoute(role));
   };
 
-  const sendOtp = () => {
+  const sendOtp = async () => {
     if (!phone.trim()) {
       setAuthError(isEn ? 'Enter a valid phone number first.' : 'Saisissez d abord un numero de telephone valide.');
       return;
     }
-    const code = getOtpDemoCode();
-    setOtpCode(code);
-    setOtpSent(true);
-    setOtpVerified(false);
     setAuthError('');
+    try {
+      const res = await apiSendOtp(phone);
+      // En dev, le backend renvoie le code pour faciliter les tests
+      if (res.demoCode) {
+        setOtpCode(res.demoCode);
+      } else {
+        setOtpCode('');
+      }
+      setOtpSent(true);
+      setOtpVerified(false);
+    } catch {
+      // Fallback local si le backend est injoignable
+      const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
+      setOtpCode(fallbackCode);
+      setOtpSent(true);
+      setOtpVerified(false);
+    }
   };
 
-  const verifyOtp = () => {
-    if (otpInput.trim() === otpCode) {
-      setOtpVerified(true);
-      setAuthError('');
-      return;
+  const verifyOtp = async () => {
+    setAuthError('');
+    try {
+      const res = await apiVerifyOtp(phone, otpInput.trim());
+      if (res.verified) {
+        setOtpVerified(true);
+      } else {
+        setOtpVerified(false);
+        setAuthError(res.error || (isEn ? 'Invalid OTP code.' : 'Code OTP invalide.'));
+      }
+    } catch {
+      // Fallback local : comparer au code affiché
+      if (otpInput.trim() === otpCode) {
+        setOtpVerified(true);
+      } else {
+        setOtpVerified(false);
+        setAuthError(isEn ? 'Invalid OTP code.' : 'Code OTP invalide.');
+      }
     }
-    setOtpVerified(false);
-    setAuthError(isEn ? 'Invalid OTP code.' : 'Code OTP invalide.');
   };
 
   return (

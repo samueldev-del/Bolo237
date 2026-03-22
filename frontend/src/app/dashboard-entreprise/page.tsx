@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications, getOtpDemoCode } from '@/lib/trustShield';
+import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
+import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
 
 export default function DashboardEntreprise() {
   const { locale, localizePath } = useLocale();
@@ -25,26 +26,45 @@ export default function DashboardEntreprise() {
 
   const isRecruiterVerified = niu.trim().length > 4 || rccm.trim().length > 4;
 
-  const sendOtp = () => {
+  const sendOtp = async () => {
     if (!phone.trim()) {
       setPublishMessage(isEn ? 'Enter a valid phone number before sending OTP.' : 'Saisissez un numero de telephone valide avant l envoi OTP.');
       return;
     }
-    const code = getOtpDemoCode();
-    setOtpCode(code);
-    setOtpSent(true);
-    setOtpVerified(false);
     setPublishMessage('');
+    try {
+      const res = await apiSendOtp(phone);
+      setOtpCode(res.demoCode || '');
+      setOtpSent(true);
+      setOtpVerified(false);
+    } catch {
+      const fallback = String(Math.floor(100000 + Math.random() * 900000));
+      setOtpCode(fallback);
+      setOtpSent(true);
+      setOtpVerified(false);
+    }
   };
 
-  const verifyOtp = () => {
-    if (otpInput.trim() === otpCode) {
-      setOtpVerified(true);
-      setPublishMessage(isEn ? 'Phone verified successfully.' : 'Numero de telephone verifie avec succes.');
-      return;
+  const verifyOtp = async () => {
+    setPublishMessage('');
+    try {
+      const res = await apiVerifyOtp(phone, otpInput.trim());
+      if (res.verified) {
+        setOtpVerified(true);
+        setPublishMessage(isEn ? 'Phone verified successfully.' : 'Numero de telephone verifie avec succes.');
+      } else {
+        setOtpVerified(false);
+        setPublishMessage(res.error || (isEn ? 'Invalid OTP code.' : 'Code OTP invalide.'));
+      }
+    } catch {
+      if (otpInput.trim() === otpCode) {
+        setOtpVerified(true);
+        setPublishMessage(isEn ? 'Phone verified successfully.' : 'Numero de telephone verifie avec succes.');
+      } else {
+        setOtpVerified(false);
+        setPublishMessage(isEn ? 'Invalid OTP code.' : 'Code OTP invalide.');
+      }
     }
-    setOtpVerified(false);
-    setPublishMessage(isEn ? 'Invalid OTP code.' : 'Code OTP invalide.');
   };
 
   const publishJob = () => {

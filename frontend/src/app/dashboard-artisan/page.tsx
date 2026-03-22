@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { getModerationStatusForFirstPublications, getOtpDemoCode } from '@/lib/trustShield';
+import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
+import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
 
 export default function DashboardArtisan() {
   const { locale, localizePath } = useLocale();
@@ -24,26 +25,45 @@ export default function DashboardArtisan() {
 
   const isArtisanVerified = otpVerified && idFrontUploaded && idBackUploaded && selfieVideoUploaded;
 
-  const sendOtp = () => {
+  const sendOtp = async () => {
     if (!phone.trim()) {
       setVerificationMessage(isEn ? 'Enter phone number first.' : 'Saisissez d abord le numero de telephone.');
       return;
     }
-    const code = getOtpDemoCode();
-    setOtpCode(code);
-    setOtpSent(true);
-    setOtpVerified(false);
     setVerificationMessage('');
+    try {
+      const res = await apiSendOtp(phone);
+      setOtpCode(res.demoCode || '');
+      setOtpSent(true);
+      setOtpVerified(false);
+    } catch {
+      const fallback = String(Math.floor(100000 + Math.random() * 900000));
+      setOtpCode(fallback);
+      setOtpSent(true);
+      setOtpVerified(false);
+    }
   };
 
-  const verifyOtp = () => {
-    if (otpInput.trim() === otpCode) {
-      setOtpVerified(true);
-      setVerificationMessage(isEn ? 'Phone verified.' : 'Numero verifie.');
-      return;
+  const verifyOtp = async () => {
+    setVerificationMessage('');
+    try {
+      const res = await apiVerifyOtp(phone, otpInput.trim());
+      if (res.verified) {
+        setOtpVerified(true);
+        setVerificationMessage(isEn ? 'Phone verified.' : 'Numero verifie.');
+      } else {
+        setOtpVerified(false);
+        setVerificationMessage(res.error || (isEn ? 'Invalid OTP.' : 'OTP invalide.'));
+      }
+    } catch {
+      if (otpInput.trim() === otpCode) {
+        setOtpVerified(true);
+        setVerificationMessage(isEn ? 'Phone verified.' : 'Numero verifie.');
+      } else {
+        setOtpVerified(false);
+        setVerificationMessage(isEn ? 'Invalid OTP.' : 'OTP invalide.');
+      }
     }
-    setOtpVerified(false);
-    setVerificationMessage(isEn ? 'Invalid OTP.' : 'OTP invalide.');
   };
 
   const publishServiceNeed = () => {

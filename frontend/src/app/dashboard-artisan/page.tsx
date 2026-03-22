@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Footer from '@/components/Footer';
@@ -90,18 +90,28 @@ export default function DashboardArtisan() {
   const isEn = locale === 'en';
 
   /* ---------- user info from localStorage ---------- */
-  const [userName, setUserName] = useState('');
-  const [userSpecialty, setUserSpecialty] = useState('');
-  useEffect(() => {
+  const [userName] = useState(() => {
+    if (typeof window === 'undefined') return '';
     try {
       const raw = localStorage.getItem('237jobs-user');
-      if (raw) {
-        const u = JSON.parse(raw);
-        setUserName(u.name || u.fullName || '');
-        setUserSpecialty(u.specialty || u.metier || '');
-      }
-    } catch { /* ignore */ }
-  }, []);
+      if (!raw) return '';
+      const u = JSON.parse(raw);
+      return u.name || u.fullName || '';
+    } catch {
+      return '';
+    }
+  });
+  const [userSpecialty] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const raw = localStorage.getItem('237jobs-user');
+      if (!raw) return '';
+      const u = JSON.parse(raw);
+      return u.specialty || u.metier || '';
+    } catch {
+      return '';
+    }
+  });
 
   /* ---------- state ---------- */
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -121,7 +131,6 @@ export default function DashboardArtisan() {
   const [servicesPostedCount, setServicesPostedCount] = useState(0);
   const [verificationMessage, setVerificationMessage] = useState('');
   const [showVerification, setShowVerification] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('not_submitted');
 
   /* service form */
   const [showServiceForm, setShowServiceForm] = useState(false);
@@ -144,9 +153,9 @@ export default function DashboardArtisan() {
   const completedSteps = verificationSteps.filter(Boolean).length;
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
 
-  useEffect(() => {
-    if (!accountKey) return;
-    setVerificationStatus(getVerificationStatus('artisan', accountKey));
+  const verificationStatus: VerificationStatus = useMemo(() => {
+    if (!accountKey) return 'not_submitted';
+    return getVerificationStatus('artisan', accountKey);
   }, [accountKey]);
 
   /* ---------- OTP handlers ---------- */
@@ -263,7 +272,6 @@ export default function DashboardArtisan() {
       },
     });
 
-    setVerificationStatus('pending');
     setVerificationMessage(
       isEn
         ? 'Verification request submitted. Waiting for Super Admin review.'
@@ -274,12 +282,6 @@ export default function DashboardArtisan() {
   /* ---------------------------------------------------------------- */
   /*  Sync mobile tab -> desktop tab                                   */
   /* ---------------------------------------------------------------- */
-  useEffect(() => {
-    if (mobileTab === 'portfolio') setActiveTab('portfolio');
-    if (mobileTab === 'services') setActiveTab('services');
-    if (mobileTab === 'annonces') setActiveTab('annonces');
-  }, [mobileTab]);
-
   /* ================================================================ */
   /*  RENDER                                                           */
   /* ================================================================ */
@@ -766,7 +768,7 @@ export default function DashboardArtisan() {
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {portfolioImages.map((img, i) => (
                       <div key={i} className="relative group aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                        <img src={img.url} alt={img.name} className="w-full h-full object-cover" />
+                        <Image src={img.url} alt={img.name} fill unoptimized className="object-cover" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
                           <span className="text-white text-xs font-semibold truncate">{img.name}</span>
                         </div>
@@ -984,6 +986,9 @@ export default function DashboardArtisan() {
                 key={item.key}
                 onClick={() => {
                   setMobileTab(item.key);
+                  if (item.key === 'portfolio' || item.key === 'services' || item.key === 'annonces') {
+                    setActiveTab(item.key);
+                  }
                   if (item.key === 'home') {
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }

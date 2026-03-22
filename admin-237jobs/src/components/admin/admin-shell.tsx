@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Bell,
-  BriefcaseBusiness,
   CircleStop,
   FileText,
   Flag,
@@ -16,6 +15,7 @@ import {
   ShieldCheck,
   Users,
   X,
+  LayoutDashboard,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -30,6 +30,12 @@ type NavItem = {
   label: string;
   icon: ReactNode;
   badge?: string;
+};
+
+const dashboardItem: NavItem = {
+  href: "/",
+  label: "Tableau de bord",
+  icon: <LayoutDashboard className="h-4 w-4" />,
 };
 
 const moderationItems: NavItem[] = [
@@ -61,9 +67,8 @@ const userItems: NavItem[] = [
 const alertItems: NavItem[] = [
   {
     href: "/alertes/signalements",
-    label: "Signalements 🚩",
+    label: "Signalements",
     icon: <Flag className="h-4 w-4" />,
-    // badge sera dynamique via l'API
   },
 ];
 
@@ -87,14 +92,14 @@ function SidebarLink({
         isActive
           ? isAlert
             ? "bg-red-500/20 text-red-100"
-            : "bg-zinc-800/80 text-zinc-100"
+            : "bg-white/15 text-white shadow-sm"
           : isAlert
             ? "bg-red-500/10 text-red-200 hover:bg-red-500/20"
-            : "text-zinc-300 hover:bg-zinc-800/80 hover:text-white"
+            : "text-green-100/80 hover:bg-white/10 hover:text-white"
       }`}
     >
       <span className="flex items-center gap-3">
-        <span className="text-zinc-300">{item.icon}</span>
+        <span className={isActive ? "text-green-300" : "text-green-300/60"}>{item.icon}</span>
         {item.label}
       </span>
       {item.badge ? (
@@ -115,7 +120,7 @@ export default function AdminShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_20%_10%,#f7fbff,transparent_28%),radial-gradient(circle_at_80%_0%,#eef3ff,transparent_35%),#edf1f7] p-3 sm:p-4">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4">
       {mobileNavOpen ? (
         <button
           aria-label="Fermer le menu"
@@ -126,20 +131,20 @@ export default function AdminShell({
 
       <div className="relative z-50 mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] grid-cols-1 overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgba(22,34,51,0.16)] lg:grid-cols-[310px_1fr]">
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-[310px] max-w-[86vw] transform bg-gradient-to-b from-zinc-950 to-zinc-900 text-zinc-100 transition duration-300 lg:static lg:w-auto lg:max-w-none lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-50 w-[310px] max-w-[86vw] transform bg-gradient-to-b from-green-800 to-green-900 text-white transition duration-300 lg:static lg:w-auto lg:max-w-none lg:translate-x-0 ${
             mobileNavOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-6 lg:justify-start">
-            <div className="inline-flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-800/70 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-green-700/50 px-6 py-6 lg:justify-start">
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-green-600/40 bg-green-700/40 px-4 py-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-white.svg" alt="237jobs" className="h-7 w-auto" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 border-l border-zinc-600 pl-3">Admin</span>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-green-200 border-l border-green-500/50 pl-3">Admin</span>
             </div>
 
             <button
               aria-label="Fermer la navigation"
-              className="rounded-lg p-2 text-zinc-300 transition hover:bg-zinc-800 lg:hidden"
+              className="rounded-lg p-2 text-green-200 transition hover:bg-green-700 lg:hidden"
               onClick={() => setMobileNavOpen(false)}
             >
               <X className="h-5 w-5" />
@@ -147,8 +152,17 @@ export default function AdminShell({
           </div>
 
           <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-6">
+            {/* Dashboard link */}
             <div className="space-y-2">
-              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              <SidebarLink
+                item={dashboardItem}
+                pathname={pathname}
+                onNavigate={() => setMobileNavOpen(false)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-green-400/70">
                 Moderation
               </p>
               {moderationItems.map((item) => (
@@ -162,7 +176,7 @@ export default function AdminShell({
             </div>
 
             <div className="space-y-2">
-              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-green-400/70">
                 Utilisateurs
               </p>
               {userItems.map((item) => (
@@ -176,7 +190,7 @@ export default function AdminShell({
             </div>
 
             <div className="space-y-2">
-              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-green-400/70">
                 Alertes
               </p>
               {alertItems.map((item) => (
@@ -190,17 +204,17 @@ export default function AdminShell({
             </div>
           </nav>
 
-          <div className="space-y-2 border-t border-zinc-800 px-4 py-5">
+          <div className="space-y-2 border-t border-green-700/50 px-4 py-5">
             <Link
               href="/parametres"
               onClick={() => setMobileNavOpen(false)}
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
                 pathname === "/parametres"
-                  ? "bg-zinc-800/80 text-zinc-100"
-                  : "text-zinc-300 hover:bg-zinc-800/80 hover:text-white"
+                  ? "bg-white/15 text-white"
+                  : "text-green-100/80 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <Settings className="h-4 w-4 text-zinc-300" />
+              <Settings className="h-4 w-4 text-green-300/60" />
               Parametres
             </Link>
             <Link
@@ -208,11 +222,11 @@ export default function AdminShell({
               onClick={() => setMobileNavOpen(false)}
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
                 pathname === "/deconnexion"
-                  ? "bg-zinc-800/80 text-zinc-100"
-                  : "text-zinc-300 hover:bg-zinc-800/80 hover:text-white"
+                  ? "bg-white/15 text-white"
+                  : "text-green-100/80 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <LogOut className="h-4 w-4 text-zinc-300" />
+              <LogOut className="h-4 w-4 text-green-300/60" />
               Deconnexion
             </Link>
           </div>
@@ -223,12 +237,12 @@ export default function AdminShell({
             <div className="mb-3 flex items-center justify-between lg:hidden">
               <button
                 aria-label="Ouvrir la navigation"
-                className="rounded-xl border border-zinc-200 bg-white p-2 text-zinc-700"
+                className="rounded-xl border border-green-200 bg-white p-2 text-green-700"
                 onClick={() => setMobileNavOpen(true)}
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-700">
                 237jobs Admin
               </p>
             </div>
@@ -239,7 +253,7 @@ export default function AdminShell({
                 <input
                   type="search"
                   placeholder="Rechercher un utilisateur ou une annonce par ID ou nom..."
-                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-zinc-300 focus:bg-white focus:ring-2 focus:ring-zinc-200"
+                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-green-300 focus:bg-white focus:ring-2 focus:ring-green-100"
                 />
               </label>
 
@@ -247,18 +261,18 @@ export default function AdminShell({
                 <button className="relative rounded-xl border border-zinc-200 bg-white p-3 text-zinc-700 transition hover:bg-zinc-50">
                   <Bell className="h-5 w-5" />
                   <span className="absolute right-2 top-2 flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
                   </span>
                 </button>
 
                 <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-zinc-900 to-zinc-700 text-sm font-bold text-white">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-green-600 to-green-800 text-sm font-bold text-white">
                     SA
                   </div>
                   <div className="leading-tight">
                     <p className="text-sm font-semibold text-zinc-900">Samuel Admin</p>
-                    <p className="text-xs font-medium text-zinc-500">Super Admin</p>
+                    <p className="text-xs font-medium text-green-600">Super Admin</p>
                   </div>
                 </div>
               </div>

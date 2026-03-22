@@ -19,8 +19,8 @@ type StatusFilter = "all" | "OPEN" | "RESOLVED" | "DISMISSED";
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; icon: React.ReactNode }> = {
   OPEN: { label: "Ouvert", cls: "bg-red-50 text-red-700 border-red-200", icon: <AlertTriangle className="h-3.5 w-3.5" /> },
-  RESOLVED: { label: "Résolu", cls: "bg-green-50 text-green-700 border-green-200", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
-  DISMISSED: { label: "Rejeté", cls: "bg-zinc-100 text-zinc-600 border-zinc-200", icon: <ShieldX className="h-3.5 w-3.5" /> },
+  RESOLVED: { label: "Resolu", cls: "bg-green-50 text-green-700 border-green-200", icon: <ShieldCheck className="h-3.5 w-3.5" /> },
+  DISMISSED: { label: "Rejete", cls: "bg-zinc-100 text-zinc-600 border-zinc-200", icon: <ShieldX className="h-3.5 w-3.5" /> },
 };
 
 function formatDate(d: string) {
@@ -38,10 +38,16 @@ export default function AlertesSignalementsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [actionId, setActionId] = useState<number | null>(null);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
     load();
   }, [statusFilter]);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
 
   async function load() {
     setLoading(true);
@@ -49,7 +55,7 @@ export default function AlertesSignalementsPage() {
       const data = await fetchReports(statusFilter === "all" ? undefined : statusFilter);
       setReports(data);
     } catch {
-      /* vide */
+      /* empty */
     } finally {
       setLoading(false);
     }
@@ -62,19 +68,26 @@ export default function AlertesSignalementsPage() {
       setReports((prev) =>
         prev.map((r) => (r.id === id ? { ...r, status } : r))
       );
+      showToast(status === "RESOLVED" ? "Signalement resolu" : "Signalement rejete");
     } catch {
-      alert("Erreur lors de la mise à jour");
+      showToast("Erreur lors de la mise a jour");
     } finally {
       setActionId(null);
     }
   }
 
-  const filtered = reports;
   const openCount = reports.filter((r) => r.status === "OPEN").length;
 
   return (
-    <AdminShell title="Signalements" description="Suivi en temps réel des alertes fraude et abus.">
-      {/* Filtres */}
+    <AdminShell title="Signalements" description="Suivi en temps reel des alertes fraude et abus.">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-[100] animate-fade-in rounded-xl border border-green-200 bg-green-700 px-5 py-3 text-sm font-medium text-white shadow-2xl">
+          {toast}
+        </div>
+      )}
+
+      {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="h-4 w-4 text-zinc-400" />
         {(["all", "OPEN", "RESOLVED", "DISMISSED"] as StatusFilter[]).map((s) => (
@@ -83,8 +96,8 @@ export default function AlertesSignalementsPage() {
             onClick={() => setStatusFilter(s)}
             className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
               statusFilter === s
-                ? "border-zinc-900 bg-zinc-900 text-white"
-                : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"
+                ? "border-green-700 bg-green-700 text-white"
+                : "border-zinc-200 bg-white text-zinc-600 hover:border-green-300 hover:text-green-700"
             }`}
           >
             {s === "all" ? "Tous" : STATUS_CONFIG[s].label}
@@ -97,31 +110,33 @@ export default function AlertesSignalementsPage() {
         )}
       </div>
 
-      {/* Liste */}
+      {/* List */}
       <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+            <Loader2 className="h-6 w-6 animate-spin text-green-600" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : reports.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <CheckCircle className="h-10 w-10 text-green-400 mb-3" />
-            <p className="text-sm font-medium text-zinc-600">Aucun signalement trouvé</p>
+            <p className="text-sm font-medium text-zinc-600">Aucun signalement trouve</p>
             <p className="text-xs text-zinc-400 mt-1">Tout est sain !</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">
-            {filtered.map((report) => {
+            {reports.map((report) => {
               const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.OPEN;
               return (
                 <div key={report.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${report.status === "OPEN" ? "bg-red-100 text-red-600" : "bg-zinc-100 text-zinc-500"}`}>
+                    <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                      report.status === "OPEN" ? "bg-red-100 text-red-600" : report.status === "RESOLVED" ? "bg-green-100 text-green-600" : "bg-zinc-100 text-zinc-500"
+                    }`}>
                       <Flag className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-zinc-800">{report.reason}</p>
-                      <p className="text-xs text-zinc-500 mt-0.5 flex items-center gap-2">
+                      <p className="text-xs text-zinc-500 mt-0.5 flex items-center gap-2 flex-wrap">
                         <span>Cible : {report.targetType} #{report.targetId}</span>
                         <span className="text-zinc-300">&bull;</span>
                         <span className="flex items-center gap-1">
@@ -141,8 +156,8 @@ export default function AlertesSignalementsPage() {
                         <button
                           onClick={() => handleAction(report.id, "RESOLVED")}
                           disabled={actionId === report.id}
-                          className="rounded-lg p-2 text-green-600 hover:bg-green-100 transition disabled:opacity-40"
-                          title="Marquer comme résolu"
+                          className="rounded-lg bg-green-50 p-2 text-green-600 hover:bg-green-100 transition disabled:opacity-40"
+                          title="Marquer comme resolu"
                         >
                           {actionId === report.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -153,7 +168,7 @@ export default function AlertesSignalementsPage() {
                         <button
                           onClick={() => handleAction(report.id, "DISMISSED")}
                           disabled={actionId === report.id}
-                          className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition disabled:opacity-40"
+                          className="rounded-lg bg-zinc-50 p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600 transition disabled:opacity-40"
                           title="Rejeter le signalement"
                         >
                           <XCircle className="h-4 w-4" />

@@ -6,7 +6,7 @@ import Image from 'next/image';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
-import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
+import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp, createJob } from '@/lib/api';
 
 /* ────────────────────────────────────────────
    Types
@@ -137,8 +137,11 @@ export default function DashboardEntreprise() {
     }
   };
 
+  // Publishing state
+  const [isPublishing, setIsPublishing] = useState(false);
+
   /* ── Publish Job ── */
-  const publishJob = () => {
+  const publishJob = async () => {
     const blocked = containsBlockedKeyword(`${jobTitle} ${jobDescription}`);
     if (!otpVerified) {
       setPublishMessage(isEn ? 'OTP phone verification is mandatory for publication.' : 'La verification OTP du numero est obligatoire pour publier.');
@@ -165,35 +168,83 @@ export default function DashboardEntreprise() {
       return;
     }
 
-    const nextCount = jobsPublishedCount + 1;
-    const moderationStatus = getModerationStatusForFirstPublications(jobsPublishedCount);
-    setJobsPublishedCount(nextCount);
+    // Get user from localStorage for authorId
+    let authorId = 0;
+    let authorCompany = companyName || userName || '';
+    try {
+      const raw = localStorage.getItem('237jobs-user');
+      if (raw) {
+        const user = JSON.parse(raw);
+        authorId = user.id;
+        if (!authorCompany) {
+          authorCompany = user.company || user.companyName || user.name || user.email || '';
+        }
+      }
+    } catch {
+      // ignore parse errors
+    }
 
-    const newJob: JobEntry = {
-      id: Date.now(),
-      title: jobTitle,
-      contract: jobContract,
-      status: moderationStatus === 'en-attente' ? 'pending' : 'approved',
-      date: new Date().toLocaleDateString(isEn ? 'en-US' : 'fr-FR'),
-    };
-    setPublishedJobs(prev => [newJob, ...prev]);
+    if (!authorId) {
+      setPublishMessage(isEn ? 'User session not found. Please log in again.' : 'Session utilisateur introuvable. Veuillez vous reconnecter.');
+      setPublishMessageType('error');
+      return;
+    }
 
-    setPublishMessage(
-      moderationStatus === 'en-attente'
-        ? isEn
-          ? `Published in moderation queue (${nextCount}/3). Status: Pending review by admin.`
-          : `Publication placee en quarantaine (${nextCount}/3). Statut: En attente de validation admin.`
-        : isEn
-          ? 'Publication accepted and online.'
-          : 'Publication acceptee et mise en ligne.'
-    );
-    setPublishMessageType(moderationStatus === 'en-attente' ? 'info' : 'success');
-    setJobTitle('');
-    setJobDescription('');
-    setJobContract('CDI');
-    setJobLocation('');
-    setJobSalary('');
-    setWizardStep(1);
+    setIsPublishing(true);
+    setPublishMessage(isEn ? 'Publishing...' : 'Publication en cours...');
+    setPublishMessageType('info');
+
+    try {
+      const created = await createJob({
+        title: jobTitle.trim(),
+        company: authorCompany,
+        location: jobLocation.trim() || 'Cameroun',
+        description: jobDescription.trim(),
+        salary: jobSalary.trim() || undefined,
+        authorId,
+      });
+
+      const nextCount = jobsPublishedCount + 1;
+      const moderationStatus = getModerationStatusForFirstPublications(jobsPublishedCount);
+      setJobsPublishedCount(nextCount);
+
+      // Add returned job to local list for immediate UI feedback
+      const newJob: JobEntry = {
+        id: created.id,
+        title: created.title,
+        contract: jobContract,
+        status: moderationStatus === 'en-attente' ? 'pending' : 'approved',
+        date: new Date().toLocaleDateString(isEn ? 'en-US' : 'fr-FR'),
+      };
+      setPublishedJobs(prev => [newJob, ...prev]);
+
+      setPublishMessage(
+        moderationStatus === 'en-attente'
+          ? isEn
+            ? `Published in moderation queue (${nextCount}/3). Status: Pending review by admin.`
+            : `Publication placee en quarantaine (${nextCount}/3). Statut: En attente de validation admin.`
+          : isEn
+            ? 'Publication accepted and online.'
+            : 'Publication acceptee et mise en ligne.'
+      );
+      setPublishMessageType(moderationStatus === 'en-attente' ? 'info' : 'success');
+      setJobTitle('');
+      setJobDescription('');
+      setJobContract('CDI');
+      setJobLocation('');
+      setJobSalary('');
+      setWizardStep(1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setPublishMessage(
+        isEn
+          ? `Failed to publish: ${message}`
+          : `Echec de la publication: ${message}`
+      );
+      setPublishMessageType('error');
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   /* ── Navigate sidebar ── */
@@ -876,9 +927,12 @@ export default function DashboardEntreprise() {
                         </button>
                         <button
                           onClick={publishJob}
-                          className="flex-1 py-4 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold text-base hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl active:scale-[0.99] order-1 sm:order-2"
+                          disabled={isPublishing}
+                          className={`flex-1 py-4 rounded-2xl bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold text-base hover:from-green-700 hover:to-emerald-700 transition-all shadow-lg hover:shadow-xl active:scale-[0.99] order-1 sm:order-2 ${isPublishing ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
-                          {'\u{1F680}'} {isEn ? 'Publish this job for free' : 'Publier l\'annonce gratuitement'}
+                          {isPublishing
+                            ? (isEn ? 'Publishing...' : 'Publication en cours...')
+                            : `\u{1F680} ${isEn ? 'Publish this job for free' : 'Publier l\'annonce gratuitement'}`}
                         </button>
                       </div>
                     </div>

@@ -21,14 +21,15 @@ import {
   MapPin,
   Building2,
   Calendar,
+  User,
 } from "lucide-react";
 
 type StatusFilter = "all" | "PENDING" | "APPROVED" | "REJECTED";
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
-  PENDING: { label: "En attente", cls: "bg-orange-50 text-orange-700 border-orange-200" },
-  APPROVED: { label: "Approuvé", cls: "bg-green-50 text-green-700 border-green-200" },
-  REJECTED: { label: "Rejeté", cls: "bg-red-50 text-red-700 border-red-200" },
+  PENDING: { label: "En attente", cls: "bg-amber-50 text-amber-700 border-amber-200" },
+  APPROVED: { label: "Approuve", cls: "bg-green-50 text-green-700 border-green-200" },
+  REJECTED: { label: "Rejete", cls: "bg-red-50 text-red-700 border-red-200" },
 };
 
 function formatDate(d: string) {
@@ -47,10 +48,16 @@ export default function ModerationJobsPage() {
   const [page, setPage] = useState(1);
   const [actionId, setActionId] = useState<number | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
     load();
   }, [statusFilter, page]);
+
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 3000);
+  }
 
   async function load() {
     setLoading(true);
@@ -61,7 +68,7 @@ export default function ModerationJobsPage() {
       setJobs(data.jobs);
       setPagination(data.pagination);
     } catch {
-      /* fallback vide */
+      /* empty */
     } finally {
       setLoading(false);
     }
@@ -71,22 +78,41 @@ export default function ModerationJobsPage() {
     setActionId(id);
     try {
       if (action === "DELETE") {
+        if (!confirm("Supprimer cette annonce definitivement ?")) {
+          setActionId(null);
+          return;
+        }
         await deleteJob(id);
+        showToast("Annonce supprimee");
       } else {
         await updateJob(id, { status: action });
+        showToast(action === "APPROVED" ? "Annonce approuvee" : "Annonce rejetee");
       }
-      setJobs((prev) => prev.filter((j) => j.id !== id));
-      if (selectedJob?.id === id) setSelectedJob(null);
+      setJobs((prev) => action === "DELETE" ? prev.filter((j) => j.id !== id) : prev.map((j) => j.id === id ? { ...j, status: action as Job["status"] } : j));
+      if (selectedJob?.id === id) {
+        if (action === "DELETE") {
+          setSelectedJob(null);
+        } else {
+          setSelectedJob({ ...selectedJob, status: action as Job["status"] });
+        }
+      }
     } catch {
-      alert("Erreur lors de l'action");
+      showToast("Erreur lors de l'action");
     } finally {
       setActionId(null);
     }
   }
 
   return (
-    <AdminShell title="Modération des annonces" description="Validez, rejetez ou supprimez les offres d'emploi.">
-      {/* ── Filtres ──────────────────────────── */}
+    <AdminShell title="Moderation des annonces" description="Validez, rejetez ou supprimez les offres d'emploi.">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed top-6 right-6 z-[100] animate-fade-in rounded-xl border border-green-200 bg-green-700 px-5 py-3 text-sm font-medium text-white shadow-2xl">
+          {toast}
+        </div>
+      )}
+
+      {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
         <Filter className="h-4 w-4 text-zinc-400" />
         {(["all", "PENDING", "APPROVED", "REJECTED"] as StatusFilter[]).map((s) => (
@@ -95,8 +121,8 @@ export default function ModerationJobsPage() {
             onClick={() => { setStatusFilter(s); setPage(1); }}
             className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
               statusFilter === s
-                ? "border-zinc-900 bg-zinc-900 text-white"
-                : "border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300"
+                ? "border-green-700 bg-green-700 text-white"
+                : "border-zinc-200 bg-white text-zinc-600 hover:border-green-300 hover:text-green-700"
             }`}
           >
             {s === "all" ? "Toutes" : STATUS_LABELS[s].label}
@@ -107,17 +133,17 @@ export default function ModerationJobsPage() {
         </span>
       </div>
 
-      {/* ── Contenu ──────────────────────────── */}
+      {/* Content */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        {/* Liste */}
+        {/* List */}
         <div className="xl:col-span-2 rounded-2xl border border-zinc-200 bg-white overflow-hidden">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <Loader2 className="h-6 w-6 animate-spin text-zinc-400" />
+              <Loader2 className="h-6 w-6 animate-spin text-green-600" />
             </div>
           ) : jobs.length === 0 ? (
             <div className="py-20 text-center">
-              <p className="text-sm text-zinc-500">Aucune annonce trouvée pour ce filtre.</p>
+              <p className="text-sm text-zinc-500">Aucune annonce trouvee pour ce filtre.</p>
             </div>
           ) : (
             <div className="divide-y divide-zinc-100">
@@ -125,8 +151,8 @@ export default function ModerationJobsPage() {
                 <div
                   key={job.id}
                   onClick={() => setSelectedJob(job)}
-                  className={`flex items-center justify-between px-5 py-4 cursor-pointer transition hover:bg-zinc-50 ${
-                    selectedJob?.id === job.id ? "bg-zinc-50" : ""
+                  className={`flex items-center justify-between px-5 py-4 cursor-pointer transition hover:bg-green-50/50 ${
+                    selectedJob?.id === job.id ? "bg-green-50/70 border-l-2 border-l-green-500" : ""
                   }`}
                 >
                   <div className="min-w-0 flex-1">
@@ -139,6 +165,11 @@ export default function ModerationJobsPage() {
                     <p className="text-xs text-zinc-500 mt-0.5 truncate">
                       {job.company} &bull; {job.location} &bull; {formatDate(job.createdAt)}
                     </p>
+                    {job.author && (
+                      <p className="text-[10px] text-zinc-400 mt-0.5 flex items-center gap-1">
+                        <User className="h-3 w-3" /> Par {job.author.name || job.author.email}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-1 ml-3 shrink-0">
                     {job.status === "PENDING" && (
@@ -146,7 +177,7 @@ export default function ModerationJobsPage() {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleAction(job.id, "APPROVED"); }}
                           disabled={actionId === job.id}
-                          className="rounded-lg p-2 text-green-600 hover:bg-green-100 transition disabled:opacity-40"
+                          className="rounded-lg bg-green-50 p-2 text-green-600 hover:bg-green-100 transition disabled:opacity-40"
                           title="Approuver"
                         >
                           {actionId === job.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
@@ -154,7 +185,7 @@ export default function ModerationJobsPage() {
                         <button
                           onClick={(e) => { e.stopPropagation(); handleAction(job.id, "REJECTED"); }}
                           disabled={actionId === job.id}
-                          className="rounded-lg p-2 text-red-600 hover:bg-red-100 transition disabled:opacity-40"
+                          className="rounded-lg bg-red-50 p-2 text-red-600 hover:bg-red-100 transition disabled:opacity-40"
                           title="Rejeter"
                         >
                           <XCircle className="h-4 w-4" />
@@ -164,7 +195,7 @@ export default function ModerationJobsPage() {
                     <button
                       onClick={(e) => { e.stopPropagation(); handleAction(job.id, "DELETE"); }}
                       disabled={actionId === job.id}
-                      className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-red-500 transition disabled:opacity-40"
+                      className="rounded-lg p-2 text-zinc-400 hover:bg-red-50 hover:text-red-500 transition disabled:opacity-40"
                       title="Supprimer"
                     >
                       <Trash2 className="h-4 w-4" />
@@ -181,9 +212,9 @@ export default function ModerationJobsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800 disabled:opacity-30"
+                className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-green-700 disabled:opacity-30"
               >
-                <ChevronLeft className="h-4 w-4" /> Précédent
+                <ChevronLeft className="h-4 w-4" /> Precedent
               </button>
               <span className="text-xs text-zinc-400">
                 Page {pagination.page} / {pagination.totalPages}
@@ -191,7 +222,7 @@ export default function ModerationJobsPage() {
               <button
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page >= pagination.totalPages}
-                className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-zinc-800 disabled:opacity-30"
+                className="inline-flex items-center gap-1 text-xs font-medium text-zinc-500 hover:text-green-700 disabled:opacity-30"
               >
                 Suivant <ChevronRight className="h-4 w-4" />
               </button>
@@ -199,7 +230,7 @@ export default function ModerationJobsPage() {
           )}
         </div>
 
-        {/* ── Panel détail ────────────────────── */}
+        {/* Detail Panel */}
         <div className="rounded-2xl border border-zinc-200 bg-white p-6">
           {selectedJob ? (
             <div className="space-y-5">
@@ -220,6 +251,11 @@ export default function ModerationJobsPage() {
                 <p className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-zinc-400" /> {formatDate(selectedJob.createdAt)}
                 </p>
+                {selectedJob.author && (
+                  <p className="flex items-center gap-2">
+                    <User className="h-4 w-4 text-zinc-400" /> {selectedJob.author.name || selectedJob.author.email}
+                  </p>
+                )}
                 {selectedJob.salary && (
                   <p className="font-semibold text-green-700">{selectedJob.salary}</p>
                 )}
@@ -248,11 +284,41 @@ export default function ModerationJobsPage() {
                   </button>
                 </div>
               )}
+
+              {selectedJob.status !== "PENDING" && (
+                <div className="flex gap-2 pt-3 border-t border-zinc-100">
+                  {selectedJob.status === "REJECTED" && (
+                    <button
+                      onClick={() => handleAction(selectedJob.id, "APPROVED")}
+                      disabled={actionId === selectedJob.id}
+                      className="flex-1 rounded-xl bg-green-600 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                    >
+                      Approuver
+                    </button>
+                  )}
+                  {selectedJob.status === "APPROVED" && (
+                    <button
+                      onClick={() => handleAction(selectedJob.id, "REJECTED")}
+                      disabled={actionId === selectedJob.id}
+                      className="flex-1 rounded-xl bg-red-600 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+                    >
+                      Rejeter
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleAction(selectedJob.id, "DELETE")}
+                    disabled={actionId === selectedJob.id}
+                    className="rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Eye className="h-10 w-10 text-zinc-300 mb-3" />
-              <p className="text-sm text-zinc-400">Cliquez sur une annonce pour voir les détails</p>
+              <p className="text-sm text-zinc-400">Cliquez sur une annonce pour voir les details</p>
             </div>
           )}
         </div>

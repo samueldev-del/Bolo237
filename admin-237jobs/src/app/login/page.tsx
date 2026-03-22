@@ -12,24 +12,27 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[radial-gradient(circle_at_20%_10%,#f7fbff,transparent_28%),radial-gradient(circle_at_80%_0%,#eef3ff,transparent_35%),#edf1f7] p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-800 via-green-900 to-green-950 p-4">
+      {/* Subtle pattern overlay */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.05),transparent_50%),radial-gradient(circle_at_70%_80%,rgba(255,255,255,0.03),transparent_50%)]" />
+
+      <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.svg" alt="237jobs" className="h-10 w-auto mx-auto mb-4" />
+          <img src="/logo-white.svg" alt="237jobs" className="h-10 w-auto mx-auto mb-4" />
           <div className="flex items-center justify-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-green-600" />
-            <span className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">Admin</span>
+            <ShieldCheck className="h-4 w-4 text-green-300" />
+            <span className="text-sm font-semibold text-green-200 uppercase tracking-widest">Admin</span>
           </div>
-          <p className="text-sm text-zinc-500 mt-2">Acces securise au back-office</p>
+          <p className="text-sm text-green-300/70 mt-2">Acces securise au back-office</p>
         </div>
 
         {/* Card */}
-        <div className="bg-white rounded-3xl border border-zinc-200 shadow-[0_24px_80px_rgba(22,34,51,0.12)] p-8">
+        <div className="bg-white rounded-3xl border border-zinc-200 shadow-[0_24px_80px_rgba(0,0,0,0.25)] p-8">
           <div className="flex items-center gap-3 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-zinc-100">
-              <Lock className="h-5 w-5 text-zinc-600" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50">
+              <Lock className="h-5 w-5 text-green-600" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-zinc-900">Connexion</h2>
@@ -38,7 +41,7 @@ export default function LoginPage() {
           </div>
 
           <form action={formAction} className="space-y-5">
-            {/* Erreur */}
+            {/* Error */}
             {state.error && (
               <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 <svg className="h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -52,7 +55,7 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Champ mot de passe */}
+            {/* Password field */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-2">
                 Mot de passe
@@ -66,7 +69,7 @@ export default function LoginPage() {
                   required
                   autoFocus
                   placeholder="Entrez le mot de passe..."
-                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-4 pr-12 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-zinc-400 focus:bg-white focus:ring-2 focus:ring-zinc-200"
+                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-4 pr-12 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-green-400 focus:bg-white focus:ring-2 focus:ring-green-100"
                 />
                 <button
                   type="button"
@@ -78,11 +81,11 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Bouton */}
+            {/* Submit button */}
             <button
               type="submit"
               disabled={isPending}
-              className="relative h-12 w-full rounded-xl bg-gradient-to-b from-zinc-800 to-zinc-900 text-sm font-semibold text-white shadow-sm transition hover:from-zinc-700 hover:to-zinc-800 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="relative h-12 w-full rounded-xl bg-gradient-to-b from-green-600 to-green-700 text-sm font-semibold text-white shadow-sm transition hover:from-green-500 hover:to-green-600 disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isPending ? (
                 <span className="flex items-center justify-center gap-2">
@@ -98,14 +101,14 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Footer securite */}
+          {/* Security footer */}
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-zinc-400">
             <ShieldCheck className="h-3.5 w-3.5" />
             <span>Connexion securisee &bull; Session de 8h</span>
           </div>
         </div>
 
-        <p className="text-center text-xs text-zinc-400 mt-6">
+        <p className="text-center text-xs text-green-300/50 mt-6">
           &copy; 2026 237jobs &mdash; Panneau d&apos;administration
         </p>
       </div>

@@ -428,6 +428,25 @@ app.post('/api/otp/verify', (req, res) => {
   }
 });
 
+// --- Page d'accueil API ---
+app.get('/', (_req, res) => {
+  res.json({
+    name: '237jobs API',
+    version: '1.0.0',
+    status: 'online',
+    documentation: {
+      health: 'GET /api/health',
+      jobs: 'GET /api/jobs',
+      users: 'GET /api/users',
+      reports: 'GET /api/reports',
+      admin: 'GET /api/admin/stats',
+      otp_send: 'POST /api/otp/send',
+      otp_verify: 'POST /api/otp/verify',
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // --- Health check ---
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

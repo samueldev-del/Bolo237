@@ -63,7 +63,7 @@ const alertItems: NavItem[] = [
     href: "/alertes/signalements",
     label: "Signalements 🚩",
     icon: <Flag className="h-4 w-4" />,
-    badge: "18",
+    // badge sera dynamique via l'API
   },
 ];
 

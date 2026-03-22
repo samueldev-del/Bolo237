@@ -11,7 +11,7 @@ export default function DashboardCandidat() {
   const isEn = locale === 'en';
   const [profileVisible, setProfileVisible] = useState(true);
   const [skillInput, setSkillInput] = useState('');
-  const [skills, setSkills] = useState(['React', 'Node.js', 'Gestion de projet']);
+  const [skills, setSkills] = useState<string[]>([]);
   const [cvBuilderOpen, setCvBuilderOpen] = useState(false);
   const [cvBuilderStep, setCvBuilderStep] = useState<1 | 2>(1);
   const [cvLanguage, setCvLanguage] = useState<'FR' | 'EN'>('FR');
@@ -24,30 +24,23 @@ export default function DashboardCandidat() {
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [cvActionMessage, setCvActionMessage] = useState('');
   const [cvData, setCvData] = useState({
-    fullName: 'Mireille Kotto',
-    title: 'Chargee de projet digital',
-    location: 'Douala, Cameroun',
-    phone: '+237 6 90 00 00 00',
-    email: 'mireille.kotto@email.com',
-    profile: 'Professionnelle orientee resultats avec 6 ans d experience en coordination de campagnes, suivi KPI et pilotage d equipes transverses.',
-    experience: 'Chargee de projet - KmerLab (2022 - 2026)\n- Pilotage de 14 campagnes multi-canaux\n- Coordination equipe de 5 personnes\n- +38% de leads qualifies',
-    education: 'Master Marketing Digital - Universite de Yaounde I (2018)\nLicence Communication - Universite de Douala (2016)',
-    skillsText: 'Gestion de projet, CRM, SEO, Google Analytics',
-    languagesText: 'Francais (courant), Anglais (professionnel)',
+    fullName: '',
+    title: '',
+    location: '',
+    phone: '',
+    email: '',
+    profile: '',
+    experience: '',
+    education: '',
+    skillsText: '',
+    languagesText: '',
   });
 
-  const candidatures = [
-    { id: 1, poste: 'Developpeur Frontend', entreprise: 'TechCamer', date: '18 mars 2026', statut: 'Vue par l employeur' },
-    { id: 2, poste: 'Charge de projet digital', entreprise: 'KmerLab', date: '16 mars 2026', statut: 'En attente d entretien' },
-    { id: 3, poste: 'Product Designer', entreprise: 'Nova Studio', date: '12 mars 2026', statut: 'Envoyee' },
-    { id: 4, poste: 'Traffic Manager', entreprise: 'Ariane Com', date: '08 mars 2026', statut: 'Refusee' },
-  ];
+  // Vide — sera rempli par les vraies candidatures de l'utilisateur
+  const candidatures: { id: number; poste: string; entreprise: string; date: string; statut: string }[] = [];
 
-  const emploisSauvegardes = [
-    { id: 10, titre: 'Chef de projet Marketing', entreprise: 'MTN Cameroun', lieu: 'Douala', type: 'CDI', temps: 'il y a 2h' },
-    { id: 11, titre: 'Consultant CRM', entreprise: 'Orange Cameroun', lieu: 'Yaounde', type: 'CDD', temps: 'il y a 1 jour' },
-    { id: 12, titre: 'Content Strategist', entreprise: 'Afri Media', lieu: 'Douala', type: 'Temps plein', temps: 'il y a 3 jours' },
-  ];
+  // Vide — sera rempli par les vraies offres sauvegardees
+  const emploisSauvegardes: { id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[] = [];
 
   const addSkill = () => {
     const value = skillInput.trim();

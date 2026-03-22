@@ -33,39 +33,7 @@ function apiJobToLocal(job: ApiJob, isEn: boolean) {
   };
 }
 
-// Mock data utilisées si le backend est injoignable
-const MOCK_EMPLOIS = [
-  {
-    id: 1,
-    titre: "Comptable Senior (H/F)",
-    entreprise: "Mtn Cameroun",
-    lieu: "Douala, Akwa",
-    contrat: "CDI",
-    mode: "Sur site",
-    publishedHours: 2,
-    temps: "il y a 2h",
-  },
-  {
-    id: 2,
-    titre: "Développeur Front-End Junior",
-    entreprise: "Adkontest",
-    lieu: "Yaoundé, Bastos",
-    contrat: "Stage",
-    mode: "Télétravail",
-    publishedHours: 20,
-    temps: "il y a 20h",
-  },
-  {
-    id: 3,
-    titre: "Chargé de clientèle",
-    entreprise: "Afribank",
-    lieu: "Douala, Bonanjo",
-    contrat: "CDD",
-    mode: "Sur site",
-    publishedHours: 72,
-    temps: "il y a 3 jours",
-  },
-];
+// Plus de mock data — on attend les vraies données du backend
 
 export default function Home() {
   const { t, localizePath, locale } = useLocale();
@@ -79,46 +47,13 @@ export default function Home() {
     []
   );
 
-  // Si le backend renvoie des offres, on les transforme ; sinon fallback mock
+  // Offres depuis le backend (tableau vide si rien)
   const emplois = jobsData && jobsData.jobs.length > 0
     ? jobsData.jobs.map((j) => apiJobToLocal(j, isEn))
-    : MOCK_EMPLOIS;
+    : [];
 
-  const artisans = [
-    {
-      id: 4,
-      titre: "Plombier Expérimenté",
-      entreprise: "Paul (Indépendant)",
-      lieu: "Bafoussam",
-      note: 4.7,
-      disponibilite: "Immédiate",
-      verifie: true,
-      image: "🔧",
-      temps: "actif il y a 30 min",
-    },
-    {
-      id: 5,
-      titre: "Menuisier Ébéniste",
-      entreprise: "Atelier Bois Deido",
-      lieu: "Douala, Deido",
-      note: 4.3,
-      disponibilite: "Urgente",
-      verifie: false,
-      image: "🪚",
-      temps: "actif il y a 1h",
-    },
-    {
-      id: 6,
-      titre: "Électricien Bâtiment",
-      entreprise: "Nda Services",
-      lieu: "Yaoundé, Melen",
-      note: 4.9,
-      disponibilite: "Immédiate",
-      verifie: true,
-      image: "⚡",
-      temps: "actif il y a 10 min",
-    },
-  ];
+  // Artisans — vide en attendant la future route /api/artisans
+  const artisans: { id: number; titre: string; entreprise: string; lieu: string; note: number; disponibilite: string; verifie: boolean; image: string; temps: string }[] = [];
 
   const [jobDate24h, setJobDate24h] = useState(false);
   const [jobDate7j, setJobDate7j] = useState(false);
@@ -521,8 +456,8 @@ export default function Home() {
               </h3>
               <p className="text-gray-700">
                 {isEn
-                  ? 'Currently, 237jobs lists 1,891 open opportunities across multiple sectors and profile types.'
-                  : 'Actuellement, il y a sur 237jobs 1 891 offres d emploi ouvertes pour tous types de profils.'}
+                  ? 'Currently, 237jobs lists new opportunities across multiple sectors and profile types. Check back soon!'
+                  : 'Actuellement, 237jobs propose de nouvelles offres dans plusieurs secteurs. Revenez bientot !'}
               </p>
             </div>
           </div>

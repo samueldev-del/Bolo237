@@ -179,8 +179,8 @@ export default function DashboardEntreprise() {
         <aside className="w-full md:w-[320px] shrink-0 space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm text-center">
             <div className="w-20 h-20 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center mx-auto mb-4 font-bold text-gray-400">LOGO</div>
-            <h2 className="text-xl font-extrabold text-black">MTN Cameroun</h2>
-            <p className="text-sm text-gray-500 font-medium mb-4">Télécommunications</p>
+            <h2 className="text-xl font-extrabold text-black">{isEn ? 'Your Company' : 'Votre Entreprise'}</h2>
+            <p className="text-sm text-gray-500 font-medium mb-4">{isEn ? 'Sector' : 'Secteur'}</p>
             <div className={`inline-flex items-center gap-2 text-[11px] font-bold px-3 py-1 rounded-full border uppercase ${isRecruiterVerified ? 'bg-green-50 text-green-700 border-green-100' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
               {isRecruiterVerified ? '✓ Recruteur Verifie' : '⚠ Recruteur Non Verifie'}
             </div>
@@ -235,12 +235,12 @@ export default function DashboardEntreprise() {
                   <p className="text-2xl font-extrabold text-black">{String(jobsPublishedCount).padStart(2, '0')}</p>
                 </div>
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-1">Candidats à trier</p>
-                  <p className="text-2xl font-extrabold text-green-600">28</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-1">{isEn ? 'Applications to review' : 'Candidats a trier'}</p>
+                  <p className="text-2xl font-extrabold text-green-600">0</p>
                 </div>
                 <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-1">Vues totales</p>
-                  <p className="text-2xl font-extrabold text-black">1.2k</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-1">{isEn ? 'Total views' : 'Vues totales'}</p>
+                  <p className="text-2xl font-extrabold text-black">0</p>
                 </div>
               </div>
 
@@ -252,38 +252,20 @@ export default function DashboardEntreprise() {
                 </div>
                 
                 <div className="divide-y divide-gray-100">
-                  <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50 transition">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-black text-[16px]">Comptable Senior (H/F)</h4>
-                      <p className="text-xs text-gray-500 font-medium mt-1">Publiée le 15 Mars 2026 • Yaoundé</p>
-                    </div>
-                    <div className="flex items-center gap-8">
-                      <div className="text-center">
-                        <p className="text-lg font-extrabold text-black">14</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">Candidats</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button className="border border-gray-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-white transition shadow-sm">Gérer</button>
-                        <button className="bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm font-bold border border-green-100 hover:bg-green-100 transition">Voir les CV</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-6 flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50 transition">
-                    <div className="flex-1">
-                      <h4 className="font-bold text-black text-[16px]">Agent de Sécurité</h4>
-                      <p className="text-xs text-red-400 font-bold mt-1 uppercase tracking-tighter">● Expire dans 2 jours</p>
-                    </div>
-                    <div className="flex items-center gap-8">
-                      <div className="text-center">
-                        <p className="text-lg font-extrabold text-black">09</p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase">Candidats</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button className="border border-gray-300 px-4 py-2 rounded-lg text-sm font-bold hover:bg-white transition shadow-sm">Gérer</button>
-                        <button className="bg-green-50 text-green-700 px-4 py-2 rounded-lg text-sm font-bold border border-green-100 hover:bg-green-100 transition">Voir les CV</button>
-                      </div>
-                    </div>
+                  <div className="p-10 text-center">
+                    <p className="text-4xl mb-4">📋</p>
+                    <h4 className="font-bold text-black text-[15px] mb-2">{isEn ? 'No job listings yet' : 'Aucune annonce pour le moment'}</h4>
+                    <p className="text-sm text-gray-500 font-medium">
+                      {isEn
+                        ? 'Post your first job to start receiving applications.'
+                        : 'Publiez votre premiere offre pour commencer a recevoir des candidatures.'}
+                    </p>
+                    <button
+                      onClick={() => setShowForm(true)}
+                      className="mt-4 bg-green-600 text-white px-6 py-2.5 rounded-xl text-sm font-bold hover:bg-green-700 transition"
+                    >
+                      {isEn ? '+ Post a job' : '+ Publier une offre'}
+                    </button>
                   </div>
                 </div>
               </div>

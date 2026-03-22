@@ -124,15 +124,15 @@ export default function DashboardArtisan() {
             <div className="w-24 h-24 bg-green-50 border-2 border-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <span className="text-4xl">🪚</span>
             </div>
-            <h2 className="text-2xl font-extrabold text-black mb-1">Atelier Bois Deido</h2>
-            <p className="text-[15px] font-bold text-green-600 mb-4">Menuisier Ébéniste</p>
+            <h2 className="text-2xl font-extrabold text-black mb-1">{isEn ? 'Your Workshop' : 'Votre Atelier'}</h2>
+            <p className="text-[15px] font-bold text-green-600 mb-4">{isEn ? 'Your Specialty' : 'Votre Specialite'}</p>
             <div className={`inline-flex items-center gap-2 text-[11px] font-bold px-3 py-1 rounded-full border uppercase ${isArtisanVerified ? 'bg-green-50 text-green-700 border-green-100' : 'bg-gray-100 text-gray-600 border-gray-200'}`}>
               {isArtisanVerified ? '✓ Profil Verifie' : 'Non Verifie'}
             </div>
             
             <div className="space-y-3 text-[14px] text-gray-700 font-medium text-left border-t border-gray-100 pt-4 mt-4">
-              <p className="flex items-center gap-3"><span>📍</span> Douala, Quartier Deido</p>
-              <p className="flex items-center gap-3"><span>⭐</span> 4.8/5 (12 avis clients)</p>
+              <p className="flex items-center gap-3"><span>📍</span> {isEn ? 'Your location' : 'Votre localisation'}</p>
+              <p className="flex items-center gap-3"><span>⭐</span> {isEn ? 'No reviews yet' : 'Aucun avis pour le moment'}</p>
               <p className="flex items-center gap-3 text-black font-bold"><span>📞</span> +237 6XX XX XX XX</p>
             </div>
             
@@ -221,27 +221,12 @@ export default function DashboardArtisan() {
                 </button>
               </div>
 
-              {/* Grille de photos (Exemples) */}
-              <h3 className="font-bold text-black text-lg pt-4">{isEn ? 'Your projects (3)' : 'Vos réalisations (3)'}</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div className="aspect-square bg-gray-200 rounded-xl relative group overflow-hidden border border-gray-200">
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                    <button className="bg-white text-red-600 p-2 rounded-full font-bold text-xs shadow-lg">Supprimer</button>
-                  </div>
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">Photo 1 (Table en bois)</div>
-                </div>
-                <div className="aspect-square bg-gray-200 rounded-xl relative group overflow-hidden border border-gray-200">
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                    <button className="bg-white text-red-600 p-2 rounded-full font-bold text-xs shadow-lg">Supprimer</button>
-                  </div>
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">Photo 2 (Armoire)</div>
-                </div>
-                <div className="aspect-square bg-gray-200 rounded-xl relative group overflow-hidden border border-gray-200">
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
-                    <button className="bg-white text-red-600 p-2 rounded-full font-bold text-xs shadow-lg">Supprimer</button>
-                  </div>
-                  <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">Photo 3 (Porte)</div>
-                </div>
+              {/* Grille de photos — vide en attendant les uploads */}
+              <h3 className="font-bold text-black text-lg pt-4">{isEn ? 'Your projects (0)' : 'Vos realisations (0)'}</h3>
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-500 font-medium">
+                  {isEn ? 'No photos yet. Upload your first project above!' : 'Aucune photo pour le moment. Ajoutez votre premier projet ci-dessus !'}
+                </p>
               </div>
             </div>
           )}
@@ -249,28 +234,16 @@ export default function DashboardArtisan() {
           {/* CONTENU : MES SERVICES */}
           {activeTab === 'services' && (
             <div className="animate-fade-in space-y-4">
-              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold text-black text-[16px]">Fabrication de meubles sur mesure</h3>
-                  <p className="text-[13px] text-gray-500 font-medium mt-1">Tables, armoires, lits, étagères.</p>
-                </div>
-                <div className="text-right">
-                  <span className="bg-green-50 text-green-700 font-bold px-3 py-1 rounded-lg text-sm border border-green-100">Sur Devis</span>
-                </div>
-              </div>
-              
-              <div className="bg-white p-6 rounded-2xl border border-gray-200 shadow-sm flex justify-between items-center">
-                <div>
-                  <h3 className="font-bold text-black text-[16px]">Réparation et restauration</h3>
-                  <p className="text-[13px] text-gray-500 font-medium mt-1">Remise à neuf d'anciens meubles en bois.</p>
-                </div>
-                <div className="text-right">
-                  <span className="bg-gray-100 text-black font-bold px-3 py-1 rounded-lg text-sm border border-gray-200">À partir de 15 000 FCFA</span>
-                </div>
+              <div className="text-center py-10">
+                <p className="text-4xl mb-4">🛠️</p>
+                <h4 className="font-bold text-black text-[15px] mb-2">{isEn ? 'No services listed yet' : 'Aucun service pour le moment'}</h4>
+                <p className="text-sm text-gray-500 font-medium">
+                  {isEn ? 'Add your first service to attract clients.' : 'Ajoutez votre premier service pour attirer des clients.'}
+                </p>
               </div>
 
               <button className="w-full border-2 border-dashed border-gray-300 bg-gray-50/50 text-black font-bold py-4 rounded-2xl hover:border-green-600 hover:text-green-700 transition">
-                + Ajouter un nouveau service
+                + {isEn ? 'Add a new service' : 'Ajouter un nouveau service'}
               </button>
             </div>
           )}

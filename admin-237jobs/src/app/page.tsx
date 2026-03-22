@@ -24,16 +24,8 @@ import {
   type Job,
 } from "@/lib/api";
 
-// Données de graphique de démonstration (à remplacer par une future route /api/admin/analytics)
-const chartData = [
-  { name: "Lun", inscrits: 40 },
-  { name: "Mar", inscrits: 30 },
-  { name: "Mer", inscrits: 20 },
-  { name: "Jeu", inscrits: 27 },
-  { name: "Ven", inscrits: 18 },
-  { name: "Sam", inscrits: 23 },
-  { name: "Dim", inscrits: 34 },
-];
+// Graphique vide — sera rempli par une future route /api/admin/analytics
+const chartData: { name: string; inscrits: number }[] = [];
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString("fr-FR", {

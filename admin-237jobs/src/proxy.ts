@@ -5,7 +5,7 @@ const COOKIE_NAME = "admin_session";
 // Routes publiques (pas besoin d'auth)
 const PUBLIC_PATHS = ["/login"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Laisser passer les fichiers statiques et API Next.js

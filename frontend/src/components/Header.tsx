@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 
 export default function Header() {
@@ -13,9 +14,8 @@ export default function Header() {
       <div className="w-full max-w-[1400px] mx-auto flex justify-between items-center">
         
         {/* LOGO GAUCHE */}
-        <Link href={localizePath('/')} className="text-2xl font-extrabold text-black tracking-tighter flex items-center gap-2 group">
-          <div className="w-7 h-7 bg-green-600 rounded-sm transition-transform"></div>
-          237jobs
+        <Link href={localizePath('/')} className="flex items-center">
+          <Image src="/logo.svg" alt="237jobs" width={140} height={36} priority className="h-9 w-auto" />
         </Link>
 
         {/* BLOC DROIT (Uniquement Connexion + Menu) */}

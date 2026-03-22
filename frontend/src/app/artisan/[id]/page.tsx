@@ -2,6 +2,7 @@
 
 import { use, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 
 type ArtisanParams = {
@@ -92,8 +93,8 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
     <div className="min-h-screen bg-[#f5f7f8] text-black pb-24 md:pb-10">
       <nav className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href={localizePath('/')} className="font-extrabold text-xl tracking-tight">
-            237jobs
+          <Link href={localizePath('/')}>
+            <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto" />
           </Link>
           <Link href={localizePath('/recherche')} className="text-sm font-bold text-gray-600 hover:text-green-700">
             {locale === 'fr' ? 'Retour a la recherche' : 'Back to search'}

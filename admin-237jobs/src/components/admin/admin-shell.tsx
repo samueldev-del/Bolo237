@@ -131,14 +131,10 @@ export default function AdminShell({
           }`}
         >
           <div className="flex items-center justify-between border-b border-zinc-800 px-6 py-6 lg:justify-start">
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-zinc-700 bg-zinc-800/70 px-4 py-3">
-              <BriefcaseBusiness className="h-5 w-5 text-orange-400" />
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-zinc-400">
-                  Badge
-                </p>
-                <p className="text-sm font-semibold tracking-wide">237jobs ADMIN</p>
-              </div>
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-800/70 px-4 py-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/logo-white.svg" alt="237jobs" className="h-7 w-auto" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400 border-l border-zinc-600 pl-3">Admin</span>
             </div>
 
             <button

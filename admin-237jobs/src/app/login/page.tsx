@@ -16,14 +16,13 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-zinc-900 to-zinc-700 mb-4">
-            <ShieldCheck className="h-8 w-8 text-green-400" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.svg" alt="237jobs" className="h-10 w-auto mx-auto mb-4" />
+          <div className="flex items-center justify-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-green-600" />
+            <span className="text-sm font-semibold text-zinc-500 uppercase tracking-widest">Admin</span>
           </div>
-          <h1 className="text-2xl font-bold text-zinc-900 tracking-tight">
-            237<span className="text-green-600">jobs</span>{" "}
-            <span className="text-sm font-medium text-zinc-400">ADMIN</span>
-          </h1>
-          <p className="text-sm text-zinc-500 mt-1">Acces securise au back-office</p>
+          <p className="text-sm text-zinc-500 mt-2">Acces securise au back-office</p>
         </div>
 
         {/* Card */}

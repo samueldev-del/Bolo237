@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 
 export default function Footer() {
@@ -14,7 +15,7 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
           
           <div>
-            <h4 className="font-extrabold text-black mb-4 text-[15px]">237jobs</h4>
+            <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto mb-4" />
             <ul className="space-y-2 text-sm font-medium">
               <li><Link href="#" className="hover:text-green-600 hover:underline">{t.footer.about}</Link></li>
               <li><Link href="#" className="hover:text-green-600 hover:underline">{t.footer.press}</Link></li>

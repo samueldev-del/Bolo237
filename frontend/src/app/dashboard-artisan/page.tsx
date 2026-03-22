@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
@@ -87,9 +88,9 @@ export default function DashboardArtisan() {
       {/* 1. HEADER SPÉCIFIQUE ARTISAN */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 h-16 flex items-center px-4 md:px-8">
         <div className="w-full max-w-[1400px] mx-auto flex justify-between items-center">
-          <Link href={localizePath('/')} className="text-xl font-extrabold text-black tracking-tight flex items-center gap-1.5">
-            <div className="w-6 h-6 bg-green-600 rounded-sm"></div>
-            237jobs <span className="text-sm font-medium text-gray-400 ml-2 hidden md:inline">| {isEn ? 'Artisan Space' : 'Espace Artisan'}</span>
+          <Link href={localizePath('/')} className="flex items-center gap-3">
+            <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto" />
+            <span className="text-sm font-medium text-gray-400 hidden md:inline">| {isEn ? 'Artisan Space' : 'Espace Artisan'}</span>
           </Link>
           
           <div className="flex items-center gap-6 font-bold text-[14px] text-gray-700 hidden md:flex">

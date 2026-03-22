@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
@@ -130,9 +131,8 @@ export default function Connexion() {
           }}
         >
           <div className="absolute inset-0 p-10 lg:p-14 flex flex-col justify-between text-white">
-            <Link href={localizePath('/')} className="inline-flex items-center gap-2 font-extrabold text-2xl tracking-tight">
-              <span className="w-8 h-8 rounded-sm bg-green-500"></span>
-              237jobs
+            <Link href={localizePath('/')}>
+              <Image src="/logo-white.svg" alt="237jobs" width={160} height={42} priority className="h-10 w-auto" />
             </Link>
 
             <div>
@@ -152,9 +152,8 @@ export default function Connexion() {
 
         <div className="relative p-6 sm:p-8 lg:p-12 flex flex-col">
           <div className="flex items-start justify-between mb-8">
-            <div className="md:hidden inline-flex items-center gap-2 font-extrabold text-xl tracking-tight">
-              <span className="w-6 h-6 rounded-sm bg-green-600"></span>
-              237jobs
+            <div className="md:hidden">
+              <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto" />
             </div>
 
             <div className="ml-auto bg-gray-100 p-1 rounded-full inline-flex">

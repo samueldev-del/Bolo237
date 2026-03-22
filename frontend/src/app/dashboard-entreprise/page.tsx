@@ -7,6 +7,7 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp, createJob } from '@/lib/api';
+import { getVerificationStatus, submitVerification, VerificationStatus } from '@/lib/verificationStore';
 
 /* ────────────────────────────────────────────
    Types
@@ -48,6 +49,9 @@ export default function DashboardEntreprise() {
   // Company verification
   const [niu, setNiu] = useState('');
   const [rccm, setRccm] = useState('');
+  const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+  const [companyDocFile, setCompanyDocFile] = useState<File | null>(null);
+  const [documentsVerificationStatus, setDocumentsVerificationStatus] = useState<VerificationStatus>('not_submitted');
 
   // Job form - multi-step wizard
   const [wizardStep, setWizardStep] = useState(1);
@@ -64,6 +68,8 @@ export default function DashboardEntreprise() {
   const [publishedJobs, setPublishedJobs] = useState<JobEntry[]>([]);
 
   const isRecruiterVerified = niu.trim().length > 4 || rccm.trim().length > 4;
+  const accountKey = (companyName || userName || phone || 'entreprise').toLowerCase();
+  const isEnterprisePublishingReady = otpVerified && documentsVerificationStatus === 'approved';
 
   // Load user info
   useEffect(() => {
@@ -78,6 +84,11 @@ export default function DashboardEntreprise() {
       // silently ignore
     }
   }, []);
+
+  useEffect(() => {
+    if (!accountKey) return;
+    setDocumentsVerificationStatus(getVerificationStatus('entreprise', accountKey));
+  }, [accountKey]);
 
   // Get company initials
   const getInitials = useCallback(() => {
@@ -137,6 +148,45 @@ export default function DashboardEntreprise() {
     }
   };
 
+  const verifyCompanyDocuments = () => {
+    if (!companyLogoFile) {
+      setPublishMessage(isEn ? 'Upload your company logo before verification.' : 'Telechargez le logo de l entreprise avant verification.');
+      setPublishMessageType('error');
+      return;
+    }
+    if (!companyDocFile) {
+      setPublishMessage(isEn ? 'Upload NIU or RCCM supporting document first.' : 'Telechargez d abord le justificatif NIU ou RCCM.');
+      setPublishMessageType('error');
+      return;
+    }
+    if (!isRecruiterVerified) {
+      setPublishMessage(isEn ? 'Enter a valid NIU or RCCM before verification.' : 'Renseignez un NIU ou RCCM valide avant verification.');
+      setPublishMessageType('error');
+      return;
+    }
+
+    submitVerification({
+      role: 'entreprise',
+      accountKey,
+      displayName: companyName || userName || 'Entreprise',
+      phone,
+      payload: {
+        niu,
+        rccm,
+        hasLogo: !!companyLogoFile,
+        logoFileName: companyLogoFile?.name ?? null,
+        legalDocFileName: companyDocFile?.name ?? null,
+      },
+    });
+    setDocumentsVerificationStatus('pending');
+    setPublishMessage(
+      isEn
+        ? 'Verification request sent. Waiting for Super Admin approval.'
+        : 'Demande de verification envoyee. En attente d approbation Super Admin.'
+    );
+    setPublishMessageType('info');
+  };
+
   // Publishing state
   const [isPublishing, setIsPublishing] = useState(false);
 
@@ -150,6 +200,20 @@ export default function DashboardEntreprise() {
     }
     if (!jobTitle.trim() || !jobDescription.trim()) {
       setPublishMessage(isEn ? 'Fill in title and description first.' : 'Renseignez d\'abord le titre et la description.');
+      setPublishMessageType('error');
+      return;
+    }
+    if (!companyLogoFile) {
+      setPublishMessage(isEn ? 'Company logo is required before publication.' : 'Le logo de l entreprise est obligatoire avant publication.');
+      setPublishMessageType('error');
+      return;
+    }
+    if (documentsVerificationStatus !== 'approved') {
+      setPublishMessage(
+        isEn
+          ? 'Document verification must be approved by Super Admin before publication.'
+          : 'La verification documentaire doit etre approuvee par le Super Admin avant publication.'
+      );
       setPublishMessageType('error');
       return;
     }
@@ -695,6 +759,75 @@ export default function DashboardEntreprise() {
                         )}
                       </div>
 
+                      <div className={`rounded-2xl p-5 sm:p-6 border-2 transition-all ${
+                        documentsVerificationStatus === 'approved' ? 'bg-green-50 border-green-200' : documentsVerificationStatus === 'pending' ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'
+                      }`}>
+                        <div className="flex items-start gap-3 mb-4">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${documentsVerificationStatus === 'approved' ? 'bg-green-200' : documentsVerificationStatus === 'pending' ? 'bg-blue-200' : 'bg-amber-200'}`}>
+                            {documentsVerificationStatus === 'approved' ? '\u2705' : documentsVerificationStatus === 'pending' ? '\u{23F3}' : '\u{1F4C4}'}
+                          </div>
+                          <div>
+                            <p className={`font-bold text-sm ${documentsVerificationStatus === 'approved' ? 'text-green-800' : documentsVerificationStatus === 'pending' ? 'text-blue-800' : 'text-amber-800'}`}>
+                              {documentsVerificationStatus === 'approved'
+                                ? (isEn ? 'Approved by Super Admin' : 'Approuve par le Super Admin')
+                                : documentsVerificationStatus === 'pending'
+                                  ? (isEn ? 'Pending Super Admin review' : 'En attente de validation Super Admin')
+                                  : (isEn ? 'Logo + Legal documents required' : 'Logo + documents legaux requis')}
+                            </p>
+                            <p className={`text-xs font-medium mt-0.5 ${documentsVerificationStatus === 'approved' ? 'text-green-600' : documentsVerificationStatus === 'pending' ? 'text-blue-700' : 'text-amber-700'}`}>
+                              {isEn
+                                ? 'Upload your logo and NIU/RCCM proof, then submit to Super Admin for validation before posting.'
+                                : 'Telechargez votre logo et un justificatif NIU/RCCM, puis soumettez au Super Admin avant publication.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                              {isEn ? 'Company logo' : 'Logo entreprise'}
+                            </label>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                setCompanyLogoFile(e.target.files?.[0] ?? null);
+                                if (documentsVerificationStatus === 'approved') {
+                                  setDocumentsVerificationStatus('not_submitted');
+                                }
+                              }}
+                              className="w-full p-2.5 border border-gray-300 rounded-xl text-sm bg-white"
+                            />
+                            {companyLogoFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{companyLogoFile.name}</p>}
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                              {isEn ? 'NIU/RCCM proof document' : 'Justificatif NIU/RCCM'}
+                            </label>
+                            <input
+                              type="file"
+                              accept="image/*,.pdf"
+                              onChange={(e) => {
+                                setCompanyDocFile(e.target.files?.[0] ?? null);
+                                if (documentsVerificationStatus === 'approved') {
+                                  setDocumentsVerificationStatus('not_submitted');
+                                }
+                              }}
+                              className="w-full p-2.5 border border-gray-300 rounded-xl text-sm bg-white"
+                            />
+                            {companyDocFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{companyDocFile.name}</p>}
+                          </div>
+
+                          <button
+                            onClick={verifyCompanyDocuments}
+                            className="w-full px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-black transition"
+                          >
+                            {isEn ? 'Submit to Super Admin' : 'Soumettre au Super Admin'}
+                          </button>
+                        </div>
+                      </div>
+
                       {/* Message display */}
                       {publishMessage && (
                         <div className={`rounded-xl p-4 text-sm font-bold ${
@@ -708,17 +841,21 @@ export default function DashboardEntreprise() {
 
                       <button
                         onClick={() => {
-                          if (otpVerified) {
+                          if (otpVerified && documentsVerificationStatus === 'approved') {
                             setPublishMessage('');
                             setWizardStep(2);
                           } else {
-                            setPublishMessage(isEn ? 'Please verify your phone number first.' : 'Veuillez d\'abord verifier votre numero.');
+                            setPublishMessage(
+                              isEn
+                                ? 'Complete phone verification and get Super Admin approval for your documents before continuing.'
+                                : 'Completez la verification telephone et obtenez la validation Super Admin de vos documents avant de continuer.'
+                            );
                             setPublishMessageType('error');
                           }
                         }}
-                        disabled={!otpVerified}
+                        disabled={!isEnterprisePublishingReady}
                         className={`w-full py-4 rounded-2xl font-bold text-sm transition-all ${
-                          otpVerified
+                          isEnterprisePublishingReady
                             ? 'bg-green-600 text-white hover:bg-green-700 shadow-lg hover:shadow-xl active:scale-[0.99]'
                             : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                         }`}
@@ -1011,6 +1148,24 @@ export default function DashboardEntreprise() {
                         {isEn
                           ? 'Enter your NIU or RCCM number (5+ characters) to unlock unlimited job posting.'
                           : 'Entrez votre NIU ou RCCM (5+ caracteres) pour debloquer la publication illimitee.'}
+                      </p>
+                    </div>
+
+                    <div className={`rounded-xl p-4 border-2 ${documentsVerificationStatus === 'approved' ? 'bg-green-50 border-green-200' : documentsVerificationStatus === 'pending' ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`w-2.5 h-2.5 rounded-full ${documentsVerificationStatus === 'approved' ? 'bg-green-500' : documentsVerificationStatus === 'pending' ? 'bg-blue-500' : 'bg-amber-500'}`} />
+                        <p className={`text-sm font-bold ${documentsVerificationStatus === 'approved' ? 'text-green-800' : documentsVerificationStatus === 'pending' ? 'text-blue-800' : 'text-amber-800'}`}>
+                          {documentsVerificationStatus === 'approved'
+                            ? (isEn ? 'Documents approved by Super Admin' : 'Documents approuves par Super Admin')
+                            : documentsVerificationStatus === 'pending'
+                              ? (isEn ? 'Documents pending Super Admin review' : 'Documents en attente Super Admin')
+                              : (isEn ? 'Documents & logo not submitted' : 'Documents et logo non soumis')}
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-600 font-medium">
+                        {isEn
+                          ? 'A company cannot publish any job before Super Admin validates logo and legal documents.'
+                          : 'Une entreprise ne peut pas publier d offre tant que le Super Admin n a pas valide le logo et les documents legaux.'}
                       </p>
                     </div>
 

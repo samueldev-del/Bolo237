@@ -7,6 +7,7 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
+import { getVerificationStatus, submitVerification, VerificationStatus } from '@/lib/verificationStore';
 
 /* ------------------------------------------------------------------ */
 /*  Animated circular progress (SVG, no deps)                         */
@@ -111,12 +112,16 @@ export default function DashboardArtisan() {
   const [otpCode, setOtpCode] = useState('');
   const [otpInput, setOtpInput] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
-  const [idFrontUploaded, setIdFrontUploaded] = useState(false);
-  const [idBackUploaded, setIdBackUploaded] = useState(false);
-  const [selfieVideoUploaded, setSelfieVideoUploaded] = useState(false);
+  const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [idType, setIdType] = useState<'cni' | 'passeport' | 'permis' | ''>('');
+  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
+  const [idBackFile, setIdBackFile] = useState<File | null>(null);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
+  const [selfieVideoFile, setSelfieVideoFile] = useState<File | null>(null);
   const [servicesPostedCount, setServicesPostedCount] = useState(0);
   const [verificationMessage, setVerificationMessage] = useState('');
   const [showVerification, setShowVerification] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('not_submitted');
 
   /* service form */
   const [showServiceForm, setShowServiceForm] = useState(false);
@@ -130,10 +135,19 @@ export default function DashboardArtisan() {
   const [portfolioImages, setPortfolioImages] = useState<{ url: string; name: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
 
-  const isArtisanVerified = otpVerified && idFrontUploaded && idBackUploaded && selfieVideoUploaded;
-  const verificationSteps = [otpVerified, idFrontUploaded, idBackUploaded, selfieVideoUploaded];
+  const hasIdentityDocument = idType === 'passeport'
+    ? !!passportFile
+    : !!idFrontFile && !!idBackFile;
+  const isArtisanVerified = otpVerified && !!profilePhotoFile && hasIdentityDocument && !!selfieVideoFile;
+  const accountKey = (userName || phone || 'artisan').toLowerCase();
+  const verificationSteps = [otpVerified, !!profilePhotoFile, hasIdentityDocument, !!selfieVideoFile];
   const completedSteps = verificationSteps.filter(Boolean).length;
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
+
+  useEffect(() => {
+    if (!accountKey) return;
+    setVerificationStatus(getVerificationStatus('artisan', accountKey));
+  }, [accountKey]);
 
   /* ---------- OTP handlers ---------- */
   const sendOtp = async () => {
@@ -178,6 +192,14 @@ export default function DashboardArtisan() {
   };
 
   const publishServiceNeed = () => {
+    if (verificationStatus !== 'approved') {
+      setVerificationMessage(
+        isEn
+          ? 'Publication blocked: waiting for Super Admin approval of your identity documents.'
+          : 'Publication bloquee: en attente de validation Super Admin de vos pieces.'
+      );
+      return;
+    }
     const status = getModerationStatusForFirstPublications(servicesPostedCount);
     const next = servicesPostedCount + 1;
     setServicesPostedCount(next);
@@ -212,6 +234,41 @@ export default function DashboardArtisan() {
     setServiceDesc('');
     setServicePrice('');
     setShowServiceForm(false);
+  };
+
+  const submitToSuperAdmin = () => {
+    if (!isArtisanVerified) {
+      setVerificationMessage(
+        isEn
+          ? 'Complete all required uploads first: profile photo, identity document, and selfie video with ID.'
+          : 'Completez d abord tous les telechargements requis: photo profil, piece d identite et selfie video avec la piece.'
+      );
+      return;
+    }
+
+    submitVerification({
+      role: 'artisan',
+      accountKey,
+      displayName: userName || 'Artisan',
+      phone,
+      payload: {
+        idType,
+        hasProfilePhoto: !!profilePhotoFile,
+        profilePhotoName: profilePhotoFile?.name ?? null,
+        hasIdentityDocument,
+        idFrontName: idFrontFile?.name ?? null,
+        idBackName: idBackFile?.name ?? null,
+        passportName: passportFile?.name ?? null,
+        selfieVideoName: selfieVideoFile?.name ?? null,
+      },
+    });
+
+    setVerificationStatus('pending');
+    setVerificationMessage(
+      isEn
+        ? 'Verification request submitted. Waiting for Super Admin review.'
+        : 'Demande de verification soumise. En attente du Super Admin.'
+    );
   };
 
   /* ---------------------------------------------------------------- */
@@ -413,16 +470,16 @@ export default function DashboardArtisan() {
                 &#128737; {isEn ? 'Identity Shield' : 'Bouclier Identite'}
               </h3>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isArtisanVerified ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
-                {completedSteps}/4
+                {verificationStatus === 'approved' ? (isEn ? 'APPROVED' : 'APPROUVE') : verificationStatus === 'pending' ? (isEn ? 'PENDING' : 'EN ATTENTE') : `${completedSteps}/4`}
               </span>
             </div>
 
             {/* Visual checklist */}
             <div className="space-y-3 mb-5">
               <StepCheck done={otpVerified} label={isEn ? 'Phone verified (OTP)' : 'Telephone verifie (OTP)'} />
-              <StepCheck done={idFrontUploaded} label={isEn ? 'ID front uploaded' : 'CNI recto fourni'} />
-              <StepCheck done={idBackUploaded} label={isEn ? 'ID back uploaded' : 'CNI verso fourni'} />
-              <StepCheck done={selfieVideoUploaded} label={isEn ? 'Selfie video with ID' : 'Selfie video avec CNI'} />
+              <StepCheck done={!!profilePhotoFile} label={isEn ? 'Profile photo uploaded' : 'Photo de profil fournie'} />
+              <StepCheck done={hasIdentityDocument} label={isEn ? 'Identity document uploaded' : 'Piece d identite fournie'} />
+              <StepCheck done={!!selfieVideoFile} label={isEn ? 'Selfie video with ID' : 'Selfie video avec piece'} />
             </div>
 
             {/* Toggle verification form */}
@@ -445,9 +502,22 @@ export default function DashboardArtisan() {
               <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 anim-fadeUp">
                 <p className="text-xs text-gray-500 font-medium leading-relaxed">
                   {isEn
-                    ? 'Verify your phone with OTP, upload both sides of your ID, and a selfie video holding your card.'
-                    : 'Verifiez votre telephone par OTP, ajoutez CNI recto/verso, et une selfie video avec votre carte.'}
+                    ? 'Verify phone by OTP, upload profile photo, ID document (front/back for CNI or license, passport accepted), and a short selfie video with the document.'
+                    : 'Verifiez le telephone par OTP, telechargez photo profil, piece d identite (recto/verso pour CNI ou permis, passeport accepte), puis une courte selfie video avec la piece.'}
                 </p>
+
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                    {isEn ? 'Profile photo' : 'Photo de profil'}
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setProfilePhotoFile(e.target.files?.[0] ?? null)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
+                  />
+                  {profilePhotoFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{profilePhotoFile.name}</p>}
+                </div>
 
                 {/* Phone + OTP */}
                 <input
@@ -480,36 +550,89 @@ export default function DashboardArtisan() {
                   </>
                 )}
 
-                {/* ID upload toggles */}
-                <div className="space-y-2 pt-1">
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={idFrontUploaded} onChange={() => setIdFrontUploaded((v) => !v)} className="sr-only peer" />
-                    <span className="w-5 h-5 rounded-md border-2 border-gray-300 peer-checked:bg-green-500 peer-checked:border-green-500 flex items-center justify-center transition-all">
-                      {idFrontUploaded && <span className="text-white text-xs font-bold">{'\u2713'}</span>}
-                    </span>
-                    <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition">
-                      {isEn ? 'ID card front provided' : 'CNI recto fourni'}
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={idBackUploaded} onChange={() => setIdBackUploaded((v) => !v)} className="sr-only peer" />
-                    <span className="w-5 h-5 rounded-md border-2 border-gray-300 peer-checked:bg-green-500 peer-checked:border-green-500 flex items-center justify-center transition-all">
-                      {idBackUploaded && <span className="text-white text-xs font-bold">{'\u2713'}</span>}
-                    </span>
-                    <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition">
-                      {isEn ? 'ID card back provided' : 'CNI verso fourni'}
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={selfieVideoUploaded} onChange={() => setSelfieVideoUploaded((v) => !v)} className="sr-only peer" />
-                    <span className="w-5 h-5 rounded-md border-2 border-gray-300 peer-checked:bg-green-500 peer-checked:border-green-500 flex items-center justify-center transition-all">
-                      {selfieVideoUploaded && <span className="text-white text-xs font-bold">{'\u2713'}</span>}
-                    </span>
-                    <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900 transition">
-                      {isEn ? 'Selfie video with ID card' : 'Selfie video avec CNI'}
-                    </span>
-                  </label>
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                      {isEn ? 'Identity document type' : 'Type de piece d identite'}
+                    </label>
+                    <select
+                      value={idType}
+                      onChange={(e) => {
+                        const next = e.target.value as 'cni' | 'passeport' | 'permis' | '';
+                        setIdType(next);
+                        setIdFrontFile(null);
+                        setIdBackFile(null);
+                        setPassportFile(null);
+                      }}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white"
+                    >
+                      <option value="">{isEn ? 'Select document type' : 'Choisir le type de piece'}</option>
+                      <option value="cni">CNI</option>
+                      <option value="permis">{isEn ? 'Driving license' : 'Permis de conduire'}</option>
+                      <option value="passeport">Passeport</option>
+                    </select>
+                  </div>
+
+                  {idType && idType !== 'passeport' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                          {isEn ? 'Document front side' : 'Recto de la piece'}
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={(e) => setIdFrontFile(e.target.files?.[0] ?? null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                          {isEn ? 'Document back side' : 'Verso de la piece'}
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          onChange={(e) => setIdBackFile(e.target.files?.[0] ?? null)}
+                          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {idType === 'passeport' && (
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                        {isEn ? 'Passport file' : 'Fichier passeport'}
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={(e) => setPassportFile(e.target.files?.[0] ?? null)}
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                      {isEn ? 'Short selfie video with ID' : 'Courte selfie video avec piece'}
+                    </label>
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={(e) => setSelfieVideoFile(e.target.files?.[0] ?? null)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
+                    />
+                  </div>
                 </div>
+
+                <button
+                  onClick={submitToSuperAdmin}
+                  className="w-full bg-gray-900 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-black transition"
+                >
+                  {isEn ? 'Submit for Super Admin validation' : 'Soumettre pour validation Super Admin'}
+                </button>
 
                 {verificationMessage && (
                   <div className={`text-xs font-bold px-3 py-2 rounded-lg ${verificationMessage.includes('verifie') || verificationMessage.includes('verified') ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
@@ -785,8 +908,19 @@ export default function DashboardArtisan() {
                     </p>
                   </div>
                   <Link
-                    href={localizePath('/publier')}
-                    className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold shadow-md hover:bg-gray-800 transition text-sm whitespace-nowrap text-center w-full md:w-auto"
+                    href={verificationStatus === 'approved' ? localizePath('/publier') : '#'}
+                    onClick={(e) => {
+                      if (verificationStatus !== 'approved') {
+                        e.preventDefault();
+                        setVerificationMessage(
+                          isEn
+                            ? 'You must be approved by Super Admin before publishing.'
+                            : 'Vous devez etre approuve par le Super Admin avant de publier.'
+                        );
+                        setShowVerification(true);
+                      }
+                    }}
+                    className={`px-6 py-3 rounded-xl font-bold shadow-md transition text-sm whitespace-nowrap text-center w-full md:w-auto ${verificationStatus === 'approved' ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
                   >
                     + {isEn ? 'Post a job ad' : 'Publier une annonce'}
                   </Link>

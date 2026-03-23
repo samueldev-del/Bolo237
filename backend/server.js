@@ -21,9 +21,34 @@ const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_T
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
 
+// Log Twilio status at startup
+if (twilioClient) {
+  console.log('✅ Twilio client initialized');
+  if (process.env.TWILIO_WHATSAPP_FROM && process.env.TWILIO_WHATSAPP_TO) {
+    console.log(`✅ WhatsApp alerts: FROM=${process.env.TWILIO_WHATSAPP_FROM} TO=${process.env.TWILIO_WHATSAPP_TO}`);
+  } else {
+    console.warn('⚠️ Twilio client OK but TWILIO_WHATSAPP_FROM or TWILIO_WHATSAPP_TO missing — WhatsApp alerts disabled');
+  }
+} else {
+  console.warn('⚠️ Twilio not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN missing) — WhatsApp alerts disabled');
+}
+
+// Log Cloudinary status
+if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  console.log('✅ Cloudinary configured');
+} else {
+  console.warn('⚠️ Cloudinary not configured — file uploads will fail');
+}
+
 async function sendWhatsAppModerationAlert(messageBody) {
-  if (!twilioClient) return;
-  if (!process.env.TWILIO_WHATSAPP_FROM || !process.env.TWILIO_WHATSAPP_TO) return;
+  if (!twilioClient) {
+    console.log('📩 [WhatsApp SKIP - no client]', messageBody.split('\n')[0]);
+    return;
+  }
+  if (!process.env.TWILIO_WHATSAPP_FROM || !process.env.TWILIO_WHATSAPP_TO) {
+    console.log('📩 [WhatsApp SKIP - no FROM/TO]', messageBody.split('\n')[0]);
+    return;
+  }
 
   try {
     await twilioClient.messages.create({
@@ -31,8 +56,9 @@ async function sendWhatsAppModerationAlert(messageBody) {
       to: process.env.TWILIO_WHATSAPP_TO,
       body: messageBody,
     });
+    console.log('📩 [WhatsApp SENT]', messageBody.split('\n')[0]);
   } catch (error) {
-    console.error('Twilio WhatsApp send error:', error?.message || error);
+    console.error('📩 [WhatsApp ERROR]', error?.message || error);
   }
 }
 
@@ -626,13 +652,15 @@ app.post('/api/users', async (req, res) => {
       select: { id: true, email: true, name: true, role: true, phone: true, isVerified: true, isBanned: true, createdAt: true },
     });
 
+    console.log(`✅ Nouveau user créé: ID=${user.id} Role=${user.role} Email=${user.email}`);
+
     await sendWhatsAppModerationAlert(
       [
-        'Nouveau profil en attente de verification',
-        `User ID: ${user.id}`,
-        `Role: ${user.role}`,
-        `Nom: ${user.name || '-'}`,
-        `Email: ${user.email}`,
+        '🆕 Nouveau profil en attente de vérification',
+        `👤 ${user.name || '-'}`,
+        `📧 ${user.email}`,
+        `🏷️ ${user.role}`,
+        `🔗 ID: ${user.id}`,
       ].join('\n')
     );
 
@@ -658,11 +686,22 @@ app.put('/api/users/:id', async (req, res) => {
     if (role !== undefined) data.role = String(role);
     if (isVerified !== undefined) data.isVerified = Boolean(isVerified);
 
+    console.log(`PUT /api/users/${id} — updating:`, JSON.stringify(data));
+
     const user = await prisma.user.update({
       where: { id },
       data,
       select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
     });
+
+    console.log(`PUT /api/users/${id} — result: isVerified=${user.isVerified}`);
+
+    // Envoyer une notification WhatsApp lors de la vérification
+    if (isVerified === true) {
+      await sendWhatsAppModerationAlert(
+        `✅ Compte vérifié\nUser ID: ${user.id}\nNom: ${user.name || '-'}\nRole: ${user.role}`
+      );
+    }
 
     res.json(user);
   } catch (error) {

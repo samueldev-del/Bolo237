@@ -64,6 +64,32 @@ function listVerificationItems() {
   });
 }
 
+const candidateProfiles = [];
+const userProfiles = new Map();
+const userSavedJobs = new Map();
+
+function profileFromBody(userId, body) {
+  return {
+    userId,
+    fullName: String(body.fullName || ''),
+    title: String(body.title || ''),
+    location: String(body.location || ''),
+    phone: String(body.phone || ''),
+    email: String(body.email || ''),
+    profile: String(body.profile || ''),
+    experience: String(body.experience || ''),
+    education: String(body.education || ''),
+    skillsText: String(body.skillsText || ''),
+    languagesText: String(body.languagesText || ''),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function calcCvMajJours(createdAtIso) {
+  const diff = Date.now() - new Date(createdAtIso).getTime();
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+}
+
 // =============================================
 // ROUTES: Jobs (Offres d'emploi)
 // =============================================
@@ -203,6 +229,133 @@ app.patch('/api/verifications/:id/review', (req, res) => {
 
   verificationSubmissions.set(verificationKey(updated.role, updated.accountKey), updated);
   res.json(updated);
+});
+
+// =============================================
+// ROUTES: Candidate Profiles / CVtheque
+// =============================================
+
+app.get('/api/candidates', (_req, res) => {
+  const rows = [...candidateProfiles]
+    .map((c) => ({ ...c, cvMajJours: calcCvMajJours(c.createdAt) }))
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  res.json({ candidates: rows });
+});
+
+app.post('/api/candidates', (req, res) => {
+  const {
+    userId,
+    nom,
+    titre,
+    localisation,
+    experience = 'Confirme',
+    disponibilite = 'Immediatement',
+    etudes = 'Bac+3',
+    competences = [],
+    disponibleNow = true,
+  } = req.body || {};
+
+  if (!nom || !titre) {
+    return res.status(400).json({ error: 'Champs requis: nom, titre.' });
+  }
+
+  const item = {
+    id: Date.now(),
+    userId: userId ? parseInt(String(userId), 10) : undefined,
+    nom: String(nom),
+    titre: String(titre),
+    localisation: String(localisation || 'Douala'),
+    experience: String(experience),
+    disponibilite: String(disponibilite),
+    etudes: String(etudes),
+    competences: Array.isArray(competences)
+      ? competences.map((s) => String(s)).filter(Boolean).slice(0, 12)
+      : [],
+    disponibleNow: Boolean(disponibleNow),
+    cvMajJours: 0,
+    createdAt: new Date().toISOString(),
+  };
+
+  candidateProfiles.unshift(item);
+  res.status(201).json(item);
+});
+
+// =============================================
+// ROUTES: User Profiles
+// =============================================
+
+app.get('/api/profiles/:userId', (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+  const existing = userProfiles.get(userId);
+  if (!existing) return res.status(404).json({ error: 'Profil non trouve.' });
+  res.json(existing);
+});
+
+app.put('/api/profiles/:userId', (req, res) => {
+  const userId = parseInt(req.params.userId, 10);
+  if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+  const nextProfile = profileFromBody(userId, req.body || {});
+  userProfiles.set(userId, nextProfile);
+  res.json(nextProfile);
+});
+
+// =============================================
+// ROUTES: Saved Jobs
+// =============================================
+
+app.get('/api/users/:id/saved-jobs', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID invalide.' });
+
+    const saved = userSavedJobs.get(userId) || new Set();
+    const ids = Array.from(saved);
+    if (ids.length === 0) return res.json({ jobs: [] });
+
+    const jobs = await prisma.job.findMany({
+      where: { id: { in: ids } },
+      include: { author: { select: { id: true, name: true, email: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    res.json({ jobs });
+  } catch (error) {
+    console.error('GET /api/users/:id/saved-jobs error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des annonces sauvegardees.' });
+  }
+});
+
+app.post('/api/users/:id/saved-jobs', (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const jobId = parseInt(String(req.body?.jobId), 10);
+
+  if (isNaN(userId) || isNaN(jobId)) {
+    return res.status(400).json({ error: 'Parametres invalides: userId et jobId requis.' });
+  }
+
+  const saved = userSavedJobs.get(userId) || new Set();
+  saved.add(jobId);
+  userSavedJobs.set(userId, saved);
+
+  res.status(201).json({ ok: true });
+});
+
+app.delete('/api/users/:id/saved-jobs/:jobId', (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const jobId = parseInt(req.params.jobId, 10);
+
+  if (isNaN(userId) || isNaN(jobId)) {
+    return res.status(400).json({ error: 'Parametres invalides: userId et jobId requis.' });
+  }
+
+  const saved = userSavedJobs.get(userId) || new Set();
+  saved.delete(jobId);
+  userSavedJobs.set(userId, saved);
+
+  res.json({ ok: true });
 });
 
 // GET /api/jobs/:id — Détail d'une offre

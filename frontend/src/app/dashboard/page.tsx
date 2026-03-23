@@ -5,11 +5,14 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
+import { createCandidateProfile, fetchUserSavedJobs, upsertUserProfile, type ApiJob } from '@/lib/api';
 
 export default function DashboardCandidat() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
   const [userName, setUserName] = useState('');
+  const [userId, setUserId] = useState<number>(0);
+  const [savedJobs, setSavedJobs] = useState<ApiJob[]>([]);
   const [profileVisible, setProfileVisible] = useState(true);
   const [skillInput, setSkillInput] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
@@ -43,17 +46,49 @@ export default function DashboardCandidat() {
       if (raw) {
         const parsed = JSON.parse(raw);
         setUserName(parsed?.name || parsed?.fullName || parsed?.nom || '');
+        setUserId(Number(parsed?.id || 0));
       }
     } catch {
       // ignore parse errors
     }
   }, []);
 
+  useEffect(() => {
+    const loadSavedJobs = async () => {
+      if (!userId) return;
+      try {
+        const jobs = await fetchUserSavedJobs(userId);
+        setSavedJobs(jobs);
+      } catch {
+        setSavedJobs([]);
+      }
+    };
+
+    loadSavedJobs();
+  }, [userId]);
+
   // Vide — sera rempli par les vraies candidatures de l'utilisateur
   const candidatures: { id: number; poste: string; entreprise: string; date: string; statut: string }[] = [];
 
   // Vide — sera rempli par les vraies offres sauvegardees
-  const emploisSauvegardes: { id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[] = [];
+  const emploisSauvegardes: { id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[] = savedJobs.map((job) => {
+    const diff = Date.now() - new Date(job.createdAt).getTime();
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const temps = hours < 1
+      ? "A l instant"
+      : hours < 24
+        ? `Il y a ${hours}h`
+        : `Il y a ${Math.floor(hours / 24)} jour${Math.floor(hours / 24) > 1 ? 's' : ''}`;
+
+    return {
+      id: job.id,
+      titre: job.title,
+      entreprise: job.company,
+      lieu: job.location,
+      type: 'CDI',
+      temps,
+    };
+  });
 
   const addSkill = () => {
     const value = skillInput.trim();
@@ -248,47 +283,36 @@ export default function DashboardCandidat() {
     setCvActionMessage('');
 
     try {
-      const payload = {
-        language: cvLanguage,
-        template: cvTemplate,
-        cvData,
-      };
-
-      const response = await fetch('/api/cv-builder', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error('Impossible de sauvegarder le CV pour le moment.');
-      }
-
-      const result = await response.json();
-
-      const mappedCandidate = {
-        id: result?.candidate?.id ?? Date.now(),
+      await createCandidateProfile({
+        userId: userId || undefined,
         nom: cvData.fullName,
         titre: cvData.title,
         localisation: cvData.location.split(',')[0]?.trim() || 'Douala',
         experience: 'Confirme',
         disponibilite: 'Immediatement',
         etudes: 'Bac+3',
-        cvMajJours: 0,
         competences: cvData.skillsText
           .split(',')
           .map((item) => item.trim())
           .filter(Boolean)
           .slice(0, 8),
         disponibleNow: true,
-      };
+      });
 
-      const existingRaw = localStorage.getItem('cvtheque_custom_candidates');
-      const existing = existingRaw ? JSON.parse(existingRaw) : [];
-      const deduped = [mappedCandidate, ...existing.filter((item: { id: number }) => item.id !== mappedCandidate.id)];
-      localStorage.setItem('cvtheque_custom_candidates', JSON.stringify(deduped));
+      if (userId) {
+        await upsertUserProfile(userId, {
+          fullName: cvData.fullName,
+          title: cvData.title,
+          location: cvData.location,
+          phone: cvData.phone,
+          email: cvData.email,
+          profile: cvData.profile,
+          experience: cvData.experience,
+          education: cvData.education,
+          skillsText: cvData.skillsText,
+          languagesText: cvData.languagesText,
+        });
+      }
 
       setCvActionMessage(t.saveSuccess);
     } catch {

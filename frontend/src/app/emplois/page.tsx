@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { fetchJobs, type ApiJob } from '@/lib/api';
+import { fetchJobs, fetchUserSavedJobs, removeUserSavedJob, saveUserJob, type ApiJob } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -139,12 +139,38 @@ function FilterCheckbox({ label, count, color = '#7C3AED' }: { label: string; co
 // ── Page principale ───────────────────────────────────────────────
 export default function EmploisFormels() {
   const { localizePath } = useLocale();
+  const [userId, setUserId] = useState<number>(0);
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [alertActive, setAlertActive] = useState(false);
   const [activeChips, setActiveChips] = useState<string[]>([]);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('237jobs-user');
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      setUserId(Number(parsed?.id || 0));
+    } catch {
+      // ignore parse errors
+    }
+  }, []);
+
+  useEffect(() => {
+    const loadSavedJobs = async () => {
+      if (!userId) return;
+      try {
+        const jobs = await fetchUserSavedJobs(userId);
+        setSavedIds(jobs.map((job) => job.id));
+      } catch {
+        setSavedIds([]);
+      }
+    };
+
+    loadSavedJobs();
+  }, [userId]);
+
   // Fetch depuis le backend, fallback sur mock
-  const { data: jobsData, loading: jobsLoading } = useApi(
+  const { data: jobsData } = useApi(
     () => fetchJobs({ limit: 20 }),
     null,
     []
@@ -154,8 +180,22 @@ export default function EmploisFormels() {
     ? jobsData.jobs.map((j, i) => apiJobToOffre(j, i))
     : MOCK_OFFRES;
 
-  const toggleSave = (id: number) => {
-    setSavedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const toggleSave = async (id: number) => {
+    const isSaved = savedIds.includes(id);
+
+    setSavedIds((prev) => (isSaved ? prev.filter((x) => x !== id) : [...prev, id]));
+
+    if (!userId) return;
+
+    try {
+      if (isSaved) {
+        await removeUserSavedJob(userId, id);
+      } else {
+        await saveUserJob(userId, id);
+      }
+    } catch {
+      setSavedIds((prev) => (isSaved ? [...prev, id] : prev.filter((x) => x !== id)));
+    }
   };
 
   const toggleChip = (chip: string) => {

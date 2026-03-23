@@ -57,6 +57,36 @@ export type VerificationSubmission = {
   payload: Record<string, string | boolean | number | null>;
 };
 
+export type CandidateProfile = {
+  id: number;
+  nom: string;
+  titre: string;
+  localisation: string;
+  experience: 'Junior' | 'Confirme' | 'Senior';
+  disponibilite: 'Immediatement' | 'Sous 1 mois' | 'A l ecoute du marche';
+  etudes: 'Bac' | 'Bac+2' | 'Bac+3' | 'Bac+5';
+  cvMajJours: number;
+  competences: string[];
+  disponibleNow: boolean;
+  userId?: number;
+  createdAt: string;
+};
+
+export type UserProfile = {
+  userId: number;
+  fullName: string;
+  title: string;
+  location: string;
+  phone: string;
+  email: string;
+  profile: string;
+  experience: string;
+  education: string;
+  skillsText: string;
+  languagesText: string;
+  updatedAt: string;
+};
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -278,5 +308,65 @@ export async function reviewVerificationSubmission(input: {
       reviewedBy: input.reviewedBy,
       notes: input.notes,
     }),
+  });
+}
+
+// ── Candidate profiles / CVtheque ────────────────────────────────
+
+export async function fetchCandidateProfiles(): Promise<CandidateProfile[]> {
+  const res = await apiFetch<{ candidates: CandidateProfile[] }>('/api/candidates');
+  return res.candidates;
+}
+
+export async function createCandidateProfile(data: {
+  userId?: number;
+  nom: string;
+  titre: string;
+  localisation: string;
+  experience: CandidateProfile['experience'];
+  disponibilite: CandidateProfile['disponibilite'];
+  etudes: CandidateProfile['etudes'];
+  competences: string[];
+  disponibleNow?: boolean;
+}): Promise<CandidateProfile> {
+  return apiFetch<CandidateProfile>('/api/candidates', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+// ── User profile ──────────────────────────────────────────────────
+
+export async function fetchUserProfile(userId: number): Promise<UserProfile> {
+  return apiFetch<UserProfile>(`/api/profiles/${userId}`);
+}
+
+export async function upsertUserProfile(
+  userId: number,
+  data: Omit<UserProfile, 'userId' | 'updatedAt'>
+): Promise<UserProfile> {
+  return apiFetch<UserProfile>(`/api/profiles/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+// ── Saved jobs ────────────────────────────────────────────────────
+
+export async function fetchUserSavedJobs(userId: number): Promise<ApiJob[]> {
+  const res = await apiFetch<{ jobs: ApiJob[] }>(`/api/users/${userId}/saved-jobs`);
+  return res.jobs;
+}
+
+export async function saveUserJob(userId: number, jobId: number): Promise<void> {
+  await apiFetch(`/api/users/${userId}/saved-jobs`, {
+    method: 'POST',
+    body: JSON.stringify({ jobId }),
+  });
+}
+
+export async function removeUserSavedJob(userId: number, jobId: number): Promise<void> {
+  await apiFetch(`/api/users/${userId}/saved-jobs/${jobId}`, {
+    method: 'DELETE',
   });
 }

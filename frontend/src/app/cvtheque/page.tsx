@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/components/LocaleProvider';
+import { fetchCandidateProfiles } from '@/lib/api';
 
 type Candidate = {
   id: number;
@@ -73,18 +74,7 @@ const candidatsData: Candidate[] = [
 export default function CvthequePage() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
-  const [customCandidats] = useState<Candidate[]>(() => {
-    if (typeof window === 'undefined') return [];
-    const raw = localStorage.getItem('cvtheque_custom_candidates');
-    if (!raw) return [];
-
-    try {
-      const parsed = JSON.parse(raw) as Candidate[];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch {
-      return [];
-    }
-  });
+  const [apiCandidats, setApiCandidats] = useState<Candidate[]>([]);
   const [keywords, setKeywords] = useState('');
   const [localisation, setLocalisation] = useState('');
   const [saved, setSaved] = useState<number[]>([]);
@@ -97,11 +87,36 @@ export default function CvthequePage() {
   const [etudeFilters, setEtudeFilters] = useState<string[]>([]);
   const [actif30Jours, setActif30Jours] = useState(false);
 
+  useEffect(() => {
+    const loadCandidates = async () => {
+      try {
+        const rows = await fetchCandidateProfiles();
+        const mapped = rows.map((cand) => ({
+          id: cand.id,
+          nom: cand.nom,
+          titre: cand.titre,
+          localisation: cand.localisation,
+          experience: cand.experience,
+          disponibilite: cand.disponibilite,
+          etudes: cand.etudes,
+          cvMajJours: cand.cvMajJours,
+          competences: cand.competences,
+          disponibleNow: cand.disponibleNow,
+        })) as Candidate[];
+        setApiCandidats(mapped);
+      } catch {
+        setApiCandidats([]);
+      }
+    };
+
+    loadCandidates();
+  }, []);
+
   const allCandidates = useMemo(() => {
     const ids = new Set<number>();
     const merged: Candidate[] = [];
 
-    [...customCandidats, ...candidatsData].forEach((cand) => {
+    [...apiCandidats, ...candidatsData].forEach((cand) => {
       if (!ids.has(cand.id)) {
         ids.add(cand.id);
         merged.push(cand);
@@ -109,7 +124,7 @@ export default function CvthequePage() {
     });
 
     return merged;
-  }, [customCandidats]);
+  }, [apiCandidats]);
 
   const toggleFilter = (value: string, state: string[], setState: (v: string[]) => void) => {
     if (state.includes(value)) {

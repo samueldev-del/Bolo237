@@ -87,6 +87,18 @@ export type UserProfile = {
   updatedAt: string;
 };
 
+export type ApiNotification = {
+  id: number;
+  userId: number;
+  type: string;
+  title: string;
+  message: string;
+  data?: Record<string, string | number | boolean | null> | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+};
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -144,6 +156,20 @@ export async function createJob(data: {
   return apiFetch<ApiJob>('/api/jobs', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+export async function applyToJob(input: {
+  jobId: number;
+  candidateId: number;
+  candidateName?: string;
+}): Promise<void> {
+  await apiFetch(`/api/jobs/${input.jobId}/apply`, {
+    method: 'POST',
+    body: JSON.stringify({
+      candidateId: input.candidateId,
+      candidateName: input.candidateName,
+    }),
   });
 }
 
@@ -368,5 +394,32 @@ export async function saveUserJob(userId: number, jobId: number): Promise<void> 
 export async function removeUserSavedJob(userId: number, jobId: number): Promise<void> {
   await apiFetch(`/api/users/${userId}/saved-jobs/${jobId}`, {
     method: 'DELETE',
+  });
+}
+
+// ── Notifications ────────────────────────────────────────────────
+
+export async function fetchUserNotifications(
+  userId: number,
+  options: { unreadOnly?: boolean; limit?: number } = {}
+): Promise<{ items: ApiNotification[]; unreadCount: number }> {
+  const params = new URLSearchParams();
+  if (options.unreadOnly) params.set('unreadOnly', 'true');
+  if (options.limit) params.set('limit', String(options.limit));
+  const qs = params.toString();
+  return apiFetch<{ items: ApiNotification[]; unreadCount: number }>(
+    `/api/users/${userId}/notifications${qs ? `?${qs}` : ''}`
+  );
+}
+
+export async function markNotificationAsRead(notificationId: number): Promise<void> {
+  await apiFetch(`/api/notifications/${notificationId}/read`, {
+    method: 'PATCH',
+  });
+}
+
+export async function markAllNotificationsAsRead(userId: number): Promise<void> {
+  await apiFetch(`/api/users/${userId}/notifications/read-all`, {
+    method: 'PATCH',
   });
 }

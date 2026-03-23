@@ -21,6 +21,7 @@ model User {
   banReason   String?
   createdAt   DateTime @default(now())
   jobs        Job[]
+  notifications Notification[]
 }
 
 // 2. Table des Offres d'Emploi
@@ -45,4 +46,19 @@ model Report {
   targetId    Int
   status      String   @default("OPEN")    
   createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  type      String
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead, createdAt])
 }

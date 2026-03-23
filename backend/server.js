@@ -90,6 +90,18 @@ function calcCvMajJours(createdAtIso) {
   return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
 }
 
+async function createNotification({ userId, type, title, message, data }) {
+  return prisma.notification.create({
+    data: {
+      userId,
+      type,
+      title,
+      message,
+      data: data || undefined,
+    },
+  });
+}
+
 // =============================================
 // ROUTES: Jobs (Offres d'emploi)
 // =============================================
@@ -377,6 +389,55 @@ app.get('/api/jobs/:id', async (req, res) => {
   }
 });
 
+// POST /api/jobs/:id/apply — Simuler une candidature et notifier l'entreprise
+app.post('/api/jobs/:id/apply', async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id, 10);
+    if (isNaN(jobId)) return res.status(400).json({ error: 'ID annonce invalide.' });
+
+    const { candidateId, candidateName } = req.body || {};
+    if (!candidateId) {
+      return res.status(400).json({ error: 'candidateId requis.' });
+    }
+
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true, title: true, company: true, authorId: true },
+    });
+
+    if (!job) return res.status(404).json({ error: 'Offre non trouvee.' });
+
+    const normalizedCandidateId = parseInt(String(candidateId), 10);
+    if (isNaN(normalizedCandidateId)) {
+      return res.status(400).json({ error: 'candidateId invalide.' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: normalizedCandidateId },
+      select: { id: true, name: true, email: true },
+    });
+
+    const candidateLabel = String(candidateName || user?.name || user?.email || `Candidat #${normalizedCandidateId}`);
+
+    const notif = await createNotification({
+      userId: job.authorId,
+      type: 'application_received',
+      title: 'Nouvelle candidature',
+      message: `${candidateLabel} a postule a votre offre: ${job.title}`,
+      data: {
+        jobId: job.id,
+        candidateId: normalizedCandidateId,
+        candidateName: candidateLabel,
+      },
+    });
+
+    res.status(201).json({ ok: true, notification: notif });
+  } catch (error) {
+    console.error('POST /api/jobs/:id/apply error:', error);
+    res.status(500).json({ error: 'Erreur lors de la candidature.' });
+  }
+});
+
 // POST /api/jobs — Créer une offre
 app.post('/api/jobs', async (req, res) => {
   try {
@@ -624,6 +685,74 @@ app.delete('/api/users/:id', async (req, res) => {
     console.error('DELETE /api/users/:id error:', error);
     if (error.code === 'P2025') return res.status(404).json({ error: 'Utilisateur non trouvé.' });
     res.status(500).json({ error: 'Erreur lors de la suppression.' });
+  }
+});
+
+// =============================================
+// ROUTES: Notifications
+// =============================================
+
+// GET /api/users/:id/notifications — Liste notifications + unreadCount
+app.get('/api/users/:id/notifications', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
+    const unreadOnly = String(req.query.unreadOnly || 'false') === 'true';
+
+    const where = unreadOnly ? { userId, isRead: false } : { userId };
+
+    const [items, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+      prisma.notification.count({ where: { userId, isRead: false } }),
+    ]);
+
+    res.json({ items, unreadCount });
+  } catch (error) {
+    console.error('GET /api/users/:id/notifications error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des notifications.' });
+  }
+});
+
+// PATCH /api/notifications/:id/read — Marquer comme lue
+app.patch('/api/notifications/:id/read', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'ID notification invalide.' });
+
+    const notif = await prisma.notification.update({
+      where: { id },
+      data: { isRead: true, readAt: new Date() },
+    });
+
+    res.json(notif);
+  } catch (error) {
+    if (error.code === 'P2025') return res.status(404).json({ error: 'Notification non trouvee.' });
+    console.error('PATCH /api/notifications/:id/read error:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise a jour.' });
+  }
+});
+
+// PATCH /api/users/:id/notifications/read-all — Marquer tout comme lu
+app.patch('/api/users/:id/notifications/read-all', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    const result = await prisma.notification.updateMany({
+      where: { userId, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+
+    res.json({ ok: true, updated: result.count });
+  } catch (error) {
+    console.error('PATCH /api/users/:id/notifications/read-all error:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise a jour des notifications.' });
   }
 });
 

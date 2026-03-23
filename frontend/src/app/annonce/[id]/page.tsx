@@ -4,7 +4,7 @@ import { use, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
-import { fetchJob, type ApiJob } from '@/lib/api';
+import { applyToJob, fetchJob, type ApiJob } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 
 type JobParams = {
@@ -44,6 +44,8 @@ export default function OffreEmploiPage({ params }: JobParams) {
   const { t, localizePath, locale } = useLocale();
   const [translated, setTranslated] = useState(false);
   const [maskedByReports, setMaskedByReports] = useState(false);
+  const [applyMessage, setApplyMessage] = useState('');
+  const [isApplying, setIsApplying] = useState(false);
 
   // Fetch le détail de l'offre depuis le backend
   const { data: apiJob, loading } = useApi(
@@ -83,6 +85,52 @@ export default function OffreEmploiPage({ params }: JobParams) {
         description: annonce.description,
         entrepriseResume: annonce.entrepriseResume,
       };
+
+  const handleApply = async () => {
+    if (!apiJob) {
+      setApplyMessage(locale === 'fr' ? 'Annonce indisponible.' : 'Job not available.');
+      return;
+    }
+
+    let candidateId = 0;
+    let candidateName = '';
+    try {
+      const raw = localStorage.getItem('237jobs-user');
+      if (raw) {
+        const user = JSON.parse(raw);
+        candidateId = Number(user.id || 0);
+        candidateName = String(user.name || user.fullName || user.email || '').trim();
+      }
+    } catch {
+      // ignore parse errors
+    }
+
+    if (!candidateId) {
+      setApplyMessage(locale === 'fr' ? 'Connectez-vous pour postuler.' : 'Please sign in before applying.');
+      return;
+    }
+
+    setIsApplying(true);
+    setApplyMessage('');
+
+    try {
+      await applyToJob({
+        jobId: apiJob.id,
+        candidateId,
+        candidateName,
+      });
+      setApplyMessage(
+        locale === 'fr'
+          ? 'Candidature envoyee. L entreprise a ete notifiee.'
+          : 'Application sent. The company has been notified.'
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setApplyMessage((locale === 'fr' ? 'Echec candidature: ' : 'Application failed: ') + message);
+    } finally {
+      setIsApplying(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -135,8 +183,12 @@ export default function OffreEmploiPage({ params }: JobParams) {
               </div>
             </div>
 
-            <button disabled={maskedByReports} className="hidden md:inline-flex bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition">
-              {maskedByReports ? t.security.adMaskedCta : t.security.apply}
+            <button
+              onClick={handleApply}
+              disabled={maskedByReports || isApplying}
+              className="hidden md:inline-flex bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
+            >
+              {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
             </button>
           </div>
         </div>
@@ -164,10 +216,20 @@ export default function OffreEmploiPage({ params }: JobParams) {
           </article>
 
           <div className="hidden md:flex justify-end">
-            <button disabled={maskedByReports} className="bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition">
-              {t.security.apply}
+            <button
+              onClick={handleApply}
+              disabled={maskedByReports || isApplying}
+              className="bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
+            >
+              {isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
             </button>
           </div>
+
+          {applyMessage && (
+            <div className={`rounded-xl p-3 text-sm font-semibold ${applyMessage.toLowerCase().includes('echec') || applyMessage.toLowerCase().includes('failed') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+              {applyMessage}
+            </div>
+          )}
         </section>
 
         <aside className="space-y-4 md:sticky md:top-6 h-fit">
@@ -194,8 +256,12 @@ export default function OffreEmploiPage({ params }: JobParams) {
       </main>
 
       <div className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-50">
-        <button disabled={maskedByReports} className="w-full bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold py-3 rounded-xl transition">
-          {maskedByReports ? t.security.adMaskedCta : t.security.applyNow}
+        <button
+          onClick={handleApply}
+          disabled={maskedByReports || isApplying}
+          className="w-full bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold py-3 rounded-xl transition"
+        >
+          {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.applyNow}
         </button>
       </div>
     </div>

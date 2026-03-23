@@ -10,8 +10,11 @@ import {
   sendOtp as apiSendOtp,
   verifyOtp as apiVerifyOtp,
   createJob,
+  fetchUserNotifications,
+  markAllNotificationsAsRead,
   fetchVerificationStatus,
   createVerificationSubmission,
+  type ApiNotification,
   type VerificationStatus,
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
@@ -43,8 +46,11 @@ export default function DashboardEntreprise() {
   const [activeSection, setActiveSection] = useState<SidebarSection>('dashboard');
 
   // User info from localStorage
+  const [userId, setUserId] = useState(0);
   const [userName, setUserName] = useState('');
   const [companyName, setCompanyName] = useState('');
+  const [notifications, setNotifications] = useState<ApiNotification[]>([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   // OTP flow
   const [phone, setPhone] = useState('');
@@ -84,6 +90,7 @@ export default function DashboardEntreprise() {
       const raw = localStorage.getItem('237jobs-user');
       if (raw) {
         const user = JSON.parse(raw);
+        setUserId(Number(user.id || 0));
         setUserName(user.name || user.fullName || user.email || '');
         setCompanyName(user.company || user.companyName || '');
       }
@@ -108,6 +115,33 @@ export default function DashboardEntreprise() {
 
     loadVerificationStatus();
   }, [accountKey]);
+
+  useEffect(() => {
+    if (!userId) return;
+
+    let active = true;
+
+    const loadNotifications = async () => {
+      try {
+        const res = await fetchUserNotifications(userId, { limit: 20 });
+        if (!active) return;
+        setNotifications(res.items);
+        setUnreadNotifications(res.unreadCount);
+      } catch {
+        if (!active) return;
+        setNotifications([]);
+        setUnreadNotifications(0);
+      }
+    };
+
+    loadNotifications();
+    const timer = setInterval(loadNotifications, 20000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [userId]);
 
   // Get company initials
   const getInitials = useCallback(() => {
@@ -344,6 +378,20 @@ export default function DashboardEntreprise() {
     setPublishMessage('');
   };
 
+  const openApplications = async () => {
+    navigateTo('applications');
+    if (!userId || unreadNotifications === 0) return;
+
+    setUnreadNotifications(0);
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+
+    try {
+      await markAllNotificationsAsRead(userId);
+    } catch {
+      // keep UI responsive even if read-all fails
+    }
+  };
+
   /* ── Status badge helper ── */
   const statusBadge = (status: JobEntry['status']) => {
     const map = {
@@ -421,11 +469,19 @@ export default function DashboardEntreprise() {
           {/* Right: User badge */}
           <div className="flex items-center gap-3">
             {/* Notification bell */}
-            <button className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 transition">
+            <button
+              onClick={openApplications}
+              className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 transition"
+              title={isEn ? 'Open applications inbox' : 'Ouvrir la boite de candidatures'}
+            >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>
-              <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
             </button>
 
             {/* User avatar */}
@@ -507,7 +563,9 @@ export default function DashboardEntreprise() {
                 <span className="text-base w-6 text-center">{item.icon}</span>
                 <span>{item.label}</span>
                 {item.key === 'applications' && (
-                  <span className="ml-auto bg-green-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">0</span>
+                  <span className="ml-auto bg-green-600 text-white text-[10px] font-bold min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center">
+                    {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                  </span>
                 )}
               </button>
             ))}
@@ -581,7 +639,7 @@ export default function DashboardEntreprise() {
                   <div className="bg-gradient-to-br from-emerald-500 to-green-600 rounded-2xl p-4 sm:p-5 text-white relative overflow-hidden">
                     <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10" />
                     <p className="text-emerald-100 text-[11px] sm:text-xs font-bold uppercase tracking-wide">{isEn ? 'Applications' : 'Candidatures'}</p>
-                    <p className="text-2xl sm:text-3xl font-extrabold mt-2">00</p>
+                    <p className="text-2xl sm:text-3xl font-extrabold mt-2">{String(unreadNotifications).padStart(2, '0')}</p>
                     <p className="text-emerald-200 text-[11px] font-medium mt-1">{isEn ? 'To review' : 'A examiner'}</p>
                   </div>
 
@@ -1223,10 +1281,46 @@ export default function DashboardEntreprise() {
             )}
 
             {/* ═══ PLACEHOLDER VIEWS ═══ */}
-            {(activeSection === 'applications' || activeSection === 'interviews' || activeSection === 'cvtheque' || activeSection === 'billing') && (
+            {activeSection === 'applications' && (
+              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="font-bold text-gray-900 text-[15px]">{isEn ? 'Applications Inbox' : 'Boite de candidatures'}</h3>
+                  <span className="text-xs font-bold text-gray-500">
+                    {isEn ? `${notifications.length} notifications` : `${notifications.length} notifications`}
+                  </span>
+                </div>
+
+                {notifications.length === 0 ? (
+                  <div className="p-10 text-center">
+                    <div className="text-4xl mb-3">{'\u{1F514}'}</div>
+                    <p className="text-sm text-gray-500 font-medium">
+                      {isEn ? 'No new applications yet.' : 'Aucune nouvelle candidature pour le moment.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100">
+                    {notifications.map((n) => (
+                      <div key={n.id} className={`px-5 sm:px-6 py-4 ${n.isRead ? 'bg-white' : 'bg-emerald-50/60'}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-bold text-gray-900">{n.title}</p>
+                            <p className="text-sm text-gray-600 mt-1">{n.message}</p>
+                            <p className="text-xs text-gray-400 mt-2">
+                              {new Date(n.createdAt).toLocaleString(isEn ? 'en-US' : 'fr-FR')}
+                            </p>
+                          </div>
+                          {!n.isRead && <span className="w-2.5 h-2.5 rounded-full bg-red-500 mt-2" />}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(activeSection === 'interviews' || activeSection === 'cvtheque' || activeSection === 'billing') && (
               <div className="bg-white rounded-2xl border border-gray-200 p-8 sm:p-16 text-center">
                 <div className="text-5xl mb-4">
-                  {activeSection === 'applications' && '\u{1F465}'}
                   {activeSection === 'interviews' && '\u{1F4C5}'}
                   {activeSection === 'cvtheque' && '\u{1F4DA}'}
                   {activeSection === 'billing' && '\u{1F4B3}'}
@@ -1267,7 +1361,7 @@ export default function DashboardEntreprise() {
             <button
               key={item.key}
               onClick={() => navigateTo(item.key)}
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
+              className={`relative flex flex-col items-center justify-center gap-0.5 flex-1 h-full transition-colors ${
                 activeSection === item.key ? 'text-green-600' : 'text-gray-400'
               }`}
             >
@@ -1275,6 +1369,11 @@ export default function DashboardEntreprise() {
               <span className="text-[10px] font-bold">{item.label}</span>
               {activeSection === item.key && (
                 <span className="w-1 h-1 rounded-full bg-green-600 mt-0.5" />
+              )}
+              {item.key === 'applications' && unreadNotifications > 0 && (
+                <span className="absolute ml-6 -mt-6 min-w-[16px] h-4 px-1 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
+                  {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                </span>
               )}
             </button>
           ))}

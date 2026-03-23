@@ -16,12 +16,23 @@ import {
 } from "lucide-react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
+import {
   fetchAdminStats,
+  fetchAdminTrends,
   fetchJobs,
   fetchUsers,
   updateJob,
   type AdminStats,
   type Job,
+  type TrendPoint,
   type User,
 } from "@/lib/api";
 
@@ -41,10 +52,18 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [trendPoints, setTrendPoints] = useState<TrendPoint[]>([]);
+  const [trendDays, setTrendDays] = useState<7 | 30>(7);
 
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    fetchAdminTrends(trendDays)
+      .then((data) => setTrendPoints(data.points))
+      .catch(() => setTrendPoints([]));
+  }, [trendDays]);
 
   async function loadData() {
     setLoading(true);
@@ -58,6 +77,8 @@ export default function AdminDashboard() {
       setStats(statsData);
       setPendingJobs(pendingData.jobs);
       setLatestUsers(usersData.users);
+      const trendsData = await fetchAdminTrends(trendDays);
+      setTrendPoints(trendsData.points);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Impossible de contacter le serveur");
     } finally {
@@ -152,6 +173,91 @@ export default function AdminDashboard() {
           border="border-red-200"
           href="/alertes/signalements"
         />
+      </div>
+
+      {/* Trends Chart */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-base font-semibold text-zinc-800">Tendances</h3>
+          <div className="flex gap-1 rounded-lg border border-zinc-200 p-0.5">
+            <button
+              onClick={() => setTrendDays(7)}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                trendDays === 7
+                  ? "bg-green-600 text-white"
+                  : "text-zinc-500 hover:text-zinc-700"
+              }`}
+            >
+              7j
+            </button>
+            <button
+              onClick={() => setTrendDays(30)}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+                trendDays === 30
+                  ? "bg-green-600 text-white"
+                  : "text-zinc-500 hover:text-zinc-700"
+              }`}
+            >
+              30j
+            </button>
+          </div>
+        </div>
+        {trendPoints.length === 0 ? (
+          <div className="flex items-center justify-center py-16 text-sm text-zinc-400">
+            Aucune donnee disponible
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={trendPoints} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <defs>
+                <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="colorJobs" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#34d399" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+              <XAxis
+                dataKey="label"
+                tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                axisLine={false}
+                tickLine={false}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                axisLine={false}
+                tickLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip
+                contentStyle={{
+                  borderRadius: "0.75rem",
+                  border: "1px solid #e4e4e7",
+                  fontSize: "0.75rem",
+                }}
+              />
+              <Area
+                type="monotone"
+                dataKey="users"
+                name="Inscriptions"
+                stroke="#22c55e"
+                strokeWidth={2}
+                fill="url(#colorUsers)"
+              />
+              <Area
+                type="monotone"
+                dataKey="jobs"
+                name="Publications"
+                stroke="#34d399"
+                strokeWidth={2}
+                fill="url(#colorJobs)"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        )}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

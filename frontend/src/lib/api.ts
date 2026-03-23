@@ -319,6 +319,20 @@ export async function verifyOtp(phone: string, code: string): Promise<OtpVerifyR
   });
 }
 
+// ── Upload ──────────────────────────────────────────────────────
+
+export async function uploadFile(file: File, folder?: string): Promise<{ url: string; publicId: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  const qs = folder ? `?folder=${encodeURIComponent(folder)}` : '';
+  const res = await fetch(`${API_BASE}/api/upload${qs}`, { method: 'POST', body: formData });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || 'Upload failed');
+  }
+  return res.json();
+}
+
 // ── Health ───────────────────────────────────────────────────────
 
 export async function checkHealth(): Promise<{ status: string; timestamp: string }> {

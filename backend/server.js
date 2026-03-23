@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const twilio = require('twilio');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
 
 const { Pool } = require('pg');
@@ -1121,6 +1123,39 @@ app.get('/api/admin/trends', async (req, res) => {
   } catch (error) {
     console.error('GET /api/admin/trends error:', error);
     res.status(500).json({ error: 'Erreur lors de la lecture des tendances.' });
+  }
+});
+
+// =============================================
+// ROUTES: File Upload (Cloudinary)
+// =============================================
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file provided' });
+
+    const folder = req.query.folder ? `237jobs/${req.query.folder}` : '237jobs';
+
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder, resource_type: 'auto' },
+        (error, result) => error ? reject(error) : resolve(result)
+      );
+      stream.end(req.file.buffer);
+    });
+
+    res.json({ url: result.secure_url, publicId: result.public_id });
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Upload failed' });
   }
 });
 

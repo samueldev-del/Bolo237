@@ -5,12 +5,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
-import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp, createUser, loginUser } from '@/lib/api';
+import { createUser, loginUser } from '@/lib/api';
 
 type Role = 'chercheur' | 'entreprise' | 'artisan';
 
 const ROLE_STORAGE_KEY = '237jobs-account-role';
-const PHONE_VERIFIED_KEY = '237jobs-phone-verified';
 const USER_KEY = '237jobs-user';
 
 const ROLE_MAP: Record<Role, string> = {
@@ -32,7 +31,7 @@ export default function Connexion() {
 
   // Mode & step
   const [isLogin, setIsLogin] = useState(true);
-  const [step, setStep] = useState(1); // 1 = rôle, 2 = infos, 3 = OTP
+  const [step, setStep] = useState(1); // 1 = rôle, 2 = infos + création
 
   // Signup
   const [selectedRole, setSelectedRole] = useState<Role>('chercheur');
@@ -53,13 +52,6 @@ export default function Connexion() {
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // OTP
-  const [phone, setPhone] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [otpInput, setOtpInput] = useState('');
-  const [otpVerified, setOtpVerified] = useState(false);
-
   // UI
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,40 +62,26 @@ export default function Connexion() {
     return localizePath('/dashboard');
   };
 
-  // ── STEP 2 VALIDATION ──
-  const validateStep2 = () => {
+  // ── STEP 2 VALIDATION & SIGNUP ──
+  const handleSignup = async () => {
     if (!firstName.trim() || !lastName.trim()) {
       setAuthError(isEn ? 'Please enter your first and last name.' : 'Veuillez saisir votre prénom et nom.');
-      return false;
+      return;
     }
     if (!email.trim() || !email.includes('@')) {
       setAuthError(isEn ? 'Please enter a valid email address.' : 'Veuillez saisir une adresse email valide.');
-      return false;
+      return;
     }
     if (!password.trim() || password.length < 6) {
       setAuthError(isEn ? 'Password must be at least 6 characters.' : 'Le mot de passe doit contenir au moins 6 caractères.');
-      return false;
+      return;
     }
     if (selectedRole === 'entreprise' && !companyName.trim()) {
       setAuthError(isEn ? 'Please enter your company name.' : 'Veuillez saisir le nom de votre entreprise.');
-      return false;
+      return;
     }
     if (selectedRole === 'artisan' && !specialty.trim()) {
       setAuthError(isEn ? 'Please enter your specialty.' : 'Veuillez saisir votre spécialité.');
-      return false;
-    }
-    setAuthError('');
-    return true;
-  };
-
-  const goToStep3 = () => {
-    if (validateStep2()) setStep(3);
-  };
-
-  // ── SIGNUP ──
-  const handleSignup = async () => {
-    if (!otpVerified) {
-      setAuthError(isEn ? 'Please verify your phone number first.' : 'Veuillez d\'abord vérifier votre numéro de téléphone.');
       return;
     }
     setAuthError('');
@@ -127,7 +105,7 @@ export default function Connexion() {
         const localRole = BACKEND_ROLE_TO_LOCAL[user.role] || 'chercheur';
         window.localStorage.setItem(USER_KEY, JSON.stringify(user));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
-        window.localStorage.setItem(PHONE_VERIFIED_KEY, 'true');
+        window.localStorage.setItem('237jobs-phone-verified', 'true');
         router.push(getDashboardRoute(localRole));
       }
     } catch (err: unknown) {
@@ -157,7 +135,7 @@ export default function Connexion() {
         const localRole = BACKEND_ROLE_TO_LOCAL[user.role] || 'chercheur';
         window.localStorage.setItem(USER_KEY, JSON.stringify(user));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
-        window.localStorage.setItem(PHONE_VERIFIED_KEY, 'true');
+        window.localStorage.setItem('237jobs-phone-verified', 'true');
         router.push(getDashboardRoute(localRole));
       }
     } catch (err: unknown) {
@@ -165,44 +143,6 @@ export default function Connexion() {
       setAuthError(message);
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  // ── OTP ──
-  const sendOtp = async () => {
-    if (!phone.trim()) {
-      setAuthError(isEn ? 'Enter a valid phone number.' : 'Saisissez un numéro de téléphone valide.');
-      return;
-    }
-    setAuthError('');
-    try {
-      const res = await apiSendOtp(phone);
-      setOtpCode(res.demoCode || '');
-      setOtpSent(true);
-      setOtpVerified(false);
-    } catch {
-      const fallbackCode = String(Math.floor(100000 + Math.random() * 900000));
-      setOtpCode(fallbackCode);
-      setOtpSent(true);
-      setOtpVerified(false);
-    }
-  };
-
-  const verifyOtp = async () => {
-    setAuthError('');
-    try {
-      const res = await apiVerifyOtp(phone, otpInput.trim());
-      if (res.verified) {
-        setOtpVerified(true);
-      } else {
-        setAuthError(res.error || (isEn ? 'Invalid code.' : 'Code invalide.'));
-      }
-    } catch {
-      if (otpInput.trim() === otpCode) {
-        setOtpVerified(true);
-      } else {
-        setAuthError(isEn ? 'Invalid code.' : 'Code invalide.');
-      }
     }
   };
 
@@ -429,7 +369,7 @@ export default function Connexion() {
                     <div>
                       <h2 className="text-2xl font-extrabold">{isEn ? 'Your information' : 'Vos informations'}</h2>
                       <p className="text-sm text-gray-500">
-                        {isEn ? `Step 2/3 — ${roleConfig[selectedRole].subtitle} account` : `Étape 2/3 — Compte ${roleConfig[selectedRole].subtitle}`}
+                        {isEn ? `Step 2/2 — ${roleConfig[selectedRole].subtitle} account` : `Étape 2/2 — Compte ${roleConfig[selectedRole].subtitle}`}
                       </p>
                     </div>
                   </div>
@@ -537,103 +477,15 @@ export default function Connexion() {
                     </div>
                   </div>
 
-                  <button onClick={goToStep3}
-                    className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl hover:bg-green-700 transition shadow-md text-[15px]">
-                    {isEn ? 'Continue' : 'Continuer'} →
-                  </button>
-                </>
-              )}
-
-              {/* ── ÉTAPE 3 : Vérification OTP ── */}
-              {step === 3 && (
-                <>
-                  <div className="flex items-center gap-3">
-                    <button onClick={() => setStep(2)} className="w-9 h-9 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition">
-                      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <div>
-                      <h2 className="text-2xl font-extrabold">{isEn ? 'Verify your phone' : 'Vérifiez votre téléphone'}</h2>
-                      <p className="text-sm text-gray-500">
-                        {isEn ? 'Step 3/3 — Almost done!' : 'Étape 3/3 — C\'est presque fini !'}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div className="flex gap-1.5">
-                    <div className="h-1.5 flex-1 bg-green-500 rounded-full"></div>
-                    <div className="h-1.5 flex-1 bg-green-500 rounded-full"></div>
-                    <div className={`h-1.5 flex-1 rounded-full ${otpVerified ? 'bg-green-500' : 'bg-green-200'}`}></div>
-                  </div>
-
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 space-y-4">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">📱</span>
-                      <div>
-                        <p className="text-sm font-bold text-amber-900">
-                          {isEn ? 'Identity verification via SMS/WhatsApp' : 'Vérification d\'identité par SMS/WhatsApp'}
-                        </p>
-                        <p className="text-xs text-amber-700 mt-0.5">
-                          {isEn ? 'We\'ll send a 6-digit code to verify your number.' : 'Nous envoyons un code à 6 chiffres pour vérifier votre numéro.'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Numéro + envoi */}
-                    <div>
-                      <label className="text-xs font-bold text-amber-800 mb-1 block">{isEn ? 'Phone number' : 'Numéro de téléphone'}</label>
-                      <div className="flex gap-2">
-                        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                          placeholder="+237 6XX XX XX XX"
-                          className="flex-1 px-4 py-3 border border-amber-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none text-[15px] bg-white" />
-                        <button onClick={sendOtp} disabled={otpVerified}
-                          className="px-5 py-3 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-gray-800 transition whitespace-nowrap disabled:opacity-40">
-                          {otpSent ? (isEn ? 'Resend' : 'Renvoyer') : (isEn ? 'Send code' : 'Envoyer')}
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Code OTP */}
-                    {otpSent && !otpVerified && (
-                      <div className="space-y-2">
-                        {otpCode && (
-                          <div className="bg-white border border-dashed border-amber-300 rounded-lg px-3 py-2 text-xs font-mono text-amber-800">
-                            🔑 Code test : <strong>{otpCode}</strong> <span className="text-amber-500">({isEn ? 'or use 0000' : 'ou utilisez 0000'})</span>
-                          </div>
-                        )}
-                        <div className="flex gap-2">
-                          <input type="text" value={otpInput} onChange={(e) => setOtpInput(e.target.value)} maxLength={6}
-                            placeholder="______"
-                            className="flex-1 px-4 py-3 border border-amber-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-[15px] bg-white text-center tracking-[0.5em] font-bold" />
-                          <button onClick={verifyOtp}
-                            className="px-5 py-3 rounded-xl bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition whitespace-nowrap">
-                            {isEn ? 'Verify' : 'Vérifier'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Succès */}
-                    {otpVerified && (
-                      <div className="flex items-center gap-2 bg-green-100 border border-green-300 rounded-xl px-4 py-3">
-                        <span className="text-green-600 text-lg">✅</span>
-                        <span className="text-sm font-bold text-green-800">{isEn ? 'Phone verified successfully!' : 'Numéro vérifié avec succès !'}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Bouton final */}
-                  <button
-                    onClick={handleSignup}
-                    disabled={!otpVerified || isSubmitting}
-                    className={`w-full font-bold py-4 rounded-xl transition shadow-md text-[15px] ${otpVerified ? 'bg-green-600 text-white hover:bg-green-700' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
-                  >
+                  <button onClick={handleSignup} disabled={isSubmitting}
+                    className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl hover:bg-green-700 transition shadow-md text-[15px] disabled:opacity-60">
                     {isSubmitting
                       ? (isEn ? 'Creating account...' : 'Création du compte...')
                       : (isEn ? `Create my ${roleConfig[selectedRole].subtitle.toLowerCase()} account` : `Créer mon compte ${roleConfig[selectedRole].subtitle.toLowerCase()}`)}
                   </button>
                 </>
               )}
+
             </div>
           )}
 

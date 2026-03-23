@@ -159,6 +159,24 @@ export function updateReport(id: number, data: { status: string }): Promise<Repo
   });
 }
 
+// ── Trends ──────────────────────────────────────────────────────
+
+export type TrendPoint = {
+  dayKey: string;
+  label: string;
+  users: number;
+  jobs: number;
+};
+
+export type TrendsResponse = {
+  days: number;
+  points: TrendPoint[];
+};
+
+export function fetchAdminTrends(days: number = 7): Promise<TrendsResponse> {
+  return apiFetch<TrendsResponse>(`/api/admin/trends?days=${days}`);
+}
+
 // ── Health ───────────────────────────────────────────────────────
 
 export function checkHealth(): Promise<{ status: string; timestamp: string }> {

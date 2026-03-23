@@ -102,6 +102,33 @@ async function createNotification({ userId, type, title, message, data }) {
   });
 }
 
+function buildDateBuckets(days) {
+  const labels = [];
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const d = new Date(now);
+    d.setDate(now.getDate() - i);
+    labels.push(d);
+  }
+
+  return labels;
+}
+
+function toDayKey(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString().slice(0, 10);
+}
+
+function formatShortDate(date, locale = 'fr-FR') {
+  return new Date(date).toLocaleDateString(locale, {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
 // =============================================
 // ROUTES: Jobs (Offres d'emploi)
 // =============================================
@@ -757,6 +784,164 @@ app.patch('/api/users/:id/notifications/read-all', async (req, res) => {
 });
 
 // =============================================
+// ROUTES: App Feedbacks
+// =============================================
+
+app.post('/api/feedbacks', async (req, res) => {
+  try {
+    const { userId, authorName, rating, comment } = req.body || {};
+
+    const parsedRating = parseInt(String(rating), 10);
+    if (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+      return res.status(400).json({ error: 'La note doit etre comprise entre 1 et 5.' });
+    }
+
+    const normalizedComment = String(comment || '').trim();
+    if (normalizedComment.length < 3) {
+      return res.status(400).json({ error: 'Commentaire trop court (minimum 3 caracteres).' });
+    }
+
+    const parsedUserId = userId ? parseInt(String(userId), 10) : null;
+    if (userId && isNaN(parsedUserId)) {
+      return res.status(400).json({ error: 'userId invalide.' });
+    }
+
+    const row = await prisma.appFeedback.create({
+      data: {
+        userId: parsedUserId || null,
+        authorName: authorName ? String(authorName).trim().slice(0, 120) : null,
+        rating: parsedRating,
+        comment: normalizedComment,
+      },
+    });
+
+    res.status(201).json(row);
+  } catch (error) {
+    console.error('POST /api/feedbacks error:', error);
+    res.status(500).json({ error: 'Erreur lors de la creation du retour.' });
+  }
+});
+
+app.get('/api/feedbacks', async (req, res) => {
+  try {
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+
+    const [items, avgResult] = await Promise.all([
+      prisma.appFeedback.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
+      prisma.appFeedback.aggregate({ _avg: { rating: true }, _count: { _all: true } }),
+    ]);
+
+    res.json({
+      items,
+      summary: {
+        averageRating: Number(avgResult._avg.rating || 0),
+        count: avgResult._count._all,
+      },
+    });
+  } catch (error) {
+    console.error('GET /api/feedbacks error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des retours.' });
+  }
+});
+
+// =============================================
+// ROUTES: User Reviews
+// =============================================
+
+app.get('/api/users/:id/reviews', async (req, res) => {
+  try {
+    const reviewedId = parseInt(req.params.id, 10);
+    if (isNaN(reviewedId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
+
+    const [items, avgResult] = await Promise.all([
+      prisma.userReview.findMany({
+        where: { reviewedId },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        include: {
+          reviewer: {
+            select: { id: true, name: true, email: true },
+          },
+        },
+      }),
+      prisma.userReview.aggregate({
+        where: { reviewedId },
+        _avg: { rating: true },
+        _count: { _all: true },
+      }),
+    ]);
+
+    res.json({
+      items,
+      summary: {
+        averageRating: Number(avgResult._avg.rating || 0),
+        count: avgResult._count._all,
+      },
+    });
+  } catch (error) {
+    console.error('GET /api/users/:id/reviews error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des avis.' });
+  }
+});
+
+app.post('/api/users/:id/reviews', async (req, res) => {
+  try {
+    const reviewedId = parseInt(req.params.id, 10);
+    if (isNaN(reviewedId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    const { reviewerId, rating, comment } = req.body || {};
+    const parsedReviewerId = parseInt(String(reviewerId), 10);
+    const parsedRating = parseInt(String(rating), 10);
+
+    if (isNaN(parsedReviewerId)) return res.status(400).json({ error: 'reviewerId invalide.' });
+    if (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5) {
+      return res.status(400).json({ error: 'La note doit etre comprise entre 1 et 5.' });
+    }
+    if (parsedReviewerId === reviewedId) {
+      return res.status(400).json({ error: 'Un utilisateur ne peut pas se noter lui-meme.' });
+    }
+
+    const normalizedComment = String(comment || '').trim();
+    if (normalizedComment.length < 3) {
+      return res.status(400).json({ error: 'Commentaire trop court (minimum 3 caracteres).' });
+    }
+
+    const [reviewerExists, reviewedExists] = await Promise.all([
+      prisma.user.count({ where: { id: parsedReviewerId } }),
+      prisma.user.count({ where: { id: reviewedId } }),
+    ]);
+
+    if (!reviewerExists || !reviewedExists) {
+      return res.status(404).json({ error: 'Utilisateur evaluateur/evalue introuvable.' });
+    }
+
+    const row = await prisma.userReview.create({
+      data: {
+        reviewerId: parsedReviewerId,
+        reviewedId,
+        rating: parsedRating,
+        comment: normalizedComment,
+      },
+      include: {
+        reviewer: {
+          select: { id: true, name: true, email: true },
+        },
+      },
+    });
+
+    res.status(201).json(row);
+  } catch (error) {
+    console.error('POST /api/users/:id/reviews error:', error);
+    res.status(500).json({ error: 'Erreur lors de la creation de lavis.' });
+  }
+});
+
+// =============================================
 // ROUTES: Auth (Authentification)
 // =============================================
 
@@ -885,6 +1070,57 @@ app.get('/api/admin/stats', async (req, res) => {
   } catch (error) {
     console.error('GET /api/admin/stats error:', error);
     res.status(500).json({ error: 'Erreur lors de la lecture des statistiques.' });
+  }
+});
+
+// GET /api/admin/trends?days=7 — Tendances des inscriptions et publications
+app.get('/api/admin/trends', async (req, res) => {
+  try {
+    const daysRaw = parseInt(String(req.query.days || '7'), 10);
+    const days = [7, 30].includes(daysRaw) ? daysRaw : 7;
+    const locale = String(req.query.locale || 'fr').toLowerCase() === 'en' ? 'en-US' : 'fr-FR';
+
+    const buckets = buildDateBuckets(days);
+    const startDate = buckets[0];
+
+    const [users, jobs] = await Promise.all([
+      prisma.user.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+      }),
+      prisma.job.findMany({
+        where: { createdAt: { gte: startDate } },
+        select: { createdAt: true },
+      }),
+    ]);
+
+    const userCounts = new Map();
+    const jobCounts = new Map();
+
+    users.forEach((u) => {
+      const key = toDayKey(u.createdAt);
+      userCounts.set(key, (userCounts.get(key) || 0) + 1);
+    });
+
+    jobs.forEach((j) => {
+      const key = toDayKey(j.createdAt);
+      jobCounts.set(key, (jobCounts.get(key) || 0) + 1);
+    });
+
+    const points = buckets.map((d) => {
+      const key = toDayKey(d);
+      return {
+        dayKey: key,
+        label: formatShortDate(d, locale),
+        users: userCounts.get(key) || 0,
+        jobs: jobCounts.get(key) || 0,
+      };
+    });
+
+    res.json({ days, points });
+  } catch (error) {
+    console.error('GET /api/admin/trends error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des tendances.' });
   }
 });
 

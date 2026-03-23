@@ -1,9 +1,10 @@
 "use client";
 
-import { use, useState } from 'react';
+import { use, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
+import { createUserReview, fetchUserReviews, type UserReview } from '@/lib/api';
 
 type ArtisanParams = {
   params: Promise<{
@@ -14,9 +15,21 @@ type ArtisanParams = {
 export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   const { id } = use(params);
   const { t, localizePath, locale } = useLocale();
+  const isEn = locale === 'en';
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [translated, setTranslated] = useState(false);
   const [maskedByReports, setMaskedByReports] = useState(false);
+  const [reviews, setReviews] = useState<UserReview[]>([]);
+  const [reviewAvg, setReviewAvg] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewHover, setReviewHover] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewMessage, setReviewMessage] = useState('');
+  const [sendingReview, setSendingReview] = useState(false);
+
+  const artisanId = Number.parseInt(id, 10);
 
   const artisan = {
     id,
@@ -34,36 +47,80 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
       { nom: 'Reparation et restauration', tarif: 'A partir de 25 000 FCFA' },
       { nom: 'Pose de portes et placards', tarif: 'A partir de 40 000 FCFA' },
     ],
-    avis: [
-      {
-        id: 1,
-        auteur: 'Sonia K.',
-        note: 5,
-        date: '18 mars 2026',
-        message: 'Travail propre et livre dans les delais. Tres satisfaite de la finition.',
-      },
-      {
-        id: 2,
-        auteur: 'Didier T.',
-        note: 4,
-        date: '12 mars 2026',
-        message: 'Bonne communication, devis clair et execution serieuse.',
-      },
-      {
-        id: 3,
-        auteur: 'Clarisse M.',
-        note: 5,
-        date: '03 mars 2026',
-        message: 'Excellent rapport qualite-prix. Je recommande sans hesitation.',
-      },
-      {
-        id: 4,
-        auteur: 'Bruno E.',
-        note: 4,
-        date: '24 fevrier 2026',
-        message: 'Intervention rapide et artisan ponctuel.',
-      },
-    ],
+  };
+
+  useEffect(() => {
+    const loadReviews = async () => {
+      if (!Number.isFinite(artisanId) || artisanId <= 0) return;
+      try {
+        const res = await fetchUserReviews(artisanId, 30);
+        setReviews(res.items);
+        setReviewAvg(res.summary.averageRating || 0);
+        setReviewCount(res.summary.count || 0);
+      } catch {
+        setReviews([]);
+        setReviewAvg(0);
+        setReviewCount(0);
+      }
+    };
+
+    loadReviews();
+  }, [artisanId]);
+
+  const reviewStars = useMemo(() => reviewHover || reviewRating, [reviewHover, reviewRating]);
+
+  const submitReview = async () => {
+    if (!Number.isFinite(artisanId) || artisanId <= 0) {
+      setReviewMessage(isEn ? 'Invalid artisan profile.' : 'Profil artisan invalide.');
+      return;
+    }
+    if (!reviewComment.trim() || reviewComment.trim().length < 3) {
+      setReviewMessage(isEn ? 'Please write a short review comment.' : 'Veuillez ecrire un court commentaire.');
+      return;
+    }
+
+    let reviewerId = 0;
+    try {
+      const raw = localStorage.getItem('237jobs-user');
+      if (raw) {
+        const user = JSON.parse(raw);
+        reviewerId = Number(user?.id || 0);
+      }
+    } catch {
+      // ignore localStorage parse errors
+    }
+
+    if (!reviewerId) {
+      setReviewMessage(isEn ? 'Please sign in to leave a review.' : 'Veuillez vous connecter pour laisser un avis.');
+      return;
+    }
+
+    setSendingReview(true);
+    setReviewMessage('');
+
+    try {
+      await createUserReview({
+        reviewedId: artisanId,
+        reviewerId,
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+
+      const updated = await fetchUserReviews(artisanId, 30);
+      setReviews(updated.items);
+      setReviewAvg(updated.summary.averageRating || 0);
+      setReviewCount(updated.summary.count || 0);
+      setReviewComment('');
+      setReviewRating(5);
+      setReviewHover(0);
+      setReviewMessage(isEn ? 'Review sent successfully.' : 'Avis envoye avec succes.');
+      setShowReviewForm(false);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      setReviewMessage((isEn ? 'Review failed: ' : 'Echec avis: ') + msg);
+    } finally {
+      setSendingReview(false);
+    }
   };
 
   const artisanTranslated = {
@@ -127,8 +184,8 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-amber-500 font-extrabold">⭐ {artisan.note}</span>
-                <span className="text-sm font-bold text-gray-600">({artisan.avisCount} avis)</span>
+                <span className="text-amber-500 font-extrabold">⭐ {(reviewAvg || artisan.note).toFixed(1)}</span>
+                <span className="text-sm font-bold text-gray-600">({reviewCount || artisan.avisCount} avis)</span>
                 {artisan.verifie && (
                   <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-green-50 text-green-700 border border-green-100">
                     Profil Verifie
@@ -210,18 +267,75 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
         </section>
 
         <section className="bg-white border border-gray-200 rounded-2xl p-6">
-          <h2 className="text-xl md:text-2xl font-extrabold mb-4">Avis clients recents</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h2 className="text-xl md:text-2xl font-extrabold">{isEn ? 'Client reviews' : 'Avis clients'}</h2>
+            <div className="flex items-center gap-3">
+              <p className="text-sm font-extrabold text-gray-700">
+                {(reviewAvg || artisan.note).toFixed(1)}/5 ({reviewCount || artisan.avisCount})
+              </p>
+              <button
+                onClick={() => setShowReviewForm((s) => !s)}
+                className="px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-500 text-black text-sm font-extrabold"
+              >
+                {isEn ? 'Leave a review' : 'Laisser une note'}
+              </button>
+            </div>
+          </div>
+
+          {showReviewForm && (
+            <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
+              <p className="text-sm font-bold text-gray-700 mb-2">{isEn ? 'Your rating' : 'Votre note'}</p>
+              <div className="flex items-center gap-1 mb-3">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => setReviewRating(n)}
+                    onMouseEnter={() => setReviewHover(n)}
+                    onMouseLeave={() => setReviewHover(0)}
+                    className="text-2xl leading-none"
+                  >
+                    <span className={n <= reviewStars ? 'text-amber-400' : 'text-gray-300'}>★</span>
+                  </button>
+                ))}
+              </div>
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                rows={3}
+                placeholder={isEn ? 'Describe your experience with this artisan...' : 'Decrivez votre experience avec cet artisan...'}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={submitReview}
+                  disabled={sendingReview}
+                  className="px-4 py-2 rounded-lg bg-black text-white text-sm font-bold disabled:opacity-60"
+                >
+                  {sendingReview ? (isEn ? 'Sending...' : 'Envoi...') : (isEn ? 'Submit review' : 'Envoyer lavis')}
+                </button>
+              </div>
+              {reviewMessage && <p className="mt-2 text-xs font-bold text-gray-600">{reviewMessage}</p>}
+            </div>
+          )}
+
           <div className="space-y-4">
-            {artisan.avis.map((avis) => (
-              <article key={avis.id} className="border border-gray-100 rounded-xl p-4">
-                <div className="flex items-center justify-between gap-2 mb-2">
-                  <p className="font-extrabold">{avis.auteur}</p>
-                  <p className="text-xs text-gray-500 font-bold">{avis.date}</p>
-                </div>
-                <p className="text-amber-500 text-sm mb-2">{'★'.repeat(avis.note)}{'☆'.repeat(5 - avis.note)}</p>
-                <p className="text-sm text-gray-700 leading-relaxed">{avis.message}</p>
-              </article>
-            ))}
+            {reviews.length === 0 ? (
+              <p className="text-sm text-gray-500 font-medium">
+                {isEn ? 'No reviews yet. Be the first to rate this artisan.' : 'Aucun avis pour le moment. Soyez le premier a noter cet artisan.'}
+              </p>
+            ) : (
+              reviews.map((avis) => (
+                <article key={avis.id} className="border border-gray-100 rounded-xl p-4">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="font-extrabold">{avis.reviewer?.name || avis.reviewer?.email || `Client #${avis.reviewerId}`}</p>
+                    <p className="text-xs text-gray-500 font-bold">{new Date(avis.createdAt).toLocaleDateString(locale === 'fr' ? 'fr-FR' : 'en-US')}</p>
+                  </div>
+                  <p className="text-amber-500 text-sm mb-2">{'★'.repeat(avis.rating)}{'☆'.repeat(5 - avis.rating)}</p>
+                  <p className="text-sm text-gray-700 leading-relaxed">{avis.comment}</p>
+                </article>
+              ))
+            )}
           </div>
         </section>
 

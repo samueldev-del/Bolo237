@@ -99,6 +99,32 @@ export type ApiNotification = {
   createdAt: string;
 };
 
+export type AppFeedback = {
+  id: number;
+  userId: number | null;
+  authorName: string | null;
+  rating: number;
+  comment: string;
+  createdAt: string;
+};
+
+export type UserReview = {
+  id: number;
+  reviewerId: number;
+  reviewedId: number;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  reviewer?: { id: number; name: string | null; email: string };
+};
+
+export type AdminTrendPoint = {
+  dayKey: string;
+  label: string;
+  users: number;
+  jobs: number;
+};
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -256,6 +282,13 @@ export type AdminStats = {
 
 export async function fetchAdminStats(): Promise<AdminStats> {
   return apiFetch<AdminStats>('/api/admin/stats');
+}
+
+export async function fetchAdminTrends(days: 7 | 30 = 7, locale: 'fr' | 'en' = 'fr'): Promise<{
+  days: number;
+  points: AdminTrendPoint[];
+}> {
+  return apiFetch(`/api/admin/trends?days=${days}&locale=${locale}`);
 }
 
 // ── OTP (Verification telephone) ─────────────────────────────────
@@ -421,5 +454,51 @@ export async function markNotificationAsRead(notificationId: number): Promise<vo
 export async function markAllNotificationsAsRead(userId: number): Promise<void> {
   await apiFetch(`/api/users/${userId}/notifications/read-all`, {
     method: 'PATCH',
+  });
+}
+
+// ── App feedbacks ────────────────────────────────────────────────
+
+export async function createAppFeedback(data: {
+  userId?: number;
+  authorName?: string;
+  rating: number;
+  comment: string;
+}): Promise<AppFeedback> {
+  return apiFetch<AppFeedback>('/api/feedbacks', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchAppFeedbacks(limit = 50): Promise<{
+  items: AppFeedback[];
+  summary: { averageRating: number; count: number };
+}> {
+  return apiFetch(`/api/feedbacks?limit=${limit}`);
+}
+
+// ── User reviews ─────────────────────────────────────────────────
+
+export async function fetchUserReviews(userId: number, limit = 20): Promise<{
+  items: UserReview[];
+  summary: { averageRating: number; count: number };
+}> {
+  return apiFetch(`/api/users/${userId}/reviews?limit=${limit}`);
+}
+
+export async function createUserReview(input: {
+  reviewedId: number;
+  reviewerId: number;
+  rating: number;
+  comment: string;
+}): Promise<UserReview> {
+  return apiFetch<UserReview>(`/api/users/${input.reviewedId}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify({
+      reviewerId: input.reviewerId,
+      rating: input.rating,
+      comment: input.comment,
+    }),
   });
 }

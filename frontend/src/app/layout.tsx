@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { LocaleProvider } from "@/components/LocaleProvider";
+import AppFeedbackWidget from "@/components/AppFeedbackWidget";
 import { cookies } from "next/headers";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -60,6 +61,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           <main className="grow w-full">
             {children}
           </main>
+          <AppFeedbackWidget />
         </LocaleProvider>
       </body>
     </html>

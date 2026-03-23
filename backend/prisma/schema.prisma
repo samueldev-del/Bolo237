@@ -22,6 +22,9 @@ model User {
   createdAt   DateTime @default(now())
   jobs        Job[]
   notifications Notification[]
+  appFeedbacks AppFeedback[]
+  reviewsGiven UserReview[] @relation("reviewer")
+  reviewsReceived UserReview[] @relation("reviewed")
 }
 
 // 2. Table des Offres d'Emploi
@@ -61,4 +64,30 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, isRead, createdAt])
+}
+
+model AppFeedback {
+  id         Int      @id @default(autoincrement())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId     Int?
+  authorName String?
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model UserReview {
+  id         Int      @id @default(autoincrement())
+  reviewer   User     @relation("reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewerId Int
+  reviewed   User     @relation("reviewed", fields: [reviewedId], references: [id], onDelete: Cascade)
+  reviewedId Int
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  @@index([reviewedId, createdAt])
+  @@index([reviewerId, createdAt])
 }

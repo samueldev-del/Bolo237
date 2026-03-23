@@ -8,6 +8,7 @@ import { useLocale } from '@/components/LocaleProvider';
 import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
 import { getVerificationStatus, submitVerification, VerificationStatus } from '@/lib/verificationStore';
+import { fileToImageDataUrl } from '@/lib/filePreview';
 
 /* ------------------------------------------------------------------ */
 /*  Animated circular progress (SVG, no deps)                         */
@@ -245,7 +246,7 @@ export default function DashboardArtisan() {
     setShowServiceForm(false);
   };
 
-  const submitToSuperAdmin = () => {
+  const submitToSuperAdmin = async () => {
     if (!isArtisanVerified) {
       setVerificationMessage(
         isEn
@@ -254,6 +255,13 @@ export default function DashboardArtisan() {
       );
       return;
     }
+
+    const [profilePhotoPreview, idFrontPreview, idBackPreview, passportPreview] = await Promise.all([
+      fileToImageDataUrl(profilePhotoFile),
+      fileToImageDataUrl(idFrontFile),
+      fileToImageDataUrl(idBackFile),
+      fileToImageDataUrl(passportFile),
+    ]);
 
     submitVerification({
       role: 'artisan',
@@ -269,6 +277,10 @@ export default function DashboardArtisan() {
         idBackName: idBackFile?.name ?? null,
         passportName: passportFile?.name ?? null,
         selfieVideoName: selfieVideoFile?.name ?? null,
+        profilePhotoPreview,
+        idFrontPreview,
+        idBackPreview,
+        passportPreview,
       },
     });
 

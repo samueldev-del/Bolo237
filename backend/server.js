@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
+const twilio = require('twilio');
 require('dotenv').config();
 
 const { Pool } = require('pg');
@@ -13,6 +14,25 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const app = express();
+
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+  : null;
+
+async function sendWhatsAppModerationAlert(messageBody) {
+  if (!twilioClient) return;
+  if (!process.env.TWILIO_WHATSAPP_FROM || !process.env.TWILIO_WHATSAPP_TO) return;
+
+  try {
+    await twilioClient.messages.create({
+      from: process.env.TWILIO_WHATSAPP_FROM,
+      to: process.env.TWILIO_WHATSAPP_TO,
+      body: messageBody,
+    });
+  } catch (error) {
+    console.error('Twilio WhatsApp send error:', error?.message || error);
+  }
+}
 
 // --- Middleware ---
 app.use(cors({
@@ -113,6 +133,16 @@ app.post('/api/jobs', async (req, res) => {
         status: 'PENDING',
       },
     });
+
+    await sendWhatsAppModerationAlert(
+      [
+        'Nouvelle annonce en attente de moderation',
+        `ID: ${job.id}`,
+        `Titre: ${job.title}`,
+        `Entreprise: ${job.company}`,
+        `Lieu: ${job.location}`,
+      ].join('\n')
+    );
 
     res.status(201).json(job);
   } catch (error) {
@@ -237,11 +267,25 @@ app.post('/api/users', async (req, res) => {
         name: name ? String(name) : null,
         role: role ? String(role) : 'CANDIDAT',
         phone: phone ? String(phone) : null,
+        isVerified: false,
       },
       select: { id: true, email: true, name: true, role: true, phone: true, isVerified: true, isBanned: true, createdAt: true },
     });
 
-    res.status(201).json(user);
+    await sendWhatsAppModerationAlert(
+      [
+        'Nouveau profil en attente de verification',
+        `User ID: ${user.id}`,
+        `Role: ${user.role}`,
+        `Nom: ${user.name || '-'}`,
+        `Email: ${user.email}`,
+      ].join('\n')
+    );
+
+    res.status(201).json({
+      ...user,
+      moderationStatus: 'PENDING',
+    });
   } catch (error) {
     console.error('POST /api/users error:', error);
     res.status(500).json({ error: "Erreur lors de la création de l'utilisateur." });

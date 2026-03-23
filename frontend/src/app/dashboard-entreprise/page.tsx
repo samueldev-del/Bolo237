@@ -8,6 +8,7 @@ import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp, createJob } from '@/lib/api';
 import { getVerificationStatus, submitVerification, VerificationStatus } from '@/lib/verificationStore';
+import { fileToImageDataUrl } from '@/lib/filePreview';
 
 /* ────────────────────────────────────────────
    Types
@@ -148,7 +149,7 @@ export default function DashboardEntreprise() {
     }
   };
 
-  const verifyCompanyDocuments = () => {
+  const verifyCompanyDocuments = async () => {
     if (!companyLogoFile) {
       setPublishMessage(isEn ? 'Upload your company logo before verification.' : 'Telechargez le logo de l entreprise avant verification.');
       setPublishMessageType('error');
@@ -165,6 +166,11 @@ export default function DashboardEntreprise() {
       return;
     }
 
+    const [logoPreview, legalDocPreview] = await Promise.all([
+      fileToImageDataUrl(companyLogoFile),
+      fileToImageDataUrl(companyDocFile),
+    ]);
+
     submitVerification({
       role: 'entreprise',
       accountKey,
@@ -176,6 +182,8 @@ export default function DashboardEntreprise() {
         hasLogo: !!companyLogoFile,
         logoFileName: companyLogoFile?.name ?? null,
         legalDocFileName: companyDocFile?.name ?? null,
+        logoPreview,
+        legalDocPreview,
       },
     });
     setDocumentsVerificationStatus('pending');

@@ -71,6 +71,24 @@ export default function Header() {
           }}
         >
           <div className="flex flex-col">
+            <div className="md:hidden px-6 py-2">
+              <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-1 text-xs font-extrabold">
+                <button
+                  onClick={() => setLocale('fr')}
+                  className={`px-3 py-1 rounded-full transition ${locale === 'fr' ? 'bg-green-600 text-white' : 'text-gray-600'}`}
+                >
+                  FR
+                </button>
+                <button
+                  onClick={() => setLocale('en')}
+                  className={`px-3 py-1 rounded-full transition ${locale === 'en' ? 'bg-green-600 text-white' : 'text-gray-600'}`}
+                >
+                  EN
+                </button>
+              </div>
+            </div>
+
+            <div className="h-[1px] bg-gray-100 my-2 mx-6 md:hidden"></div>
 
             <p className="px-6 pt-1 pb-2 text-[11px] uppercase tracking-wide text-gray-400 font-extrabold">{t.header.jobs}</p>
             <Link href={localizePath('/dashboard')} className="px-6 py-2.5 hover:bg-green-50 hover:text-green-700 font-medium text-sm transition">{t.header.myAccount}</Link>

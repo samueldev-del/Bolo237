@@ -6,8 +6,14 @@ import Image from 'next/image';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
-import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp, createJob } from '@/lib/api';
-import { getVerificationStatus, submitVerification, VerificationStatus } from '@/lib/verificationStore';
+import {
+  sendOtp as apiSendOtp,
+  verifyOtp as apiVerifyOtp,
+  createJob,
+  fetchVerificationStatus,
+  createVerificationSubmission,
+  type VerificationStatus,
+} from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
 
 /* ────────────────────────────────────────────
@@ -87,8 +93,20 @@ export default function DashboardEntreprise() {
   }, []);
 
   useEffect(() => {
-    if (!accountKey) return;
-    setDocumentsVerificationStatus(getVerificationStatus('entreprise', accountKey));
+    const loadVerificationStatus = async () => {
+      if (!accountKey) {
+        setDocumentsVerificationStatus('not_submitted');
+        return;
+      }
+      try {
+        const status = await fetchVerificationStatus('entreprise', accountKey);
+        setDocumentsVerificationStatus(status);
+      } catch {
+        setDocumentsVerificationStatus('not_submitted');
+      }
+    };
+
+    loadVerificationStatus();
   }, [accountKey]);
 
   // Get company initials
@@ -171,7 +189,7 @@ export default function DashboardEntreprise() {
       fileToImageDataUrl(companyDocFile),
     ]);
 
-    submitVerification({
+    await createVerificationSubmission({
       role: 'entreprise',
       accountKey,
       displayName: companyName || userName || 'Entreprise',

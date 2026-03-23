@@ -3,8 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/components/LocaleProvider';
-import { listVerificationSubmissions, reviewVerification, VerificationSubmission } from '@/lib/verificationStore';
-import { fetchJobs, updateJob, type ApiJob } from '@/lib/api';
+import {
+  fetchJobs,
+  updateJob,
+  fetchVerificationSubmissions,
+  reviewVerificationSubmission,
+  type ApiJob,
+  type VerificationSubmission,
+} from '@/lib/api';
 
 type JobModerationState = {
   loading: boolean;
@@ -36,7 +42,14 @@ export default function SuperAdminPage() {
   const [reviewer, setReviewer] = useState('super-admin');
   const [busyId, setBusyId] = useState<string | number | null>(null);
 
-  const refreshVerifications = () => setItems(listVerificationSubmissions());
+  const refreshVerifications = async () => {
+    try {
+      const rows = await fetchVerificationSubmissions();
+      setItems(rows);
+    } catch {
+      setItems([]);
+    }
+  };
 
   const refreshJobs = async () => {
     setJobs((prev) => ({ ...prev, loading: true, error: '' }));
@@ -54,18 +67,25 @@ export default function SuperAdminPage() {
   };
 
   useEffect(() => {
-    refreshVerifications();
+    void refreshVerifications();
     refreshJobs();
   }, []);
 
   const pendingCount = useMemo(() => items.filter((i) => i.status === 'pending').length, [items]);
   const totalPending = pendingCount + jobs.items.length;
 
-  const actVerification = (id: string, status: 'approved' | 'rejected') => {
+  const actVerification = async (id: string, status: 'approved' | 'rejected') => {
     setBusyId(id);
-    reviewVerification({ id, status, reviewedBy: reviewer || 'super-admin' });
-    refreshVerifications();
-    setBusyId(null);
+    try {
+      await reviewVerificationSubmission({
+        id,
+        status,
+        reviewedBy: reviewer || 'super-admin',
+      });
+      await refreshVerifications();
+    } finally {
+      setBusyId(null);
+    }
   };
 
   const actJob = async (id: number, status: 'APPROVED' | 'REJECTED') => {

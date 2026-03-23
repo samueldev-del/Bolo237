@@ -42,13 +42,6 @@ function apiJobToAnnonce(job: ApiJob, isEn: boolean): Annonce {
   };
 }
 
-const MOCK_ANNONCES: Annonce[] = [
-  { id: 1, titre: "Développeur Web Fullstack (H/F) - React/Node.js", entreprise: "TechCamer Solutions", lieu: "Douala, Akwa", type: "Temps plein", mode: "Hybride", description: "Rejoignez notre équipe pour développer des solutions innovantes. Vous travaillerez sur la refonte de notre plateforme avec Next.js et PostgreSQL.", temps: "il y a 2 heures", logo: "TC" },
-  { id: 2, titre: "Comptable Financier Senior (H/F)", entreprise: "Banque Atlantique", lieu: "Yaoundé, Centre-ville", type: "Temps plein", mode: "Sur site", description: "Nous recherchons un comptable expérimenté pour gérer les déclarations fiscales et superviser les clôtures mensuelles de nos agences régionales.", temps: "il y a 1 jour", logo: "BA" },
-  { id: 3, titre: "Menuisier - Fabrication de meubles (Urgent)", entreprise: "Particulier", lieu: "Douala, Bonamoussadi", type: "Petit Boulot", mode: "Sur site", description: "J'ai besoin d'un menuisier qualifié pour fabriquer sur mesure une table à manger 8 places et une étagère de salon.", temps: "il y a 4 heures", logo: "👤" },
-  { id: 4, titre: "Commercial Terrain B2B (H/F)", entreprise: "Orange Cameroun", lieu: "Bafoussam", type: "Temps plein", mode: "Déplacements", description: "Développez le portefeuille client sur la région Ouest. Vente de solutions télécoms aux entreprises locales.", temps: "il y a 3 jours", logo: "OR" },
-];
-
 export default function Recherche() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
@@ -59,9 +52,7 @@ export default function Recherche() {
     []
   );
 
-  const annonces: Annonce[] = jobsData && jobsData.jobs.length > 0
-    ? jobsData.jobs.map((j) => apiJobToAnnonce(j, isEn))
-    : MOCK_ANNONCES;
+  const annonces: Annonce[] = jobsData ? jobsData.jobs.map((j) => apiJobToAnnonce(j, isEn)) : [];
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-12">
@@ -171,7 +162,7 @@ export default function Recherche() {
           
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-medium text-gray-700">
-              <span className="font-bold text-gray-900">4 {isEn ? 'jobs' : 'offres'}</span> {isEn ? 'found' : 'trouvees'}
+              <span className="font-bold text-gray-900">{annonces.length} {isEn ? 'jobs' : 'offres'}</span> {isEn ? 'found' : 'trouvees'}
             </h2>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <span>{isEn ? 'Sort by:' : 'Trier par :'}</span>

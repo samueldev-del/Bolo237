@@ -50,16 +50,35 @@ app.use(cors({
 app.use(express.json());
 
 // =============================================
+// In-memory store: Identity verification queue
+// =============================================
+const verificationSubmissions = new Map();
+
+function verificationKey(role, accountKey) {
+  return `${String(role).toLowerCase()}::${String(accountKey).toLowerCase()}`;
+}
+
+function listVerificationItems() {
+  return Array.from(verificationSubmissions.values()).sort((a, b) => {
+    return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+  });
+}
+
+// =============================================
 // ROUTES: Jobs (Offres d'emploi)
 // =============================================
 
 // GET /api/jobs — Liste des offres (avec filtres optionnels)
 app.get('/api/jobs', async (req, res) => {
   try {
-    const { status, location, search, page = '1', limit = '20' } = req.query;
+    const { status, location, search, authorId, page = '1', limit = '20' } = req.query;
 
     const where = {};
     if (status) where.status = String(status);
+    if (authorId) {
+      const parsedAuthorId = parseInt(String(authorId), 10);
+      if (!isNaN(parsedAuthorId)) where.authorId = parsedAuthorId;
+    }
     if (location) where.location = { contains: String(location), mode: 'insensitive' };
     if (search) {
       where.OR = [
@@ -92,6 +111,98 @@ app.get('/api/jobs', async (req, res) => {
     console.error('GET /api/jobs error:', error);
     res.status(500).json({ error: 'Erreur lors de la lecture des offres.' });
   }
+});
+
+// =============================================
+// ROUTES: Verifications (Identite)
+// =============================================
+
+// GET /api/verifications — File complete des demandes
+app.get('/api/verifications', (_req, res) => {
+  res.json({ items: listVerificationItems() });
+});
+
+// GET /api/verifications/status?role=artisan&accountKey=abc
+app.get('/api/verifications/status', (req, res) => {
+  const { role, accountKey } = req.query;
+  if (!role || !accountKey) {
+    return res.status(400).json({ error: 'Parametres requis: role, accountKey.' });
+  }
+
+  const existing = verificationSubmissions.get(verificationKey(role, accountKey));
+  res.json({ status: existing?.status || 'not_submitted' });
+});
+
+// POST /api/verifications — Soumettre ou re-soumettre une demande
+app.post('/api/verifications', async (req, res) => {
+  try {
+    const { role, accountKey, displayName, phone, payload } = req.body;
+
+    if (!role || !accountKey || !displayName || !phone || !payload) {
+      return res.status(400).json({
+        error: 'Champs obligatoires manquants: role, accountKey, displayName, phone, payload.',
+      });
+    }
+
+    const key = verificationKey(role, accountKey);
+    const existing = verificationSubmissions.get(key);
+    const now = new Date().toISOString();
+
+    const submission = {
+      id: existing?.id || `verif-${Math.random().toString(36).slice(2, 10)}`,
+      role: String(role),
+      accountKey: String(accountKey).toLowerCase(),
+      displayName: String(displayName),
+      phone: String(phone),
+      status: 'pending',
+      submittedAt: now,
+      reviewedAt: null,
+      reviewedBy: null,
+      notes: null,
+      payload,
+    };
+
+    verificationSubmissions.set(key, submission);
+
+    await sendWhatsAppModerationAlert(
+      [
+        'Nouvelle verification identite en attente',
+        `ID: ${submission.id}`,
+        `Role: ${submission.role}`,
+        `Nom: ${submission.displayName}`,
+        `Compte: ${submission.accountKey}`,
+      ].join('\n')
+    );
+
+    res.status(201).json(submission);
+  } catch (error) {
+    console.error('POST /api/verifications error:', error);
+    res.status(500).json({ error: 'Erreur lors de la soumission de verification.' });
+  }
+});
+
+// PATCH /api/verifications/:id/review — Decision super admin
+app.patch('/api/verifications/:id/review', (req, res) => {
+  const id = String(req.params.id);
+  const { status, reviewedBy, notes } = req.body;
+
+  if (!status || !['approved', 'rejected'].includes(String(status))) {
+    return res.status(400).json({ error: 'Statut invalide. Valeurs autorisees: approved, rejected.' });
+  }
+
+  const item = listVerificationItems().find((entry) => entry.id === id);
+  if (!item) return res.status(404).json({ error: 'Demande de verification non trouvee.' });
+
+  const updated = {
+    ...item,
+    status: String(status),
+    reviewedBy: reviewedBy ? String(reviewedBy) : 'super-admin',
+    reviewedAt: new Date().toISOString(),
+    notes: notes ? String(notes) : null,
+  };
+
+  verificationSubmissions.set(verificationKey(updated.role, updated.accountKey), updated);
+  res.json(updated);
 });
 
 // GET /api/jobs/:id — Détail d'une offre

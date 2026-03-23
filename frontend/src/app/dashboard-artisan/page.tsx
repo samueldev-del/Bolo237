@@ -1,13 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
-import { sendOtp as apiSendOtp, verifyOtp as apiVerifyOtp } from '@/lib/api';
-import { getVerificationStatus, submitVerification, VerificationStatus } from '@/lib/verificationStore';
+import {
+  sendOtp as apiSendOtp,
+  verifyOtp as apiVerifyOtp,
+  createJob,
+  fetchJobs,
+  type ApiJob,
+  fetchVerificationStatus,
+  createVerificationSubmission,
+  type VerificationStatus,
+} from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
 
 /* ------------------------------------------------------------------ */
@@ -113,6 +121,17 @@ export default function DashboardArtisan() {
       return '';
     }
   });
+  const [userId] = useState(() => {
+    if (typeof window === 'undefined') return 0;
+    try {
+      const raw = localStorage.getItem('237jobs-user');
+      if (!raw) return 0;
+      const u = JSON.parse(raw);
+      return Number(u.id || 0);
+    } catch {
+      return 0;
+    }
+  });
 
   /* ---------- state ---------- */
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -132,6 +151,13 @@ export default function DashboardArtisan() {
   const [servicesPostedCount, setServicesPostedCount] = useState(0);
   const [verificationMessage, setVerificationMessage] = useState('');
   const [showVerification, setShowVerification] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
+  const [loadingMyAds, setLoadingMyAds] = useState(false);
+  const [myAds, setMyAds] = useState<ApiJob[]>([]);
+  const [adTitle, setAdTitle] = useState('');
+  const [adDescription, setAdDescription] = useState('');
+  const [adLocation, setAdLocation] = useState('');
+  const [adSalary, setAdSalary] = useState('');
 
   /* service form */
   const [showServiceForm, setShowServiceForm] = useState(false);
@@ -154,9 +180,41 @@ export default function DashboardArtisan() {
   const completedSteps = verificationSteps.filter(Boolean).length;
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
 
-  const verificationStatus: VerificationStatus = useMemo(() => {
-    if (!accountKey) return 'not_submitted';
-    return getVerificationStatus('artisan', accountKey);
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('not_submitted');
+
+  const loadMyAds = useCallback(async () => {
+    if (!userId) return;
+    setLoadingMyAds(true);
+    try {
+      const data = await fetchJobs({ authorId: userId, limit: 50 });
+      setMyAds(data.jobs);
+      setServicesPostedCount(data.jobs.length);
+    } catch {
+      // Keep dashboard usable if backend is temporarily unavailable.
+    } finally {
+      setLoadingMyAds(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    loadMyAds();
+  }, [loadMyAds]);
+
+  useEffect(() => {
+    const loadVerificationStatus = async () => {
+      if (!accountKey) {
+        setVerificationStatus('not_submitted');
+        return;
+      }
+      try {
+        const status = await fetchVerificationStatus('artisan', accountKey);
+        setVerificationStatus(status);
+      } catch {
+        setVerificationStatus('not_submitted');
+      }
+    };
+
+    loadVerificationStatus();
   }, [accountKey]);
 
   /* ---------- OTP handlers ---------- */
@@ -201,7 +259,11 @@ export default function DashboardArtisan() {
     }
   };
 
-  const publishServiceNeed = () => {
+  const publishServiceNeed = async () => {
+    if (!userId) {
+      setVerificationMessage(isEn ? 'Session not found. Please sign in again.' : 'Session introuvable. Veuillez vous reconnecter.');
+      return;
+    }
     if (verificationStatus !== 'approved') {
       setVerificationMessage(
         isEn
@@ -210,18 +272,53 @@ export default function DashboardArtisan() {
       );
       return;
     }
-    const status = getModerationStatusForFirstPublications(servicesPostedCount);
-    const next = servicesPostedCount + 1;
-    setServicesPostedCount(next);
-    setVerificationMessage(
-      status === 'en-attente'
-        ? isEn
-          ? `Need published in moderation queue (${next}/3).`
-          : `Besoin publie en file de moderation (${next}/3).`
-        : isEn
-          ? 'Need published online.'
-          : 'Besoin publie en ligne.'
-    );
+
+    if (!adTitle.trim() || !adDescription.trim()) {
+      setVerificationMessage(
+        isEn
+          ? 'Please add a title and description before publishing.'
+          : 'Ajoutez un titre et une description avant de publier.'
+      );
+      return;
+    }
+
+    setIsPublishing(true);
+
+    try {
+      const created = await createJob({
+        title: adTitle.trim(),
+        company: userName || 'Artisan',
+        location: adLocation.trim() || 'Cameroun',
+        description: adDescription.trim(),
+        salary: adSalary.trim() || undefined,
+        authorId: userId,
+      });
+
+      const next = servicesPostedCount + 1;
+      setServicesPostedCount(next);
+      setMyAds((prev) => [created, ...prev]);
+
+      const status = getModerationStatusForFirstPublications(servicesPostedCount);
+      setVerificationMessage(
+        status === 'en-attente'
+          ? isEn
+            ? `Published successfully (${next}/3). Status: pending admin review.`
+            : `Publication reussie (${next}/3). Statut: en attente de validation admin.`
+          : isEn
+            ? 'Published successfully and visible.'
+            : 'Publication reussie et visible.'
+      );
+
+      setAdTitle('');
+      setAdDescription('');
+      setAdLocation('');
+      setAdSalary('');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVerificationMessage(isEn ? `Publish failed: ${message}` : `Echec de publication: ${message}`);
+    } finally {
+      setIsPublishing(false);
+    }
   };
 
   /* portfolio file handler */
@@ -263,7 +360,7 @@ export default function DashboardArtisan() {
       fileToImageDataUrl(passportFile),
     ]);
 
-    submitVerification({
+    await createVerificationSubmission({
       role: 'artisan',
       accountKey,
       displayName: userName || 'Artisan',
@@ -283,6 +380,8 @@ export default function DashboardArtisan() {
         passportPreview,
       },
     });
+
+    setVerificationStatus('pending');
 
     setVerificationMessage(
       isEn
@@ -947,33 +1046,90 @@ export default function DashboardArtisan() {
                   <span>&#128203;</span> {isEn ? 'Your active ads' : 'Vos annonces actives'}
                 </h3>
 
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">&#128226;</span>
+                <div className="grid grid-cols-1 gap-3 mb-5">
+                  <input
+                    value={adTitle}
+                    onChange={(e) => setAdTitle(e.target.value)}
+                    placeholder={isEn ? 'Ad title (required)' : 'Titre de l annonce (obligatoire)'}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 transition"
+                  />
+                  <textarea
+                    value={adDescription}
+                    onChange={(e) => setAdDescription(e.target.value)}
+                    rows={3}
+                    placeholder={isEn ? 'Ad description (required)' : 'Description de l annonce (obligatoire)'}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 transition resize-none"
+                  />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <input
+                      value={adLocation}
+                      onChange={(e) => setAdLocation(e.target.value)}
+                      placeholder={isEn ? 'Location (e.g. Douala)' : 'Lieu (ex: Douala)'}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 transition"
+                    />
+                    <input
+                      value={adSalary}
+                      onChange={(e) => setAdSalary(e.target.value)}
+                      placeholder={isEn ? 'Budget / salary (optional)' : 'Budget / salaire (optionnel)'}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 transition"
+                    />
                   </div>
-                  <h4 className="font-bold text-gray-900 mb-1 text-sm">
-                    {isEn ? 'No active ads' : 'Aucune annonce en cours'}
-                  </h4>
-                  <p className="text-sm text-gray-500 font-medium mb-5">
-                    {isEn
-                      ? 'You haven\'t posted any job offers yet.'
-                      : 'Vous n\'avez pas encore publie d\'offre pour rechercher un talent.'}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={publishServiceNeed}
+                      disabled={isPublishing}
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:from-green-600 hover:to-emerald-700 transition shadow-md shadow-green-100 disabled:opacity-60"
+                    >
+                      {isPublishing
+                        ? (isEn ? 'Publishing...' : 'Publication...')
+                        : (isEn ? 'Publish to backend' : 'Publier sur le backend')}
+                    </button>
+                    <button
+                      onClick={loadMyAds}
+                      disabled={loadingMyAds}
+                      className="px-5 py-2.5 rounded-xl text-sm font-bold border border-gray-200 bg-white hover:bg-gray-50 transition disabled:opacity-60"
+                    >
+                      {loadingMyAds ? (isEn ? 'Refreshing...' : 'Actualisation...') : (isEn ? 'Refresh my ads' : 'Rafraichir mes annonces')}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-400 font-medium">
+                    {isEn ? 'All new ads are sent to admin moderation (Pending) before visibility.' : 'Toutes les nouvelles annonces passent en moderation admin (En attente) avant visibilite.'}
                   </p>
-                  <button
-                    onClick={publishServiceNeed}
-                    className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:from-green-600 hover:to-emerald-700 transition shadow-md shadow-green-100"
-                  >
-                    {isEn ? 'Simulate publication with moderation' : 'Simuler une publication avec moderation'}
-                  </button>
-                  <p className="mt-3 text-xs text-gray-400 font-medium">
-                    {isEn ? 'First 3 publications go to Pending for admin review.' : 'Les 3 premieres publications passent en attente pour validation admin.'}
-                  </p>
-                  {verificationMessage && activeTab === 'annonces' && (
-                    <div className="mt-3 inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-lg text-xs font-bold">
-                      &#9888;&#65039; {verificationMessage}
-                    </div>
-                  )}
                 </div>
+
+                {myAds.length === 0 ? (
+                  <div className="text-center py-8 border-t border-gray-100">
+                    <div className="w-16 h-16 bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <span className="text-2xl">&#128226;</span>
+                    </div>
+                    <h4 className="font-bold text-gray-900 mb-1 text-sm">
+                      {isEn ? 'No ads yet' : 'Aucune annonce pour le moment'}
+                    </h4>
+                    <p className="text-sm text-gray-500 font-medium">
+                      {isEn ? 'Publish your first ad using the form above.' : 'Publiez votre premiere annonce avec le formulaire ci-dessus.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 border-t border-gray-100 pt-4">
+                    {myAds.map((ad) => (
+                      <div key={ad.id} className="rounded-xl border border-gray-200 p-3 bg-gray-50/50">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <p className="font-bold text-sm text-gray-900">{ad.title}</p>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ad.status === 'APPROVED' ? 'bg-green-100 text-green-700' : ad.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                            {ad.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">{ad.location} • {new Date(ad.createdAt).toLocaleDateString(isEn ? 'en-US' : 'fr-FR')}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {verificationMessage && activeTab === 'annonces' && (
+                  <div className="mt-4 inline-flex items-center gap-2 bg-amber-50 text-amber-700 px-4 py-2 rounded-lg text-xs font-bold">
+                    &#9888;&#65039; {verificationMessage}
+                  </div>
+                )}
               </div>
             </div>
           )}

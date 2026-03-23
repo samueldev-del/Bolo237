@@ -40,6 +40,23 @@ export type Pagination = {
   totalPages: number;
 };
 
+export type VerificationRole = 'entreprise' | 'artisan';
+export type VerificationStatus = 'not_submitted' | 'pending' | 'approved' | 'rejected';
+
+export type VerificationSubmission = {
+  id: string;
+  role: VerificationRole;
+  accountKey: string;
+  displayName: string;
+  phone: string;
+  status: Exclude<VerificationStatus, 'not_submitted'>;
+  submittedAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  notes?: string | null;
+  payload: Record<string, string | boolean | number | null>;
+};
+
 // ── Helpers ──────────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -64,6 +81,7 @@ export type JobFilters = {
   search?: string;
   location?: string;
   status?: string;
+  authorId?: number;
   page?: number;
   limit?: number;
 };
@@ -73,6 +91,7 @@ export async function fetchJobs(filters: JobFilters = {}): Promise<JobsResponse>
   if (filters.search) params.set('search', filters.search);
   if (filters.location) params.set('location', filters.location);
   if (filters.status) params.set('status', filters.status);
+  if (filters.authorId) params.set('authorId', String(filters.authorId));
   if (filters.page) params.set('page', String(filters.page));
   if (filters.limit) params.set('limit', String(filters.limit));
 
@@ -215,4 +234,49 @@ export async function verifyOtp(phone: string, code: string): Promise<OtpVerifyR
 
 export async function checkHealth(): Promise<{ status: string; timestamp: string }> {
   return apiFetch('/api/health');
+}
+
+// ── Verifications (Identity moderation) ───────────────────────────
+
+export async function fetchVerificationStatus(
+  role: VerificationRole,
+  accountKey: string
+): Promise<VerificationStatus> {
+  const params = new URLSearchParams({ role, accountKey });
+  const res = await apiFetch<{ status: VerificationStatus }>(`/api/verifications/status?${params.toString()}`);
+  return res.status;
+}
+
+export async function createVerificationSubmission(data: {
+  role: VerificationRole;
+  accountKey: string;
+  displayName: string;
+  phone: string;
+  payload: Record<string, string | boolean | number | null>;
+}): Promise<VerificationSubmission> {
+  return apiFetch<VerificationSubmission>('/api/verifications', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function fetchVerificationSubmissions(): Promise<VerificationSubmission[]> {
+  const res = await apiFetch<{ items: VerificationSubmission[] }>('/api/verifications');
+  return res.items;
+}
+
+export async function reviewVerificationSubmission(input: {
+  id: string;
+  status: 'approved' | 'rejected';
+  reviewedBy: string;
+  notes?: string;
+}): Promise<VerificationSubmission> {
+  return apiFetch<VerificationSubmission>(`/api/verifications/${input.id}/review`, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      status: input.status,
+      reviewedBy: input.reviewedBy,
+      notes: input.notes,
+    }),
+  });
 }

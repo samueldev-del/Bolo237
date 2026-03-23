@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { LocaleProvider } from "@/components/LocaleProvider";
@@ -12,7 +12,6 @@ export const metadata: Metadata = {
   title: "237jobs - Emplois et Services au Cameroun",
   description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
   manifest: "/manifest.json",
-  themeColor: "#16a34a",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
@@ -31,6 +30,10 @@ export const metadata: Metadata = {
       "x-default": "/fr",
     },
   },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#16a34a",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode; }>) {

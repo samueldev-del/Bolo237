@@ -7,13 +7,14 @@ import { useRouter } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { createUser, loginUser } from '@/lib/api';
 
-type Role = 'chercheur' | 'entreprise' | 'artisan';
+type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
+type Role = SignupRole | 'admin';
 
 const ROLE_STORAGE_KEY = '237jobs-account-role';
 const USER_KEY = '237jobs-user';
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
-const ROLE_MAP: Record<Role, string> = {
+const ROLE_MAP: Record<SignupRole, string> = {
   chercheur: 'CANDIDAT',
   entreprise: 'ENTREPRISE',
   artisan: 'ARTISAN',
@@ -23,6 +24,8 @@ const BACKEND_ROLE_TO_LOCAL: Record<string, Role> = {
   CANDIDAT: 'chercheur',
   ENTREPRISE: 'entreprise',
   ARTISAN: 'artisan',
+  ADMIN: 'admin',
+  SUPER_ADMIN: 'admin',
 };
 
 export default function Connexion() {
@@ -36,7 +39,7 @@ export default function Connexion() {
   const [step, setStep] = useState(1);
 
   // Signup fields
-  const [selectedRole, setSelectedRole] = useState<Role>('chercheur');
+  const [selectedRole, setSelectedRole] = useState<SignupRole>('chercheur');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
@@ -66,6 +69,7 @@ export default function Connexion() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getDashboardRoute = (role: Role) => {
+    if (role === 'admin') return localizePath('/super-admin');
     if (role === 'entreprise') return localizePath('/dashboard-entreprise');
     if (role === 'artisan') return localizePath('/dashboard-artisan');
     return localizePath('/dashboard');
@@ -363,7 +367,7 @@ export default function Connexion() {
                     <p className="text-sm text-gray-500">{isEn ? 'Choose your account type.' : 'Choisissez votre type de compte.'}</p>
                   </div>
                   <div className="space-y-3">
-                    {(Object.keys(roleConfig) as Role[]).map((role) => {
+                    {(Object.keys(roleConfig) as SignupRole[]).map((role) => {
                       const cfg = roleConfig[role];
                       const isActive = selectedRole === role;
                       const activeBorder = cfg.color === 'green' ? 'border-green-500 bg-green-50' : cfg.color === 'blue' ? 'border-blue-500 bg-blue-50' : 'border-amber-500 bg-amber-50';

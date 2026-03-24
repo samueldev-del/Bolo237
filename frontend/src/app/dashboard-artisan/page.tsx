@@ -1176,7 +1176,7 @@ export default function DashboardArtisan() {
                       <div key={ad.id} className="rounded-xl border border-gray-200 p-3 bg-gray-50/50">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <p className="font-bold text-sm text-gray-900">{ad.title}</p>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${ad.status === 'APPROVED' ? 'bg-green-100 text-green-700' : ad.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${(ad.status === 'APPROVED' || ad.status === 'ACTIVE') ? 'bg-green-100 text-green-700' : ad.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
                             {ad.status}
                           </span>
                         </div>

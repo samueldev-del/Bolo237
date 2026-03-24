@@ -167,7 +167,15 @@ app.get('/api/jobs', async (req, res) => {
     const { status, location, search, authorId, page = '1', limit = '20' } = req.query;
 
     const where = {};
-    if (status) where.status = String(status);
+    if (status) {
+      const s = String(status);
+      // Treat APPROVED and ACTIVE as equivalent for public listings
+      if (s === 'APPROVED' || s === 'ACTIVE') {
+        where.status = { in: ['APPROVED', 'ACTIVE'] };
+      } else {
+        where.status = s;
+      }
+    }
     if (authorId) {
       const parsedAuthorId = parseInt(String(authorId), 10);
       if (!isNaN(parsedAuthorId)) where.authorId = parsedAuthorId;
@@ -1173,7 +1181,7 @@ app.get('/api/admin/stats', async (req, res) => {
     const [usersCount, pendingJobsCount, approvedJobsCount, reportsCount] = await Promise.all([
       prisma.user.count(),
       prisma.job.count({ where: { status: 'PENDING' } }),
-      prisma.job.count({ where: { status: 'APPROVED' } }),
+      prisma.job.count({ where: { status: { in: ['APPROVED', 'ACTIVE'] } } }),
       prisma.report.count({ where: { status: 'OPEN' } }),
     ]);
 

@@ -91,3 +91,43 @@ model UserReview {
   @@index([reviewedId, createdAt])
   @@index([reviewerId, createdAt])
 }
+
+model CandidateProfile {
+  id             Int      @id @default(autoincrement())
+  userId         Int?
+  nom            String
+  titre          String
+  localisation   String   @default("Douala")
+  experience     String   @default("Confirme")
+  disponibilite  String   @default("Immediatement")
+  etudes         String   @default("Bac+3")
+  competences    String[] @default([])
+  disponibleNow  Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model UserProfile {
+  userId        Int      @id
+  fullName      String   @default("")
+  title         String   @default("")
+  location      String   @default("")
+  phone         String   @default("")
+  email         String   @default("")
+  profile       String   @default("")
+  experience    String   @default("")
+  education     String   @default("")
+  skillsText    String   @default("")
+  languagesText String   @default("")
+  updatedAt     DateTime @default(now()) @updatedAt
+}
+
+model SavedJob {
+  id     Int @id @default(autoincrement())
+  userId Int
+  jobId  Int
+
+  @@unique([userId, jobId])
+  @@index([userId])
+}

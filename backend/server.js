@@ -92,9 +92,7 @@ function listVerificationItems() {
   });
 }
 
-const candidateProfiles = [];
-const userProfiles = new Map();
-const userSavedJobs = new Map();
+// candidateProfiles, userProfiles, savedJobs are now in the database (Prisma)
 
 function profileFromBody(userId, body) {
   return {
@@ -310,71 +308,97 @@ app.patch('/api/verifications/:id/review', (req, res) => {
 // ROUTES: Candidate Profiles / CVtheque
 // =============================================
 
-app.get('/api/candidates', (_req, res) => {
-  const rows = [...candidateProfiles]
-    .map((c) => ({ ...c, cvMajJours: calcCvMajJours(c.createdAt) }))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  res.json({ candidates: rows });
+app.get('/api/candidates', async (_req, res) => {
+  try {
+    const rows = await prisma.candidateProfile.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
+    const candidates = rows.map((c) => ({ ...c, cvMajJours: calcCvMajJours(c.createdAt) }));
+    res.json({ candidates });
+  } catch (error) {
+    console.error('GET /api/candidates error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des candidats.' });
+  }
 });
 
-app.post('/api/candidates', (req, res) => {
-  const {
-    userId,
-    nom,
-    titre,
-    localisation,
-    experience = 'Confirme',
-    disponibilite = 'Immediatement',
-    etudes = 'Bac+3',
-    competences = [],
-    disponibleNow = true,
-  } = req.body || {};
+app.post('/api/candidates', async (req, res) => {
+  try {
+    const {
+      userId,
+      nom,
+      titre,
+      localisation,
+      experience = 'Confirme',
+      disponibilite = 'Immediatement',
+      etudes = 'Bac+3',
+      competences = [],
+      disponibleNow = true,
+    } = req.body || {};
 
-  if (!nom || !titre) {
-    return res.status(400).json({ error: 'Champs requis: nom, titre.' });
+    if (!nom || !titre) {
+      return res.status(400).json({ error: 'Champs requis: nom, titre.' });
+    }
+
+    const item = await prisma.candidateProfile.create({
+      data: {
+        userId: userId ? parseInt(String(userId), 10) : null,
+        nom: String(nom),
+        titre: String(titre),
+        localisation: String(localisation || 'Douala'),
+        experience: String(experience),
+        disponibilite: String(disponibilite),
+        etudes: String(etudes),
+        competences: Array.isArray(competences)
+          ? competences.map((s) => String(s)).filter(Boolean).slice(0, 12)
+          : [],
+        disponibleNow: Boolean(disponibleNow),
+      },
+    });
+
+    res.status(201).json({ ...item, cvMajJours: 0 });
+  } catch (error) {
+    console.error('POST /api/candidates error:', error);
+    res.status(500).json({ error: 'Erreur lors de la creation du profil candidat.' });
   }
-
-  const item = {
-    id: Date.now(),
-    userId: userId ? parseInt(String(userId), 10) : undefined,
-    nom: String(nom),
-    titre: String(titre),
-    localisation: String(localisation || 'Douala'),
-    experience: String(experience),
-    disponibilite: String(disponibilite),
-    etudes: String(etudes),
-    competences: Array.isArray(competences)
-      ? competences.map((s) => String(s)).filter(Boolean).slice(0, 12)
-      : [],
-    disponibleNow: Boolean(disponibleNow),
-    cvMajJours: 0,
-    createdAt: new Date().toISOString(),
-  };
-
-  candidateProfiles.unshift(item);
-  res.status(201).json(item);
 });
 
 // =============================================
 // ROUTES: User Profiles
 // =============================================
 
-app.get('/api/profiles/:userId', (req, res) => {
-  const userId = parseInt(req.params.userId, 10);
-  if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+app.get('/api/profiles/:userId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
 
-  const existing = userProfiles.get(userId);
-  if (!existing) return res.status(404).json({ error: 'Profil non trouve.' });
-  res.json(existing);
+    const existing = await prisma.userProfile.findUnique({ where: { userId } });
+    if (!existing) return res.status(404).json({ error: 'Profil non trouve.' });
+    res.json(existing);
+  } catch (error) {
+    console.error('GET /api/profiles/:userId error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture du profil.' });
+  }
 });
 
-app.put('/api/profiles/:userId', (req, res) => {
-  const userId = parseInt(req.params.userId, 10);
-  if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+app.put('/api/profiles/:userId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.userId, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
 
-  const nextProfile = profileFromBody(userId, req.body || {});
-  userProfiles.set(userId, nextProfile);
-  res.json(nextProfile);
+    const data = profileFromBody(userId, req.body || {});
+    delete data.userId;
+    delete data.updatedAt;
+
+    const profile = await prisma.userProfile.upsert({
+      where: { userId },
+      update: data,
+      create: { userId, ...data },
+    });
+    res.json(profile);
+  } catch (error) {
+    console.error('PUT /api/profiles/:userId error:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise a jour du profil.' });
+  }
 });
 
 // =============================================
@@ -386,8 +410,8 @@ app.get('/api/users/:id/saved-jobs', async (req, res) => {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID invalide.' });
 
-    const saved = userSavedJobs.get(userId) || new Set();
-    const ids = Array.from(saved);
+    const savedEntries = await prisma.savedJob.findMany({ where: { userId } });
+    const ids = savedEntries.map((s) => s.jobId);
     if (ids.length === 0) return res.json({ jobs: [] });
 
     const jobs = await prisma.job.findMany({
@@ -403,34 +427,43 @@ app.get('/api/users/:id/saved-jobs', async (req, res) => {
   }
 });
 
-app.post('/api/users/:id/saved-jobs', (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const jobId = parseInt(String(req.body?.jobId), 10);
+app.post('/api/users/:id/saved-jobs', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const jobId = parseInt(String(req.body?.jobId), 10);
 
-  if (isNaN(userId) || isNaN(jobId)) {
-    return res.status(400).json({ error: 'Parametres invalides: userId et jobId requis.' });
+    if (isNaN(userId) || isNaN(jobId)) {
+      return res.status(400).json({ error: 'Parametres invalides: userId et jobId requis.' });
+    }
+
+    await prisma.savedJob.upsert({
+      where: { userId_jobId: { userId, jobId } },
+      update: {},
+      create: { userId, jobId },
+    });
+
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    console.error('POST /api/users/:id/saved-jobs error:', error);
+    res.status(500).json({ error: 'Erreur lors de la sauvegarde.' });
   }
-
-  const saved = userSavedJobs.get(userId) || new Set();
-  saved.add(jobId);
-  userSavedJobs.set(userId, saved);
-
-  res.status(201).json({ ok: true });
 });
 
-app.delete('/api/users/:id/saved-jobs/:jobId', (req, res) => {
-  const userId = parseInt(req.params.id, 10);
-  const jobId = parseInt(req.params.jobId, 10);
+app.delete('/api/users/:id/saved-jobs/:jobId', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const jobId = parseInt(req.params.jobId, 10);
 
-  if (isNaN(userId) || isNaN(jobId)) {
-    return res.status(400).json({ error: 'Parametres invalides: userId et jobId requis.' });
+    if (isNaN(userId) || isNaN(jobId)) {
+      return res.status(400).json({ error: 'Parametres invalides: userId et jobId requis.' });
+    }
+
+    await prisma.savedJob.deleteMany({ where: { userId, jobId } });
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('DELETE /api/users/:id/saved-jobs error:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression.' });
   }
-
-  const saved = userSavedJobs.get(userId) || new Set();
-  saved.delete(jobId);
-  userSavedJobs.set(userId, saved);
-
-  res.json({ ok: true });
 });
 
 // GET /api/jobs/:id — Détail d'une offre

@@ -8,7 +8,7 @@ import { useLocale } from '@/components/LocaleProvider';
 const USER_KEY = '237jobs-user';
 const ROLE_KEY = '237jobs-account-role';
 
-type UserData = { id: number; name?: string; role?: string } | null;
+type UserData = { id: number; name?: string; role?: string; email?: string } | null;
 
 function getUserFromStorage(): UserData {
   if (typeof window === 'undefined') return null;
@@ -22,6 +22,39 @@ function getDashboard(role: string | undefined, localizePath: (p: string) => str
   if (role === 'entreprise') return localizePath('/dashboard-entreprise');
   if (role === 'artisan') return localizePath('/dashboard-artisan');
   return localizePath('/dashboard');
+}
+
+function getRoleLabel(role: string | null | undefined, isEn: boolean): string {
+  switch (role) {
+    case 'entreprise': return isEn ? 'Company' : 'Entreprise';
+    case 'artisan': return isEn ? 'Artisan' : 'Artisan';
+    case 'chercheur': return isEn ? 'Candidate' : 'Candidat';
+    default: return isEn ? 'Candidate' : 'Candidat';
+  }
+}
+
+function getRoleColor(role: string | null | undefined): string {
+  switch (role) {
+    case 'entreprise': return 'from-blue-600 to-blue-700';
+    case 'artisan': return 'from-orange-500 to-orange-600';
+    default: return 'from-green-600 to-green-700';
+  }
+}
+
+function getRoleBadgeColor(role: string | null | undefined): string {
+  switch (role) {
+    case 'entreprise': return 'bg-blue-600 hover:bg-blue-700';
+    case 'artisan': return 'bg-orange-500 hover:bg-orange-600';
+    default: return 'bg-green-600 hover:bg-green-700';
+  }
+}
+
+function getRoleIcon(role: string | null | undefined): string {
+  switch (role) {
+    case 'entreprise': return '🏢';
+    case 'artisan': return '🔧';
+    default: return '👤';
+  }
 }
 
 export default function Header() {
@@ -96,12 +129,12 @@ export default function Header() {
           {user ? (
             <Link
               href={getDashboard(localRole || undefined, localizePath)}
-              className="hidden sm:flex items-center gap-2 bg-green-600 text-white px-5 py-2.5 rounded-full font-bold text-[13px] hover:bg-green-700 transition shadow-sm"
+              className={`hidden sm:flex items-center gap-2 ${getRoleBadgeColor(localRole)} text-white px-5 py-2.5 rounded-full font-bold text-[13px] transition shadow-sm`}
             >
-              <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-[11px] font-extrabold">
-                {(user.name || 'U').slice(0, 1).toUpperCase()}
+              <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-[11px]">
+                {getRoleIcon(localRole)}
               </span>
-              {isEn ? 'Dashboard' : 'Mon espace'}
+              <span className="max-w-[120px] truncate">{(user.name || '').split(' ')[0] || (isEn ? 'Dashboard' : 'Mon espace')}</span>
             </Link>
           ) : (
             <Link
@@ -148,14 +181,14 @@ export default function Header() {
 
             {/* En-tête utilisateur connecté */}
             {user && (
-              <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-5 text-white">
+              <div className={`bg-gradient-to-r ${getRoleColor(localRole)} px-6 py-5 text-white`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-lg font-extrabold">
-                    {(user.name || 'U').slice(0, 1).toUpperCase()}
+                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-lg">
+                    {getRoleIcon(localRole)}
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="font-bold text-sm truncate">{user.name || (isEn ? 'My account' : 'Mon compte')}</p>
-                    <p className="text-white/70 text-xs capitalize">{localRole || 'candidat'}</p>
+                    <p className="text-white/70 text-xs">{getRoleLabel(localRole, isEn)}</p>
                   </div>
                 </div>
               </div>
@@ -190,12 +223,31 @@ export default function Header() {
                     {isEn ? 'My space' : 'Mon espace'}
                   </p>
                   <MenuLink href={getDashboard(localRole || undefined, localizePath)} icon="📊" label={isEn ? 'Dashboard' : 'Tableau de bord'} desc={isEn ? 'Manage your activity' : 'Gérer votre activité'} />
+
+                  {/* Candidat links */}
                   {(localRole === 'chercheur' || !localRole) && (
-                    <MenuLink href={localizePath('/profil')} icon="✏️" label={isEn ? 'My CV / Profile' : 'Mon CV / Profil'} desc={isEn ? 'Build and update your CV' : 'Créer et mettre à jour votre CV'} />
+                    <>
+                      <MenuLink href={localizePath('/profil')} icon="✏️" label={isEn ? 'My CV / Profile' : 'Mon CV / Profil'} desc={isEn ? 'Build and update your CV' : 'Créer et mettre à jour votre CV'} />
+                      <MenuLink href={localizePath('/emplois')} icon="🔎" label={isEn ? 'Find a job' : 'Trouver un emploi'} desc={isEn ? 'Browse available offers' : 'Parcourir les offres disponibles'} />
+                    </>
                   )}
+
+                  {/* Entreprise links */}
                   {localRole === 'entreprise' && (
-                    <MenuLink href={localizePath('/publier')} icon="📝" label={isEn ? 'Post a job' : 'Publier une offre'} desc={isEn ? 'Reach thousands of candidates' : 'Touchez des milliers de candidats'} />
+                    <>
+                      <MenuLink href={localizePath('/publier')} icon="📝" label={isEn ? 'Post a job' : 'Publier une offre'} desc={isEn ? 'Reach thousands of candidates' : 'Touchez des milliers de candidats'} />
+                      <MenuLink href={localizePath('/cvtheque')} icon="👥" label={isEn ? 'CV Library' : 'CVthèque'} desc={isEn ? 'Find the ideal candidate' : 'Trouver le candidat idéal'} />
+                    </>
                   )}
+
+                  {/* Artisan links */}
+                  {localRole === 'artisan' && (
+                    <>
+                      <MenuLink href={localizePath('/profil')} icon="🛠️" label={isEn ? 'My profile' : 'Mon profil'} desc={isEn ? 'Manage your artisan profile' : 'Gérer votre profil artisan'} />
+                      <MenuLink href={localizePath('/petits-boulots')} icon="📋" label={isEn ? 'Service requests' : 'Demandes de services'} desc={isEn ? 'Find clients near you' : 'Trouver des clients près de vous'} />
+                    </>
+                  )}
+
                   <div className="h-px bg-gray-100 my-2 mx-6"></div>
                 </>
               )}
@@ -217,7 +269,7 @@ export default function Header() {
                 {isEn ? 'Information' : 'Informations'}
               </p>
               <MenuLink href={localizePath('/recherche')} icon="🔍" label={isEn ? 'Advanced search' : 'Recherche avancée'} desc={isEn ? 'Find with precise filters' : 'Chercher avec des filtres précis'} />
-              <MenuLink href={localizePath('/#pourquoi')} icon="ℹ️" label={isEn ? 'About 237jobs' : 'À propos de 237jobs'} desc={isEn ? 'The Cameroon job platform' : 'La plateforme emploi du Cameroun'} />
+              <MenuLink href={localizePath('/a-propos')} icon="ℹ️" label={isEn ? 'About 237jobs' : 'À propos de 237jobs'} desc={isEn ? 'The Cameroon job platform' : 'La plateforme emploi du Cameroun'} />
 
               {/* Déconnexion */}
               {user && (

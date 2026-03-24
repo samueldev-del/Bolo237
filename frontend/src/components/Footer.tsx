@@ -17,9 +17,9 @@ export default function Footer() {
           <div>
             <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto mb-4" />
             <ul className="space-y-2 text-sm font-medium">
-              <li><Link href="#" className="hover:text-green-600 hover:underline">{t.footer.about}</Link></li>
-              <li><Link href="#" className="hover:text-green-600 hover:underline">{t.footer.press}</Link></li>
-              <li><Link href="#" className="hover:text-green-600 hover:underline">{t.footer.partner}</Link></li>
+              <li><Link href={localizePath('/a-propos')} className="hover:text-green-600 hover:underline">{t.footer.about}</Link></li>
+              <li><Link href={localizePath('/presse')} className="hover:text-green-600 hover:underline">{t.footer.press}</Link></li>
+              <li><Link href={localizePath('/conditions')} className="hover:text-green-600 hover:underline">CGU</Link></li>
             </ul>
           </div>
 

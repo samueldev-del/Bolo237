@@ -2,8 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchCandidateProfiles } from '@/lib/api';
+
+const USER_KEY = '237jobs-user';
+const ROLE_KEY = '237jobs-account-role';
 
 type Candidate = {
   id: number;
@@ -87,7 +92,21 @@ export default function CvthequePage() {
   const [etudeFilters, setEtudeFilters] = useState<string[]>([]);
   const [actif30Jours, setActif30Jours] = useState(false);
 
+  // Access control: only entreprise and artisan can view CVthèque
+  const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const role = window.localStorage.getItem(ROLE_KEY);
+    const userRaw = window.localStorage.getItem(USER_KEY);
+    if (userRaw && (role === 'entreprise' || role === 'artisan')) {
+      setAccessAllowed(true);
+    } else {
+      setAccessAllowed(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (accessAllowed !== true) return;
     const loadCandidates = async () => {
       try {
         const rows = await fetchCandidateProfiles();
@@ -110,7 +129,7 @@ export default function CvthequePage() {
     };
 
     loadCandidates();
-  }, []);
+  }, [accessAllowed]);
 
   const allCandidates = useMemo(() => {
     const ids = new Set<number>();
@@ -191,6 +210,59 @@ export default function CvthequePage() {
   const start = (effectivePage - 1) * pageSize;
   const end = start + pageSize;
   const candidatsPage = candidatsTries.slice(start, end);
+
+  // Access denied screen
+  if (accessAllowed === false) {
+    return (
+      <div className="min-h-screen flex flex-col bg-white">
+        <Header />
+        <main className="flex-1 flex items-center justify-center px-4">
+          <div className="max-w-md text-center py-16">
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center text-4xl mx-auto mb-6">
+              🔒
+            </div>
+            <h1 className="text-2xl font-extrabold text-gray-900 mb-3">
+              {isEn ? 'CVthèque — Recruiter Access' : 'CVthèque — Accès Recruteur'}
+            </h1>
+            <p className="text-gray-600 mb-6 leading-relaxed">
+              {isEn
+                ? 'The CV database is reserved for companies and artisans looking for talent. Create a company or artisan account to access candidate profiles.'
+                : 'La base de CV est réservée aux entreprises et artisans à la recherche de talents. Créez un compte entreprise ou artisan pour accéder aux profils des candidats.'}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href={localizePath('/connexion')}
+                className="bg-green-600 text-white font-bold px-6 py-3 rounded-xl hover:bg-green-700 transition text-sm"
+              >
+                {isEn ? 'Create an account' : 'Créer un compte'}
+              </Link>
+              <Link
+                href={localizePath('/connexion')}
+                className="border border-gray-300 text-gray-700 font-bold px-6 py-3 rounded-xl hover:border-gray-400 transition text-sm"
+              >
+                {isEn ? 'Sign in' : 'Se connecter'}
+              </Link>
+            </div>
+            <p className="text-xs text-gray-400 mt-6">
+              {isEn
+                ? 'Are you a candidate? Your profile is visible to recruiters from your dashboard.'
+                : 'Vous êtes candidat ? Votre profil est visible par les recruteurs depuis votre tableau de bord.'}
+            </p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  // Loading state
+  if (accessAllowed === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-black pb-10">

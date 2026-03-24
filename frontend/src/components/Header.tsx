@@ -101,21 +101,8 @@ export default function Header() {
           <Image src="/logo.svg" alt="237jobs" width={140} height={36} priority className="h-8 md:h-9 w-auto" />
         </Link>
 
-        {/* LIENS CENTRE (desktop) */}
-        <nav className="hidden lg:flex items-center gap-1">
-          <Link href={localizePath('/emplois')} className="px-4 py-2 text-sm font-semibold text-gray-700 hover:text-green-700 hover:bg-green-50 rounded-lg transition">
-            {isEn ? 'Jobs' : 'Emplois'}
-          </Link>
-          <Link href={localizePath('/petits-boulots')} className="px-4 py-2 text-sm font-semibold text-gray-700 hover:text-green-700 hover:bg-green-50 rounded-lg transition">
-            {isEn ? 'Artisans' : 'Artisans'}
-          </Link>
-          <Link href={localizePath('/cvtheque')} className="px-4 py-2 text-sm font-semibold text-gray-700 hover:text-green-700 hover:bg-green-50 rounded-lg transition">
-            {isEn ? 'CV Library' : 'CVthèque'}
-          </Link>
-          <Link href={localizePath('/publier')} className="px-4 py-2 text-sm font-semibold text-gray-700 hover:text-green-700 hover:bg-green-50 rounded-lg transition">
-            {isEn ? 'Post a job' : 'Publier'}
-          </Link>
-        </nav>
+        {/* Navigation links are in the burger menu */}
+        <div className="hidden lg:block" />
 
         {/* BLOC DROIT */}
         <div className="flex items-center gap-3">

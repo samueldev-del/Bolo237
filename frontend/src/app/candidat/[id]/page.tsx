@@ -1,6 +1,6 @@
 "use client";
 
-import { use } from 'react';
+import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/components/LocaleProvider';
 
@@ -14,6 +14,19 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
   const { id } = use(params);
   const { t, localizePath, locale } = useLocale();
   const isEn = locale === 'en';
+  // Check auth for contact access
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userRaw = window.localStorage.getItem('237jobs-user');
+    const role = window.localStorage.getItem('237jobs-account-role');
+    setIsLoggedIn(!!userRaw);
+    setUserRole(role);
+  }, []);
+
+  const canViewContact = isLoggedIn && (userRole === 'entreprise' || userRole === 'artisan');
+
   const profil = {
     id,
     nom: 'Alain Tchoumi',
@@ -78,9 +91,15 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
                 </span>
               </div>
 
-              <button className="bg-green-600 hover:bg-green-700 text-white font-extrabold px-6 py-3 rounded-xl transition">
-                Contacter le candidat
-              </button>
+              {canViewContact ? (
+                <button className="bg-green-600 hover:bg-green-700 text-white font-extrabold px-6 py-3 rounded-xl transition">
+                  {isEn ? 'Contact candidate' : 'Contacter le candidat'}
+                </button>
+              ) : (
+                <Link href={localizePath('/connexion')} className="bg-green-600 hover:bg-green-700 text-white font-extrabold px-6 py-3 rounded-xl transition inline-block">
+                  {isEn ? 'Sign in to contact' : 'Connectez-vous pour contacter'}
+                </Link>
+              )}
             </div>
           </article>
 
@@ -130,24 +149,48 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
         </section>
 
         <aside className="space-y-4 h-fit md:sticky md:top-6">
-          <article className="bg-white border border-gray-200 rounded-2xl p-5">
-            <h3 className="text-base font-extrabold mb-3">Coordonnees du candidat</h3>
-            <p className="text-sm text-gray-700 mb-1"><span className="font-bold">Email:</span> {profil.email}</p>
-            <p className="text-sm text-gray-700 mb-3"><span className="font-bold">Telephone:</span> {profil.telephone}</p>
-            <p className="text-xs font-bold text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
-              Regle de lancement: acces gratuit aux coordonnees pour toutes les entreprises.
-            </p>
-          </article>
+          {canViewContact ? (
+            <article className="bg-white border border-gray-200 rounded-2xl p-5">
+              <h3 className="text-base font-extrabold mb-3">{isEn ? 'Candidate contact' : 'Coordonnees du candidat'}</h3>
+              <p className="text-sm text-gray-700 mb-1"><span className="font-bold">Email:</span> {profil.email}</p>
+              <p className="text-sm text-gray-700 mb-3"><span className="font-bold">{isEn ? 'Phone' : 'Telephone'}:</span> {profil.telephone}</p>
+              <p className="text-xs font-bold text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
+                {isEn ? 'Free access to contact details for all companies.' : 'Acces gratuit aux coordonnees pour toutes les entreprises.'}
+              </p>
+            </article>
+          ) : (
+            <article className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-3">🔒</div>
+              <h3 className="text-base font-extrabold mb-2">{isEn ? 'Contact details' : 'Coordonnees'}</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                {isEn
+                  ? 'Create a company or artisan account to access this candidate\'s contact details.'
+                  : 'Creez un compte entreprise ou artisan pour acceder aux coordonnees de ce candidat.'}
+              </p>
+              <Link href={localizePath('/connexion')} className="block w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition text-sm">
+                {isEn ? 'Create an account' : 'Creer un compte'}
+              </Link>
+            </article>
+          )}
 
-          <article className="bg-white border border-gray-200 rounded-2xl p-5">
-            <h3 className="text-base font-extrabold mb-3">Actions rapides</h3>
-            <button className="w-full bg-black text-white font-extrabold py-3 rounded-xl hover:bg-gray-800 transition mb-2">
-              Proposer une offre
-            </button>
-            <button className="w-full bg-white text-black border border-gray-300 font-extrabold py-3 rounded-xl hover:border-gray-400 transition">
-              Telecharger le CV (PDF)
-            </button>
-          </article>
+          {canViewContact ? (
+            <article className="bg-white border border-gray-200 rounded-2xl p-5">
+              <h3 className="text-base font-extrabold mb-3">{isEn ? 'Quick actions' : 'Actions rapides'}</h3>
+              <button className="w-full bg-black text-white font-extrabold py-3 rounded-xl hover:bg-gray-800 transition mb-2">
+                {isEn ? 'Send an offer' : 'Proposer une offre'}
+              </button>
+              <button className="w-full bg-white text-black border border-gray-300 font-extrabold py-3 rounded-xl hover:border-gray-400 transition">
+                {isEn ? 'Download CV (PDF)' : 'Telecharger le CV (PDF)'}
+              </button>
+            </article>
+          ) : (
+            <article className="bg-white border border-gray-200 rounded-2xl p-5">
+              <h3 className="text-base font-extrabold mb-3">{isEn ? 'Quick actions' : 'Actions rapides'}</h3>
+              <Link href={localizePath('/connexion')} className="block w-full bg-black text-white font-extrabold py-3 rounded-xl hover:bg-gray-800 transition mb-2 text-center">
+                {isEn ? 'Sign in to contact' : 'Se connecter pour contacter'}
+              </Link>
+            </article>
+          )}
 
           <article className="bg-white border border-gray-200 rounded-2xl p-5">
             <h3 className="text-base font-extrabold mb-3">Competences cles</h3>

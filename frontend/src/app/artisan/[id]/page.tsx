@@ -31,6 +31,23 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
 
   const artisanId = Number.parseInt(id, 10);
 
+  // Check if user is logged in for contact actions
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const userRaw = window.localStorage.getItem('237jobs-user');
+    setIsLoggedIn(!!userRaw);
+  }, []);
+
+  const requireAuth = (action: () => void) => {
+    if (isLoggedIn) {
+      action();
+    } else {
+      setShowLoginPrompt(true);
+    }
+  };
+
   const artisan = {
     id,
     nom: 'Jean Mvondo',
@@ -195,16 +212,25 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
             </div>
 
             <div className="hidden md:flex gap-3 mt-6">
-              <a
-                href={`https://wa.me/${artisan.whatsapp.replace(/\s|\+/g, '')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`text-white font-extrabold px-6 py-3 rounded-xl transition ${maskedByReports ? 'bg-gray-300 pointer-events-none' : 'bg-[#25D366] hover:bg-[#1fab53]'}`}
-              >
-                {maskedByReports ? t.security.profileMaskedCta : t.security.contactWhatsapp}
-              </a>
+              {isLoggedIn ? (
+                <a
+                  href={`https://wa.me/${artisan.whatsapp.replace(/\s|\+/g, '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`text-white font-extrabold px-6 py-3 rounded-xl transition ${maskedByReports ? 'bg-gray-300 pointer-events-none' : 'bg-[#25D366] hover:bg-[#1fab53]'}`}
+                >
+                  {maskedByReports ? t.security.profileMaskedCta : t.security.contactWhatsapp}
+                </a>
+              ) : (
+                <button
+                  onClick={() => setShowLoginPrompt(true)}
+                  className="bg-[#25D366] hover:bg-[#1fab53] text-white font-extrabold px-6 py-3 rounded-xl transition"
+                >
+                  {t.security.contactWhatsapp}
+                </button>
+              )}
               <button
-                onClick={() => setShowQuoteForm((s) => !s)}
+                onClick={() => requireAuth(() => setShowQuoteForm((s) => !s))}
                 disabled={maskedByReports}
                 className="border border-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed hover:border-gray-400 bg-white text-black font-extrabold px-6 py-3 rounded-xl transition"
               >
@@ -341,18 +367,52 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
 
       </main>
 
+      {/* Login prompt modal */}
+      {showLoginPrompt && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setShowLoginPrompt(false)}>
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
+            <h3 className="text-lg font-extrabold text-gray-900 mb-2">
+              {isEn ? 'Create an account to contact' : 'Créez un compte pour contacter'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-5">
+              {isEn
+                ? 'Sign up for free to contact this artisan via WhatsApp and request quotes.'
+                : 'Inscrivez-vous gratuitement pour contacter cet artisan via WhatsApp et demander des devis.'}
+            </p>
+            <div className="flex flex-col gap-2">
+              <Link href={localizePath('/connexion')} className="bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition text-sm">
+                {isEn ? 'Create an account' : 'Créer un compte'}
+              </Link>
+              <Link href={localizePath('/connexion')} className="border border-gray-300 text-gray-700 font-bold py-3 rounded-xl hover:border-gray-400 transition text-sm">
+                {isEn ? 'Sign in' : 'Se connecter'}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-50">
         <div className="grid grid-cols-2 gap-2">
-          <a
-            href={`https://wa.me/${artisan.whatsapp.replace(/\s|\+/g, '')}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`text-white text-center font-extrabold py-3 rounded-xl transition ${maskedByReports ? 'bg-gray-300 pointer-events-none' : 'bg-[#25D366] hover:bg-[#1fab53]'}`}
-          >
-            {maskedByReports ? t.security.profileMaskedCta : 'WhatsApp'}
-          </a>
+          {isLoggedIn ? (
+            <a
+              href={`https://wa.me/${artisan.whatsapp.replace(/\s|\+/g, '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`text-white text-center font-extrabold py-3 rounded-xl transition ${maskedByReports ? 'bg-gray-300 pointer-events-none' : 'bg-[#25D366] hover:bg-[#1fab53]'}`}
+            >
+              {maskedByReports ? t.security.profileMaskedCta : 'WhatsApp'}
+            </a>
+          ) : (
+            <button
+              onClick={() => setShowLoginPrompt(true)}
+              className="bg-[#25D366] hover:bg-[#1fab53] text-white text-center font-extrabold py-3 rounded-xl transition"
+            >
+              WhatsApp
+            </button>
+          )}
           <button
-            onClick={() => setShowQuoteForm((s) => !s)}
+            onClick={() => requireAuth(() => setShowQuoteForm((s) => !s))}
             disabled={maskedByReports}
             className="bg-black disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-gray-800 text-white font-extrabold py-3 rounded-xl transition"
           >

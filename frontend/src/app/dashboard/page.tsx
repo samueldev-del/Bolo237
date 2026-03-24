@@ -1,18 +1,21 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { createCandidateProfile, fetchUserSavedJobs, upsertUserProfile, type ApiJob } from '@/lib/api';
+import { createCandidateProfile, fetchUserSavedJobs, fetchUserApplications, upsertUserProfile, type ApiJob, type UserApplication } from '@/lib/api';
 
 export default function DashboardCandidat() {
   const { locale, localizePath } = useLocale();
+  const router = useRouter();
   const isEn = locale === 'en';
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState<number>(0);
   const [savedJobs, setSavedJobs] = useState<ApiJob[]>([]);
+  const [candidatures, setCandidatures] = useState<UserApplication[]>([]);
   const [profileVisible, setProfileVisible] = useState(true);
   const [skillInput, setSkillInput] = useState('');
   const [skills, setSkills] = useState<string[]>([]);
@@ -47,11 +50,22 @@ export default function DashboardCandidat() {
         const parsed = JSON.parse(raw);
         setUserName(parsed?.name || parsed?.fullName || parsed?.nom || '');
         setUserId(Number(parsed?.id || 0));
+
+        // Redirect to role-specific dashboard
+        const role = parsed?.role || localStorage.getItem('237jobs-account-role') || '';
+        if (role === 'ENTREPRISE') {
+          router.replace(localizePath('/dashboard-entreprise'));
+          return;
+        }
+        if (role === 'ARTISAN') {
+          router.replace(localizePath('/dashboard-artisan'));
+          return;
+        }
       }
     } catch {
       // ignore parse errors
     }
-  }, []);
+  }, [router, localizePath]);
 
   useEffect(() => {
     const loadSavedJobs = async () => {
@@ -67,8 +81,18 @@ export default function DashboardCandidat() {
     loadSavedJobs();
   }, [userId]);
 
-  // Vide — sera rempli par les vraies candidatures de l'utilisateur
-  const candidatures: { id: number; poste: string; entreprise: string; date: string; statut: string }[] = [];
+  useEffect(() => {
+    if (!userId) return;
+    const loadApplications = async () => {
+      try {
+        const apps = await fetchUserApplications(userId);
+        setCandidatures(apps);
+      } catch {
+        setCandidatures([]);
+      }
+    };
+    loadApplications();
+  }, [userId]);
 
   // Vide — sera rempli par les vraies offres sauvegardees
   const emploisSauvegardes: { id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[] = savedJobs.map((job) => {
@@ -526,7 +550,7 @@ export default function DashboardCandidat() {
               </div>
               <div>
                 <p className="text-xs uppercase text-blue-600/80 font-extrabold tracking-wide">{isEn ? 'Applications sent' : 'Candidatures envoyees'}</p>
-                <p className="text-2xl sm:text-3xl font-extrabold text-blue-900 mt-0.5">0</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-blue-900 mt-0.5">{candidatures.length}</p>
               </div>
             </div>
             <div className="bg-gradient-to-br from-amber-50 to-amber-100/40 border border-amber-100 rounded-2xl p-4 sm:p-5 flex items-start gap-3">
@@ -869,18 +893,21 @@ export default function DashboardCandidat() {
           </h2>
           {candidatures.length > 0 ? (
             <div className="space-y-3">
-              {candidatures.map((item) => (
+              {candidatures.map((item) => {
+                const dateStr = new Date(item.date).toLocaleDateString(isEn ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+                return (
                 <article key={item.id} className="border border-gray-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:border-gray-300 transition">
                   <div>
-                    <h3 className="font-extrabold text-black">{item.poste}</h3>
-                    <p className="text-sm text-gray-600">{item.entreprise}</p>
-                    <p className="text-xs text-gray-500 mt-1">{isEn ? `Sent on ${item.date}` : `Envoyee le ${item.date}`}</p>
+                    <h3 className="font-extrabold text-black">{item.jobTitle}</h3>
+                    <p className="text-sm text-gray-600">{item.company}</p>
+                    <p className="text-xs text-gray-500 mt-1">{isEn ? `Sent on ${dateStr}` : `Envoyee le ${dateStr}`}</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-extrabold border w-fit ${statusClass(item.statut)}`}>
                     {item.statut}
                   </span>
                 </article>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-10 sm:py-14">

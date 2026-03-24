@@ -12,7 +12,7 @@ export type ApiJob = {
   status: string;
   authorId: number;
   createdAt: string;
-  author?: { id: number; name: string | null; email: string };
+  author?: { id: number; name: string | null; email: string; role?: string };
 };
 
 export type ApiUser = {
@@ -197,6 +197,20 @@ export async function applyToJob(input: {
       candidateName: input.candidateName,
     }),
   });
+}
+
+export type UserApplication = {
+  id: number;
+  jobId: number | null;
+  jobTitle: string;
+  company: string;
+  date: string;
+  statut: string;
+};
+
+export async function fetchUserApplications(userId: number): Promise<UserApplication[]> {
+  const res = await apiFetch<{ applications: UserApplication[] }>(`/api/users/${userId}/applications`);
+  return res.applications;
 }
 
 export async function updateJob(

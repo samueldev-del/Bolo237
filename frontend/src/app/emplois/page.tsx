@@ -143,6 +143,15 @@ export default function EmploisFormels() {
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [alertActive, setAlertActive] = useState(false);
   const [activeChips, setActiveChips] = useState<string[]>([]);
+  const [searchInput, setSearchInput] = useState('');
+  const [locationInput, setLocationInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [appliedLocation, setAppliedLocation] = useState('');
+
+  const handleSearch = () => {
+    setAppliedSearch(searchInput.trim());
+    setAppliedLocation(locationInput.trim());
+  };
 
   useEffect(() => {
     try {
@@ -171,9 +180,14 @@ export default function EmploisFormels() {
 
   // Fetch depuis le backend, fallback sur mock
   const { data: jobsData } = useApi(
-    () => fetchJobs({ limit: 20 }),
+    () => fetchJobs({
+      limit: 20,
+      status: 'APPROVED',
+      ...(appliedSearch ? { search: appliedSearch } : {}),
+      ...(appliedLocation ? { location: appliedLocation } : {}),
+    }),
     null,
-    []
+    [appliedSearch, appliedLocation]
   );
 
   const OFFRES: Offre[] = jobsData && jobsData.jobs.length > 0
@@ -218,6 +232,9 @@ export default function EmploisFormels() {
               <input
                 type="text"
                 placeholder="Poste, compétence, entreprise..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 style={{ width: '100%', padding: '13px 16px 13px 44px', border: '1.5px solid #E2E8F0', borderRadius: '10px', outline: 'none', fontSize: '0.9rem', color: '#0F172A', boxSizing: 'border-box' }}
               />
             </div>
@@ -229,10 +246,16 @@ export default function EmploisFormels() {
               <input
                 type="text"
                 placeholder="Ville ou région..."
+                value={locationInput}
+                onChange={(e) => setLocationInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 style={{ width: '100%', padding: '13px 16px 13px 44px', border: '1.5px solid #E2E8F0', borderRadius: '10px', outline: 'none', fontSize: '0.9rem', color: '#0F172A', boxSizing: 'border-box' }}
               />
             </div>
-            <button style={{ background: '#7C3AED', color: 'white', padding: '13px 28px', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+            <button
+              onClick={handleSearch}
+              style={{ background: '#7C3AED', color: 'white', padding: '13px 28px', borderRadius: '10px', fontWeight: 700, border: 'none', cursor: 'pointer', fontSize: '0.9rem', whiteSpace: 'nowrap' }}
+            >
               Trouver un emploi
             </button>
           </div>
@@ -379,7 +402,7 @@ export default function EmploisFormels() {
           {/* Entête résultats */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <p style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 600, margin: 0 }}>
-              <strong style={{ color: '#7C3AED' }}>1 120</strong> offres d&apos;emploi au Cameroun
+              <strong style={{ color: '#7C3AED' }}>{OFFRES.length}</strong> offres d&apos;emploi au Cameroun
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '0.82rem', color: '#64748B' }}>Trier par :</span>

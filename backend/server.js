@@ -191,7 +191,7 @@ app.get('/api/jobs', async (req, res) => {
         orderBy: { createdAt: 'desc' },
         skip,
         take,
-        include: { author: { select: { id: true, name: true, email: true } } },
+        include: { author: { select: { id: true, name: true, email: true, role: true } } },
       }),
       prisma.job.count({ where }),
     ]);
@@ -384,7 +384,7 @@ app.get('/api/users/:id/saved-jobs', async (req, res) => {
 
     const jobs = await prisma.job.findMany({
       where: { id: { in: ids } },
-      include: { author: { select: { id: true, name: true, email: true } } },
+      include: { author: { select: { id: true, name: true, email: true, role: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -433,7 +433,7 @@ app.get('/api/jobs/:id', async (req, res) => {
 
     const job = await prisma.job.findUnique({
       where: { id },
-      include: { author: { select: { id: true, name: true, email: true } } },
+      include: { author: { select: { id: true, name: true, email: true, role: true } } },
     });
 
     if (!job) return res.status(404).json({ error: 'Offre non trouvée.' });
@@ -474,6 +474,7 @@ app.post('/api/jobs/:id/apply', async (req, res) => {
 
     const candidateLabel = String(candidateName || user?.name || user?.email || `Candidat #${normalizedCandidateId}`);
 
+    // Notify the enterprise (job author)
     const notif = await createNotification({
       userId: job.authorId,
       type: 'application_received',
@@ -483,6 +484,19 @@ app.post('/api/jobs/:id/apply', async (req, res) => {
         jobId: job.id,
         candidateId: normalizedCandidateId,
         candidateName: candidateLabel,
+      },
+    });
+
+    // Notify the candidate (confirmation)
+    await createNotification({
+      userId: normalizedCandidateId,
+      type: 'application_sent',
+      title: 'Candidature envoyee',
+      message: `Votre candidature pour "${job.title}" chez ${job.company} a ete envoyee.`,
+      data: {
+        jobId: job.id,
+        jobTitle: job.title,
+        company: job.company,
       },
     });
 
@@ -538,6 +552,12 @@ app.put('/api/jobs/:id', async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
 
     const { title, company, location, description, salary, status } = req.body;
+
+    const allowedStatuses = ['PENDING', 'ACTIVE', 'APPROVED', 'REJECTED', 'CLOSED'];
+    if (status && !allowedStatuses.includes(status)) {
+      return res.status(400).json({ error: `Statut invalide. Valeurs autorisees: ${allowedStatuses.join(', ')}` });
+    }
+
     const data = {};
     if (title !== undefined) data.title = String(title);
     if (company !== undefined) data.company = String(company);
@@ -547,6 +567,22 @@ app.put('/api/jobs/:id', async (req, res) => {
     if (status !== undefined) data.status = String(status);
 
     const job = await prisma.job.update({ where: { id }, data });
+
+    // After the job is updated, check if status changed and notify author
+    if (status && (status === 'APPROVED' || status === 'ACTIVE' || status === 'REJECTED')) {
+      const updatedJob = await prisma.job.findUnique({ where: { id }, select: { authorId: true, title: true } });
+      if (updatedJob) {
+        const statusLabel = (status === 'APPROVED' || status === 'ACTIVE') ? 'approuvee' : 'rejetee';
+        await createNotification({
+          userId: updatedJob.authorId,
+          type: 'job_status_changed',
+          title: status === 'REJECTED' ? 'Offre rejetee' : 'Offre approuvee',
+          message: `Votre offre "${updatedJob.title}" a ete ${statusLabel} par l'equipe de moderation.`,
+          data: { jobId: id, status },
+        });
+      }
+    }
+
     res.json(job);
   } catch (error) {
     if (error.code === 'P2025') return res.status(404).json({ error: 'Offre non trouvée.' });
@@ -701,6 +737,14 @@ app.put('/api/users/:id', async (req, res) => {
       await sendWhatsAppModerationAlert(
         `✅ Compte vérifié\nUser ID: ${user.id}\nNom: ${user.name || '-'}\nRole: ${user.role}`
       );
+
+      await createNotification({
+        userId: id,
+        type: 'account_verified',
+        title: 'Compte verifie',
+        message: 'Votre compte a ete verifie avec succes. Vous pouvez maintenant acceder a toutes les fonctionnalites.',
+        data: {},
+      });
     }
 
     res.json(user);
@@ -821,6 +865,37 @@ app.patch('/api/users/:id/notifications/read-all', async (req, res) => {
   } catch (error) {
     console.error('PATCH /api/users/:id/notifications/read-all error:', error);
     res.status(500).json({ error: 'Erreur lors de la mise a jour des notifications.' });
+  }
+});
+
+// GET /api/users/:id/applications — Liste des candidatures envoyées par un candidat
+app.get('/api/users/:id/applications', async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    const notifications = await prisma.notification.findMany({
+      where: { userId, type: 'application_sent' },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    const applications = notifications.map((n) => {
+      const data = (typeof n.data === 'object' && n.data !== null) ? n.data : {};
+      return {
+        id: n.id,
+        jobId: data.jobId || null,
+        jobTitle: data.jobTitle || '',
+        company: data.company || '',
+        date: n.createdAt,
+        statut: 'Envoyee',
+      };
+    });
+
+    res.json({ applications });
+  } catch (error) {
+    console.error('GET /api/users/:id/applications error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des candidatures.' });
   }
 });
 

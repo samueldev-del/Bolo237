@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -45,11 +46,25 @@ function apiJobToAnnonce(job: ApiJob, isEn: boolean): Annonce {
 export default function Recherche() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
+  const [searchInput, setSearchInput] = useState('');
+  const [locationInput, setLocationInput] = useState('');
+  const [appliedSearch, setAppliedSearch] = useState('');
+  const [appliedLocation, setAppliedLocation] = useState('');
+
+  const handleSearch = () => {
+    setAppliedSearch(searchInput.trim());
+    setAppliedLocation(locationInput.trim());
+  };
 
   const { data: jobsData } = useApi(
-    () => fetchJobs({ limit: 20 }),
+    () => fetchJobs({
+      limit: 20,
+      status: 'APPROVED',
+      ...(appliedSearch ? { search: appliedSearch } : {}),
+      ...(appliedLocation ? { location: appliedLocation } : {}),
+    }),
     null,
-    []
+    [appliedSearch, appliedLocation]
   );
 
   const annonces: Annonce[] = jobsData ? jobsData.jobs.map((j) => apiJobToAnnonce(j, isEn)) : [];
@@ -65,21 +80,30 @@ export default function Recherche() {
           <div className="flex flex-col md:flex-row gap-3 max-w-4xl mx-auto">
             <div className="relative flex-1">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
-              <input 
-                type="text" 
-                placeholder={isEn ? 'Job, skill, or company' : 'Job, competence ou entreprise'} 
+              <input
+                type="text"
+                placeholder={isEn ? 'Job, skill, or company' : 'Job, competence ou entreprise'}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 shadow-sm"
               />
             </div>
             <div className="relative flex-1">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">📍</span>
-              <input 
-                type="text" 
-                placeholder={isEn ? 'City or district (ex: Douala)' : 'Ville ou quartier (ex: Douala)'} 
+              <input
+                type="text"
+                placeholder={isEn ? 'City or district (ex: Douala)' : 'Ville ou quartier (ex: Douala)'}
+                value={locationInput}
+                onChange={(e) => setLocationInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 shadow-sm"
               />
             </div>
-            <button className="bg-blue-700 text-white px-8 py-3.5 rounded-full font-bold hover:bg-blue-800 transition shadow-md w-full md:w-auto">
+            <button
+              onClick={handleSearch}
+              className="bg-blue-700 text-white px-8 py-3.5 rounded-full font-bold hover:bg-blue-800 transition shadow-md w-full md:w-auto"
+            >
               {isEn ? 'Search' : 'Rechercher'}
             </button>
           </div>

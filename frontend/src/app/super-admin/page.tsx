@@ -43,9 +43,12 @@ const IMAGE_KEYS = [
   { key: 'legalDocPreview', fr: 'Document legal', en: 'Legal document' },
 ] as const;
 
+type JobStatusFilter = 'ALL' | 'PENDING' | 'ACTIVE' | 'REJECTED';
+
 function statusPill(status: string) {
-  if (status === 'approved' || status === 'APPROVED') return 'bg-green-50 text-green-700 border-green-200';
-  if (status === 'rejected' || status === 'REJECTED') return 'bg-red-50 text-red-700 border-red-200';
+  const s = status.toUpperCase();
+  if (s === 'APPROVED' || s === 'ACTIVE') return 'bg-green-50 text-green-700 border-green-200';
+  if (s === 'REJECTED') return 'bg-red-50 text-red-700 border-red-200';
   return 'bg-amber-50 text-amber-700 border-amber-200';
 }
 
@@ -54,6 +57,7 @@ export default function SuperAdminPage() {
   const isEn = locale === 'en';
   const [items, setItems] = useState<VerificationSubmission[]>([]);
   const [jobs, setJobs] = useState<JobModerationState>({ loading: true, error: '', items: [] });
+  const [jobStatusFilter, setJobStatusFilter] = useState<JobStatusFilter>('ALL');
   const [selectedJob, setSelectedJob] = useState<ApiJob | null>(null);
   const [reviewer, setReviewer] = useState('super-admin');
   const [busyId, setBusyId] = useState<string | number | null>(null);
@@ -75,16 +79,21 @@ export default function SuperAdminPage() {
     }
   };
 
-  const refreshJobs = async () => {
+  const refreshJobs = async (statusFilter: JobStatusFilter = jobStatusFilter) => {
     setJobs((prev) => ({ ...prev, loading: true, error: '' }));
     try {
-      const data = await fetchJobs({ status: 'PENDING', limit: 20 });
+      const filters: { status?: string; limit: number } = { limit: 50 };
+      if (statusFilter !== 'ALL') filters.status = statusFilter;
+      const data = await fetchJobs(filters);
       setJobs({ loading: false, error: '', items: data.jobs });
-      setSelectedJob((prev) => prev ?? data.jobs[0] ?? null);
+      setSelectedJob((prev) => {
+        if (prev && data.jobs.some((j) => j.id === prev.id)) return prev;
+        return data.jobs[0] ?? null;
+      });
     } catch (error) {
       setJobs({
         loading: false,
-        error: error instanceof Error ? error.message : (isEn ? 'Unable to load pending jobs.' : 'Impossible de charger les annonces en attente.'),
+        error: error instanceof Error ? error.message : (isEn ? 'Unable to load jobs.' : 'Impossible de charger les annonces.'),
         items: [],
       });
     }
@@ -126,11 +135,16 @@ export default function SuperAdminPage() {
   }, []);
 
   useEffect(() => {
+    void refreshJobs(jobStatusFilter);
+  }, [jobStatusFilter]);
+
+  useEffect(() => {
     void refreshTrends(trendDays);
   }, [trendDays, locale]);
 
   const pendingCount = useMemo(() => items.filter((i) => i.status === 'pending').length, [items]);
-  const totalPending = pendingCount + jobs.items.length;
+  const pendingJobCount = useMemo(() => jobs.items.filter((j) => j.status === 'PENDING').length, [jobs.items]);
+  const totalPending = pendingCount + pendingJobCount;
 
   const actVerification = async (id: string, status: 'approved' | 'rejected') => {
     setBusyId(id);
@@ -146,12 +160,11 @@ export default function SuperAdminPage() {
     }
   };
 
-  const actJob = async (id: number, status: 'APPROVED' | 'REJECTED') => {
+  const actJob = async (id: number, status: 'ACTIVE' | 'REJECTED') => {
     setBusyId(id);
     try {
       await updateJob(id, { status });
-      setJobs((prev) => ({ ...prev, items: prev.items.filter((j) => j.id !== id) }));
-      setSelectedJob((prev) => (prev?.id === id ? null : prev));
+      await refreshJobs();
     } finally {
       setBusyId(null);
     }
@@ -231,7 +244,7 @@ export default function SuperAdminPage() {
             <p className="text-3xl font-extrabold mt-2">{pendingCount}</p>
           </div>
           <div className="bg-white rounded-2xl border border-amber-100 p-4 shadow-sm">
-            <p className="text-xs uppercase tracking-wide text-amber-700 font-extrabold">{isEn ? 'Job ads pending' : 'Annonces en attente'}</p>
+            <p className="text-xs uppercase tracking-wide text-amber-700 font-extrabold">{isEn ? 'Job ads (showing)' : 'Annonces (affichees)'}</p>
             <p className="text-3xl font-extrabold mt-2">{jobs.items.length}</p>
           </div>
           <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
@@ -300,24 +313,46 @@ export default function SuperAdminPage() {
           <section className="xl:col-span-2 space-y-4">
             <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
               <div className="px-4 py-3 border-b border-gray-100 font-extrabold text-sm">
-                {isEn ? 'Pending job ads' : 'Annonces en attente'}
+                {isEn ? 'Job ads' : 'Annonces'}
+              </div>
+
+              <div className="px-4 py-2 border-b border-gray-100 flex flex-wrap gap-1.5">
+                {(['ALL', 'PENDING', 'ACTIVE', 'REJECTED'] as JobStatusFilter[]).map((f) => (
+                  <button
+                    key={f}
+                    onClick={() => setJobStatusFilter(f)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${jobStatusFilter === f ? 'bg-black text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  >
+                    {f === 'ALL' ? (isEn ? 'All' : 'Tous') : f}
+                  </button>
+                ))}
               </div>
 
               {jobs.loading && <p className="px-4 py-5 text-sm text-gray-500">{isEn ? 'Loading...' : 'Chargement...'}</p>}
               {jobs.error && <p className="px-4 py-5 text-sm text-red-600">{jobs.error}</p>}
               {!jobs.loading && !jobs.error && jobs.items.length === 0 && (
-                <p className="px-4 py-5 text-sm text-gray-500">{isEn ? 'No pending ad.' : 'Aucune annonce en attente.'}</p>
+                <p className="px-4 py-5 text-sm text-gray-500">{isEn ? 'No jobs found.' : 'Aucune annonce trouvee.'}</p>
               )}
 
-              <div className="max-h-80 overflow-auto divide-y divide-gray-100">
+              <div className="max-h-96 overflow-auto divide-y divide-gray-100">
                 {jobs.items.map((job) => (
                   <button
                     key={job.id}
                     onClick={() => setSelectedJob(job)}
                     className={`w-full text-left px-4 py-3 hover:bg-green-50 transition ${selectedJob?.id === job.id ? 'bg-green-50' : ''}`}
                   >
-                    <p className="text-sm font-bold text-gray-900 truncate">{job.title}</p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-bold text-gray-900 truncate">{job.title}</p>
+                      <span className={`shrink-0 inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold border ${statusPill(job.status)}`}>
+                        {job.status}
+                      </span>
+                    </div>
                     <p className="text-xs text-gray-500 truncate">{job.company} • {job.location}</p>
+                    {job.author && (
+                      <p className="text-xs text-gray-400 truncate mt-0.5">
+                        {isEn ? 'By' : 'Par'}: {job.author.name || job.author.email}{job.author.role ? ` (${job.author.role})` : ''}
+                      </p>
+                    )}
                   </button>
                 ))}
               </div>
@@ -328,27 +363,57 @@ export default function SuperAdminPage() {
                 <p className="text-sm text-gray-500">{isEn ? 'Select an ad to review details.' : 'Selectionnez une annonce pour voir les details.'}</p>
               ) : (
                 <>
-                  <span className="inline-flex px-3 py-1 rounded-full text-xs font-bold border bg-amber-50 text-amber-700 border-amber-200 mb-3">PENDING</span>
-                  <h3 className="text-lg font-extrabold text-gray-900 mb-2">{selectedJob.title}</h3>
-                  <p className="text-sm font-semibold text-gray-600 mb-3">{selectedJob.company} • {selectedJob.location}</p>
+                  <span className={`inline-flex px-3 py-1 rounded-full text-xs font-bold border mb-3 ${statusPill(selectedJob.status)}`}>{selectedJob.status}</span>
+                  <h3 className="text-lg font-extrabold text-gray-900 mb-1">{selectedJob.title}</h3>
+                  <p className="text-sm font-semibold text-gray-600 mb-1">{selectedJob.company} • {selectedJob.location}</p>
+                  {selectedJob.author && (
+                    <p className="text-xs text-gray-500 mb-3">
+                      {isEn ? 'Posted by' : 'Publie par'}: <span className="font-bold">{selectedJob.author.name || selectedJob.author.email}</span>
+                      {selectedJob.author.role ? <span className="ml-1 text-gray-400">({selectedJob.author.role})</span> : ''}
+                    </p>
+                  )}
                   <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed mb-4">{selectedJob.description}</p>
 
-                  <div className="grid grid-cols-1 gap-3">
-                    <button
-                      onClick={() => actJob(selectedJob.id, 'APPROVED')}
-                      disabled={busyId === selectedJob.id}
-                      className="w-full px-5 py-3 rounded-xl bg-green-600 text-white text-sm font-extrabold hover:bg-green-700 transition disabled:opacity-50"
-                    >
-                      {isEn ? 'APPROVE AD' : 'APPROUVER L ANNONCE'}
-                    </button>
-                    <button
-                      onClick={() => actJob(selectedJob.id, 'REJECTED')}
-                      disabled={busyId === selectedJob.id}
-                      className="w-full px-5 py-3 rounded-xl bg-red-600 text-white text-sm font-extrabold hover:bg-red-700 transition disabled:opacity-50"
-                    >
-                      {isEn ? 'REJECT AD' : 'REJETER L ANNONCE'}
-                    </button>
-                  </div>
+                  {selectedJob.status === 'PENDING' && (
+                    <div className="grid grid-cols-1 gap-3">
+                      <button
+                        onClick={() => actJob(selectedJob.id, 'ACTIVE')}
+                        disabled={busyId === selectedJob.id}
+                        className="w-full px-5 py-3 rounded-xl bg-green-600 text-white text-sm font-extrabold hover:bg-green-700 transition disabled:opacity-50"
+                      >
+                        {isEn ? 'APPROVE AD' : 'APPROUVER L ANNONCE'}
+                      </button>
+                      <button
+                        onClick={() => actJob(selectedJob.id, 'REJECTED')}
+                        disabled={busyId === selectedJob.id}
+                        className="w-full px-5 py-3 rounded-xl bg-red-600 text-white text-sm font-extrabold hover:bg-red-700 transition disabled:opacity-50"
+                      >
+                        {isEn ? 'REJECT AD' : 'REJETER L ANNONCE'}
+                      </button>
+                    </div>
+                  )}
+                  {selectedJob.status !== 'PENDING' && (
+                    <div className="grid grid-cols-1 gap-3">
+                      {selectedJob.status === 'REJECTED' && (
+                        <button
+                          onClick={() => actJob(selectedJob.id, 'ACTIVE')}
+                          disabled={busyId === selectedJob.id}
+                          className="w-full px-5 py-3 rounded-xl bg-green-600 text-white text-sm font-extrabold hover:bg-green-700 transition disabled:opacity-50"
+                        >
+                          {isEn ? 'RE-APPROVE AD' : 'RE-APPROUVER L ANNONCE'}
+                        </button>
+                      )}
+                      {(selectedJob.status === 'ACTIVE' || selectedJob.status === 'APPROVED') && (
+                        <button
+                          onClick={() => actJob(selectedJob.id, 'REJECTED')}
+                          disabled={busyId === selectedJob.id}
+                          className="w-full px-5 py-3 rounded-xl bg-red-600 text-white text-sm font-extrabold hover:bg-red-700 transition disabled:opacity-50"
+                        >
+                          {isEn ? 'REJECT AD' : 'REJETER L ANNONCE'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </>
               )}
             </div>

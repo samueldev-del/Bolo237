@@ -13,6 +13,9 @@ import {
   WifiOff,
   Mail,
   UserCheck,
+  UserPlus,
+  Star,
+  Building2,
 } from "lucide-react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
@@ -164,6 +167,33 @@ export default function AdminDashboard() {
           bg="bg-red-50"
           border="border-red-200"
           href="/alertes/signalements"
+        />
+        <StatCard
+          title="Inscriptions aujourd'hui"
+          value={stats?.todaySignups ?? 0}
+          icon={<UserPlus className="h-5 w-5" />}
+          color="text-cyan-600"
+          bg="bg-cyan-50"
+          border="border-cyan-200"
+          href="/utilisateurs/liste"
+        />
+        <StatCard
+          title="Avis au total"
+          value={stats?.totalReviews ?? 0}
+          icon={<Star className="h-5 w-5" />}
+          color="text-indigo-600"
+          bg="bg-indigo-50"
+          border="border-indigo-200"
+          href="/alertes/avis"
+        />
+        <StatCard
+          title="Entreprises en attente"
+          value={stats?.enterprisePending ?? 0}
+          icon={<Building2 className="h-5 w-5" />}
+          color="text-rose-600"
+          bg="bg-rose-50"
+          border="border-rose-200"
+          href="/moderation/artisans"
         />
       </div>
 

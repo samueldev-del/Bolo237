@@ -10,9 +10,11 @@ import {
   Flag,
   LogOut,
   Menu,
+  MessageSquare,
   Search,
   Settings,
   ShieldCheck,
+  Star,
   Users,
   X,
   LayoutDashboard,
@@ -46,7 +48,7 @@ const moderationItems: NavItem[] = [
   },
   {
     href: "/moderation/artisans",
-    label: "Verification Artisans",
+    label: "Verifications identite",
     icon: <ShieldCheck className="h-4 w-4" />,
   },
 ];
@@ -69,6 +71,16 @@ const alertItems: NavItem[] = [
     href: "/alertes/signalements",
     label: "Signalements",
     icon: <Flag className="h-4 w-4" />,
+  },
+  {
+    href: "/alertes/avis",
+    label: "Avis & Notes",
+    icon: <Star className="h-4 w-4" />,
+  },
+  {
+    href: "/alertes/feedbacks",
+    label: "Feedbacks App",
+    icon: <MessageSquare className="h-4 w-4" />,
   },
 ];
 

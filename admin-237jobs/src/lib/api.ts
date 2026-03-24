@@ -41,6 +41,49 @@ export type AdminStats = {
   pendingJobs: number;
   approvedJobs: number;
   reports: number;
+  todaySignups: number;
+  totalReviews: number;
+  enterprisePending: number;
+};
+
+export type VerificationSubmission = {
+  id: string;
+  role: 'entreprise' | 'artisan';
+  accountKey: string;
+  displayName: string;
+  phone: string;
+  status: 'pending' | 'approved' | 'rejected';
+  submittedAt: string;
+  reviewedAt?: string | null;
+  reviewedBy?: string | null;
+  notes?: string | null;
+  payload: Record<string, string | boolean | number | null>;
+};
+
+export type AppFeedback = {
+  id: number;
+  userId: number | null;
+  authorName: string | null;
+  rating: number;
+  comment: string;
+  createdAt: string;
+};
+
+export type UserReview = {
+  id: number;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  reviewer: { id: number; name: string; email: string; role: string } | null;
+  reviewed: { id: number; name: string; email: string; role: string } | null;
+};
+
+export type ReviewAlert = {
+  userId: number;
+  name: string;
+  role: string;
+  averageRating: number;
+  reviewCount: number;
 };
 
 export type Pagination = {
@@ -175,6 +218,36 @@ export type TrendsResponse = {
 
 export function fetchAdminTrends(days: number = 7): Promise<TrendsResponse> {
   return apiFetch<TrendsResponse>(`/api/admin/trends?days=${days}`);
+}
+
+// ── Verifications ───────────────────────────────────────────────
+
+export function fetchVerificationSubmissions(): Promise<VerificationSubmission[]> {
+  return apiFetch<{ items: VerificationSubmission[] }>('/api/verifications').then((r) => r.items);
+}
+
+export function reviewVerification(
+  id: string,
+  data: { status: 'approved' | 'rejected'; reviewedBy: string; notes?: string },
+): Promise<VerificationSubmission> {
+  return apiFetch<VerificationSubmission>(`/api/verifications/${id}/review`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+// ── App Feedbacks ───────────────────────────────────────────────
+
+export function fetchAppFeedbacks(
+  limit: number = 50,
+): Promise<{ items: AppFeedback[]; summary: { averageRating: number; count: number } }> {
+  return apiFetch(`/api/feedbacks?limit=${limit}`);
+}
+
+// ── Admin Reviews ───────────────────────────────────────────────
+
+export function fetchAdminReviews(): Promise<{ reviews: UserReview[]; alerts: ReviewAlert[] }> {
+  return apiFetch('/api/admin/reviews');
 }
 
 // ── Health ───────────────────────────────────────────────────────

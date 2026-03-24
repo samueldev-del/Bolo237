@@ -42,6 +42,7 @@ export default function AlertesSignalementsPage() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
   function showToast(msg: string) {

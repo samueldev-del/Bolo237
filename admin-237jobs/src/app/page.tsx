@@ -36,15 +36,6 @@ import {
   type User,
 } from "@/lib/api";
 
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("fr-FR", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [pendingJobs, setPendingJobs] = useState<Job[]>([]);
@@ -57,6 +48,7 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

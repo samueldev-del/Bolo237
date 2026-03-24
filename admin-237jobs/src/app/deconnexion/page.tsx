@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import Link from "next/link";
 import { LogOut, ShieldCheck, Loader2 } from "lucide-react";
 
 export default function DeconnexionPage() {
@@ -45,12 +46,12 @@ export default function DeconnexionPage() {
               )}
             </button>
 
-            <a
+            <Link
               href="/"
-              className="block w-full h-11 rounded-xl border border-zinc-200 bg-white text-sm font-semibold text-zinc-700 leading-[2.75rem] transition hover:bg-zinc-50"
+              className="block w-full h-11 rounded-xl border border-zinc-200 bg-white text-sm font-semibold text-zinc-700 leading-[2.75rem] text-center transition hover:bg-zinc-50"
             >
               Annuler
-            </a>
+            </Link>
           </div>
 
           <div className="mt-6 flex items-center justify-center gap-2 text-xs text-zinc-400">

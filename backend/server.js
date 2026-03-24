@@ -1208,14 +1208,20 @@ app.put('/api/reports/:id', async (req, res) => {
 // ROUTES: Admin
 // =============================================
 
-// GET /api/admin/stats — Statistiques globales
+// GET /api/admin/stats — Statistiques globales (enrichi)
 app.get('/api/admin/stats', async (req, res) => {
   try {
-    const [usersCount, pendingJobsCount, approvedJobsCount, reportsCount] = await Promise.all([
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const [usersCount, pendingJobsCount, approvedJobsCount, reportsCount, todaySignups, totalReviews, enterprisePending] = await Promise.all([
       prisma.user.count(),
       prisma.job.count({ where: { status: 'PENDING' } }),
       prisma.job.count({ where: { status: { in: ['APPROVED', 'ACTIVE'] } } }),
       prisma.report.count({ where: { status: 'OPEN' } }),
+      prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
+      prisma.userReview.count(),
+      prisma.user.count({ where: { role: 'ENTREPRISE', isVerified: false } }),
     ]);
 
     res.json({
@@ -1223,10 +1229,78 @@ app.get('/api/admin/stats', async (req, res) => {
       pendingJobs: pendingJobsCount,
       approvedJobs: approvedJobsCount,
       reports: reportsCount,
+      todaySignups,
+      totalReviews,
+      enterprisePending,
     });
   } catch (error) {
     console.error('GET /api/admin/stats error:', error);
     res.status(500).json({ error: 'Erreur lors de la lecture des statistiques.' });
+  }
+});
+
+// GET /api/admin/reviews — All reviews with alert for low-rated users
+app.get('/api/admin/reviews', async (req, res) => {
+  try {
+    const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
+    const reviews = await prisma.userReview.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        reviewed: { select: { id: true, name: true, email: true, role: true } },
+        reviewer: { select: { id: true, name: true, email: true, role: true } },
+      },
+    });
+
+    // Compute average per reviewed user to detect low-rated profiles
+    const userRatings = {};
+    reviews.forEach((r) => {
+      const uid = r.reviewedId;
+      if (!userRatings[uid]) userRatings[uid] = { total: 0, count: 0, name: r.reviewed?.name || '', role: r.reviewed?.role || '' };
+      userRatings[uid].total += r.rating;
+      userRatings[uid].count += 1;
+    });
+
+    const alerts = Object.entries(userRatings)
+      .map(([uid, data]) => ({
+        userId: parseInt(uid, 10),
+        name: data.name,
+        role: data.role,
+        averageRating: Math.round((data.total / data.count) * 10) / 10,
+        reviewCount: data.count,
+      }))
+      .filter((u) => u.averageRating <= 2.5 && u.reviewCount >= 2)
+      .sort((a, b) => a.averageRating - b.averageRating);
+
+    res.json({ reviews, alerts });
+  } catch (error) {
+    console.error('GET /api/admin/reviews error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des avis.' });
+  }
+});
+
+// GET /api/admin/users — User list with recent signups
+app.get('/api/admin/users', async (req, res) => {
+  try {
+    const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
+    const role = req.query.role ? String(req.query.role).toUpperCase() : undefined;
+    const where = {};
+    if (role) where.role = role;
+
+    const users = await prisma.user.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: {
+        id: true, name: true, email: true, role: true, phone: true,
+        isVerified: true, isBanned: true, createdAt: true,
+      },
+    });
+
+    res.json({ users });
+  } catch (error) {
+    console.error('GET /api/admin/users error:', error);
+    res.status(500).json({ error: 'Erreur.' });
   }
 });
 

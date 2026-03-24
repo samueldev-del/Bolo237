@@ -250,6 +250,7 @@ export async function createUser(data: {
   password: string;
   name?: string;
   role?: string;
+  phone?: string;
 }): Promise<ApiUser> {
   return apiFetch<ApiUser>('/api/users', {
     method: 'POST',

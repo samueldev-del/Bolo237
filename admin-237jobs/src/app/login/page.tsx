@@ -1,37 +1,14 @@
 "use client";
 
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
 import { loginAction, type LoginState } from "./actions";
 import { Lock, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
 const initialState: LoginState = {};
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="relative h-12 w-full rounded-xl bg-gradient-to-b from-green-600 to-green-700 text-sm font-semibold text-white shadow-sm transition hover:from-green-500 hover:to-green-600 disabled:opacity-60 disabled:cursor-not-allowed"
-    >
-      {pending ? (
-        <span className="flex items-center justify-center gap-2">
-          <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-          </svg>
-          Verification...
-        </span>
-      ) : (
-        "Acceder au tableau de bord"
-      )}
-    </button>
-  );
-}
-
 export default function LoginPage() {
-  const [state, formAction] = useFormState(loginAction, initialState);
+  const [state, formAction, isPending] = useActionState(loginAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
 
   return (
@@ -105,7 +82,23 @@ export default function LoginPage() {
             </div>
 
             {/* Submit button */}
-            <SubmitButton />
+            <button
+              type="submit"
+              disabled={isPending}
+              className="relative h-12 w-full rounded-xl bg-gradient-to-b from-green-600 to-green-700 text-sm font-semibold text-white shadow-sm transition hover:from-green-500 hover:to-green-600 disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {isPending ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Verification...
+                </span>
+              ) : (
+                "Acceder au tableau de bord"
+              )}
+            </button>
           </form>
 
           {/* Security footer */}

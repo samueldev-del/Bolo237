@@ -3,6 +3,8 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/components/LocaleProvider';
+import { fetchUserReviews, type UserReview } from '@/lib/api';
+import RatingModal from '@/components/RatingModal';
 
 type CandidatParams = {
   params: Promise<{
@@ -26,6 +28,40 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
   }, []);
 
   const canViewContact = isLoggedIn && (userRole === 'entreprise' || userRole === 'artisan');
+
+  const candidatId = Number.parseInt(id, 10);
+  const [reviews, setReviews] = useState<UserReview[]>([]);
+  const [reviewAvg, setReviewAvg] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+
+  useEffect(() => {
+    const loadReviews = async () => {
+      if (!Number.isFinite(candidatId) || candidatId <= 0) return;
+      try {
+        const res = await fetchUserReviews(candidatId, 30);
+        setReviews(res.items);
+        setReviewAvg(res.summary.averageRating || 0);
+        setReviewCount(res.summary.count || 0);
+      } catch {
+        setReviews([]);
+        setReviewAvg(0);
+        setReviewCount(0);
+      }
+    };
+    loadReviews();
+  }, [candidatId]);
+
+  const reloadReviews = async () => {
+    try {
+      const updated = await fetchUserReviews(candidatId, 30);
+      setReviews(updated.items);
+      setReviewAvg(updated.summary.averageRating || 0);
+      setReviewCount(updated.summary.count || 0);
+    } catch {
+      // ignore
+    }
+  };
 
   const profil = {
     id,
@@ -146,6 +182,46 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
               ))}
             </div>
           </article>
+
+          <article className="bg-white border border-gray-200 rounded-2xl p-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <h2 className="text-xl font-extrabold">
+                {isEn ? 'Reviews' : 'Avis'}
+                {reviewCount > 0 && (
+                  <span className="ml-2 text-sm font-bold text-gray-500">
+                    {reviewAvg.toFixed(1)}/5 ({reviewCount})
+                  </span>
+                )}
+              </h2>
+              {isLoggedIn && (
+                <button
+                  onClick={() => setShowRatingModal(true)}
+                  className="px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-500 text-black text-sm font-extrabold"
+                >
+                  {isEn ? 'Leave a review' : 'Laisser un avis'}
+                </button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              {reviews.length === 0 ? (
+                <p className="text-sm text-gray-500 font-medium">
+                  {isEn ? 'No reviews yet. Be the first to rate this candidate.' : 'Aucun avis pour le moment. Soyez le premier a noter ce candidat.'}
+                </p>
+              ) : (
+                reviews.map((avis) => (
+                  <div key={avis.id} className="border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="font-extrabold">{avis.reviewer?.name || avis.reviewer?.email || `User #${avis.reviewerId}`}</p>
+                      <p className="text-xs text-gray-500 font-bold">{new Date(avis.createdAt).toLocaleDateString(isEn ? 'en-US' : 'fr-FR')}</p>
+                    </div>
+                    <p className="text-amber-500 text-sm mb-2">{'★'.repeat(avis.rating)}{'☆'.repeat(5 - avis.rating)}</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{avis.comment}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </article>
         </section>
 
         <aside className="space-y-4 h-fit md:sticky md:top-6">
@@ -204,6 +280,15 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
           </article>
         </aside>
       </main>
+
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        reviewedId={candidatId}
+        reviewedName={profil.nom}
+        isEn={isEn}
+        onSuccess={reloadReviews}
+      />
     </div>
   );
 }

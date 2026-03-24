@@ -617,6 +617,61 @@ export default function DashboardEntreprise() {
             {/* ═══ DASHBOARD VIEW ═══ */}
             {activeSection === 'dashboard' && (
               <div className="space-y-6">
+                {/* Enterprise Lock Banner */}
+                {(() => {
+                  const hasLogo = !!companyLogoFile;
+                  const hasDoc = !!companyDocFile;
+                  const isApproved = documentsVerificationStatus === 'approved';
+                  const allReady = hasLogo && hasDoc && isApproved;
+                  return (
+                    <div className={`rounded-2xl border-2 p-4 sm:p-5 transition-all ${
+                      allReady
+                        ? 'bg-green-50 border-green-300'
+                        : 'bg-amber-50 border-amber-300'
+                    }`}>
+                      <div className="flex items-start gap-3 sm:gap-4">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                          allReady ? 'bg-green-200' : 'bg-amber-200'
+                        }`}>
+                          {allReady ? '\u2705' : '\uD83D\uDD12'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`font-bold text-sm ${allReady ? 'text-green-800' : 'text-amber-800'}`}>
+                            {allReady
+                              ? (isEn ? 'Your account is verified — you can publish jobs!' : 'Votre compte est verifie — vous pouvez publier des offres !')
+                              : (isEn ? 'Complete your profile to publish jobs' : 'Completez votre profil pour publier des offres')}
+                          </p>
+                          <p className={`text-xs font-medium mt-1 ${allReady ? 'text-green-600' : 'text-amber-700'}`}>
+                            {allReady
+                              ? (isEn ? 'All requirements have been met.' : 'Toutes les conditions sont remplies.')
+                              : (isEn ? 'Logo + NIU/RCCM document are required before posting.' : 'Le logo + document NIU/RCCM sont requis avant de publier.')}
+                          </p>
+                          {/* Checklist */}
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">
+                            <span className={`text-xs font-semibold flex items-center gap-1 ${hasLogo ? 'text-green-700' : 'text-gray-400'}`}>
+                              {hasLogo ? '\u2713' : '\u25CB'} {isEn ? 'Company logo' : 'Logo entreprise'}
+                            </span>
+                            <span className={`text-xs font-semibold flex items-center gap-1 ${hasDoc ? 'text-green-700' : 'text-gray-400'}`}>
+                              {hasDoc ? '\u2713' : '\u25CB'} {isEn ? 'NIU/RCCM document' : 'Document NIU/RCCM'}
+                            </span>
+                            <span className={`text-xs font-semibold flex items-center gap-1 ${isApproved ? 'text-green-700' : 'text-gray-400'}`}>
+                              {isApproved ? '\u2713' : '\u25CB'} {isEn ? 'Documents approved' : 'Documents approuves'}
+                            </span>
+                          </div>
+                          {!allReady && (
+                            <button
+                              onClick={() => navigateTo('post')}
+                              className="mt-3 inline-flex items-center gap-1.5 bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-amber-700 transition-all active:scale-[0.98]"
+                            >
+                              {isEn ? 'Complete verification' : 'Completer la verification'} &rarr;
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Stats cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                   {/* Active jobs */}
@@ -656,13 +711,28 @@ export default function DashboardEntreprise() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     onClick={() => navigateTo('post')}
-                    className="group bg-white border-2 border-dashed border-green-300 hover:border-green-500 rounded-2xl p-6 text-center transition-all hover:shadow-lg"
+                    disabled={!(companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved')}
+                    className={`group rounded-2xl p-6 text-center transition-all ${
+                      companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved'
+                        ? 'bg-white border-2 border-dashed border-green-300 hover:border-green-500 hover:shadow-lg cursor-pointer'
+                        : 'bg-gray-50 border-2 border-dashed border-gray-200 opacity-60 cursor-not-allowed'
+                    }`}
                   >
-                    <div className="w-14 h-14 rounded-2xl bg-green-50 group-hover:bg-green-100 flex items-center justify-center mx-auto mb-3 transition text-2xl">
-                      {'\u{1F4DD}'}
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 transition text-2xl ${
+                      companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved'
+                        ? 'bg-green-50 group-hover:bg-green-100'
+                        : 'bg-gray-100'
+                    }`}>
+                      {companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved' ? '\u{1F4DD}' : '\uD83D\uDD12'}
                     </div>
-                    <p className="font-bold text-gray-900 text-[15px]">{isEn ? 'Post a New Job' : 'Publier une nouvelle offre'}</p>
-                    <p className="text-xs text-gray-500 font-medium mt-1">{isEn ? 'Free during launch' : 'Gratuit pendant le lancement'}</p>
+                    <p className={`font-bold text-[15px] ${
+                      companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved' ? 'text-gray-900' : 'text-gray-400'
+                    }`}>{isEn ? 'Post a New Job' : 'Publier une nouvelle offre'}</p>
+                    <p className="text-xs text-gray-500 font-medium mt-1">
+                      {companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved'
+                        ? (isEn ? 'Free during launch' : 'Gratuit pendant le lancement')
+                        : (isEn ? 'Complete verification first' : 'Completez la verification d\'abord')}
+                    </p>
                   </button>
 
                   <button

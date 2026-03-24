@@ -1,10 +1,11 @@
 "use client";
 
-import { use, useEffect, useMemo, useState } from 'react';
+import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
-import { createUserReview, fetchUserReviews, type UserReview } from '@/lib/api';
+import { fetchUserReviews, type UserReview } from '@/lib/api';
+import RatingModal from '@/components/RatingModal';
 
 type ArtisanParams = {
   params: Promise<{
@@ -22,12 +23,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   const [reviews, setReviews] = useState<UserReview[]>([]);
   const [reviewAvg, setReviewAvg] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [reviewRating, setReviewRating] = useState(5);
-  const [reviewHover, setReviewHover] = useState(0);
-  const [reviewComment, setReviewComment] = useState('');
-  const [reviewMessage, setReviewMessage] = useState('');
-  const [sendingReview, setSendingReview] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
 
   const artisanId = Number.parseInt(id, 10);
 
@@ -84,59 +80,14 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
     loadReviews();
   }, [artisanId]);
 
-  const reviewStars = useMemo(() => reviewHover || reviewRating, [reviewHover, reviewRating]);
-
-  const submitReview = async () => {
-    if (!Number.isFinite(artisanId) || artisanId <= 0) {
-      setReviewMessage(isEn ? 'Invalid artisan profile.' : 'Profil artisan invalide.');
-      return;
-    }
-    if (!reviewComment.trim() || reviewComment.trim().length < 3) {
-      setReviewMessage(isEn ? 'Please write a short review comment.' : 'Veuillez ecrire un court commentaire.');
-      return;
-    }
-
-    let reviewerId = 0;
+  const reloadReviews = async () => {
     try {
-      const raw = localStorage.getItem('237jobs-user');
-      if (raw) {
-        const user = JSON.parse(raw);
-        reviewerId = Number(user?.id || 0);
-      }
-    } catch {
-      // ignore localStorage parse errors
-    }
-
-    if (!reviewerId) {
-      setReviewMessage(isEn ? 'Please sign in to leave a review.' : 'Veuillez vous connecter pour laisser un avis.');
-      return;
-    }
-
-    setSendingReview(true);
-    setReviewMessage('');
-
-    try {
-      await createUserReview({
-        reviewedId: artisanId,
-        reviewerId,
-        rating: reviewRating,
-        comment: reviewComment.trim(),
-      });
-
       const updated = await fetchUserReviews(artisanId, 30);
       setReviews(updated.items);
       setReviewAvg(updated.summary.averageRating || 0);
       setReviewCount(updated.summary.count || 0);
-      setReviewComment('');
-      setReviewRating(5);
-      setReviewHover(0);
-      setReviewMessage(isEn ? 'Review sent successfully.' : 'Avis envoye avec succes.');
-      setShowReviewForm(false);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : String(error);
-      setReviewMessage((isEn ? 'Review failed: ' : 'Echec avis: ') + msg);
-    } finally {
-      setSendingReview(false);
+    } catch {
+      // ignore
     }
   };
 
@@ -300,50 +251,13 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
                 {(reviewAvg || artisan.note).toFixed(1)}/5 ({reviewCount || artisan.avisCount})
               </p>
               <button
-                onClick={() => setShowReviewForm((s) => !s)}
+                onClick={() => requireAuth(() => setShowRatingModal(true))}
                 className="px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-500 text-black text-sm font-extrabold"
               >
                 {isEn ? 'Leave a review' : 'Laisser une note'}
               </button>
             </div>
           </div>
-
-          {showReviewForm && (
-            <div className="mb-4 rounded-xl border border-amber-100 bg-amber-50/40 p-4">
-              <p className="text-sm font-bold text-gray-700 mb-2">{isEn ? 'Your rating' : 'Votre note'}</p>
-              <div className="flex items-center gap-1 mb-3">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => setReviewRating(n)}
-                    onMouseEnter={() => setReviewHover(n)}
-                    onMouseLeave={() => setReviewHover(0)}
-                    className="text-2xl leading-none"
-                  >
-                    <span className={n <= reviewStars ? 'text-amber-400' : 'text-gray-300'}>★</span>
-                  </button>
-                ))}
-              </div>
-              <textarea
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                rows={3}
-                placeholder={isEn ? 'Describe your experience with this artisan...' : 'Decrivez votre experience avec cet artisan...'}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-              />
-              <div className="mt-3 flex items-center gap-2">
-                <button
-                  onClick={submitReview}
-                  disabled={sendingReview}
-                  className="px-4 py-2 rounded-lg bg-black text-white text-sm font-bold disabled:opacity-60"
-                >
-                  {sendingReview ? (isEn ? 'Sending...' : 'Envoi...') : (isEn ? 'Submit review' : 'Envoyer lavis')}
-                </button>
-              </div>
-              {reviewMessage && <p className="mt-2 text-xs font-bold text-gray-600">{reviewMessage}</p>}
-            </div>
-          )}
 
           <div className="space-y-4">
             {reviews.length === 0 ? (
@@ -366,6 +280,15 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
         </section>
 
       </main>
+
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => setShowRatingModal(false)}
+        reviewedId={artisanId}
+        reviewedName={display.nom}
+        isEn={isEn}
+        onSuccess={reloadReviews}
+      />
 
       {/* Login prompt modal */}
       {showLoginPrompt && (

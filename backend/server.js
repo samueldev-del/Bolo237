@@ -993,28 +993,32 @@ app.post('/api/users', async (req, res) => {
   try {
     const { email, password, name, role, phone } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email et mot de passe requis.' });
+    if (!phone || !password) {
+      return res.status(400).json({ error: 'Numero de telephone et mot de passe requis.' });
     }
 
-    const existing = await prisma.user.findUnique({ where: { email: String(email) } });
-    if (existing) return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
+    const normalizedPhone = String(phone).trim();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+
+    if (normalizedEmail) {
+      const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+      if (existing) return res.status(409).json({ error: 'Cet email est deja utilise.' });
+    }
 
     // Vérifier unicité du téléphone
-    if (phone) {
-      const existingPhone = await prisma.user.findUnique({ where: { phone: String(phone) } });
-      if (existingPhone) return res.status(409).json({ error: 'Ce numéro de téléphone est déjà associé à un compte.' });
-    }
+    const existingPhone = await prisma.user.findUnique({ where: { phone: normalizedPhone } });
+    if (existingPhone) return res.status(409).json({ error: 'Ce numero de telephone est deja associe a un compte.' });
 
     const hashedPassword = bcrypt.hashSync(String(password), 10);
+    const generatedEmail = `${normalizedPhone.replace(/\D/g, '')}.${Date.now()}@phone.bolo237.com`;
 
     const user = await prisma.user.create({
       data: {
-        email: String(email),
+        email: normalizedEmail || generatedEmail,
         password: hashedPassword,
         name: name ? String(name) : null,
         role: role ? String(role) : 'CANDIDAT',
-        phone: phone ? String(phone) : null,
+        phone: normalizedPhone,
         isVerified: false,
       },
       select: { id: true, email: true, name: true, role: true, phone: true, photoUrl: true, isVerified: true, isBanned: true, createdAt: true },
@@ -1397,20 +1401,28 @@ app.post('/api/users/:id/reviews', async (req, res) => {
 // POST /api/auth/login — Connexion utilisateur
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, phone, identifier, password } = req.body;
+    const loginIdentifier = String(identifier || email || phone || '').trim();
 
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email et mot de passe requis.' });
+    if (!loginIdentifier || !password) {
+      return res.status(400).json({ error: 'Identifiant (email ou telephone) et mot de passe requis.' });
     }
 
-    const user = await prisma.user.findUnique({ where: { email: String(email) } });
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: loginIdentifier.toLowerCase() },
+          { phone: loginIdentifier },
+        ],
+      },
+    });
     if (!user) {
-      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+      return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect.' });
     }
 
     const valid = bcrypt.compareSync(String(password), user.password);
     if (!valid) {
-      return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
+      return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect.' });
     }
 
     if (user.isBanned) {

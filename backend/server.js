@@ -1,4 +1,5 @@
 const express = require('express');
+const startJobArchiver = require('./cron/jobArchiver');
 const cors = require('cors');
 const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
@@ -2173,6 +2174,8 @@ app.get('/', (_req, res) => {
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+// Démarrage des tâches automatisées
+startJobArchiver(prisma);
 
 // --- Start server ---
 const PORT = process.env.PORT || 5000;

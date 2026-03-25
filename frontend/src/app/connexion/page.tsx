@@ -84,6 +84,16 @@ export default function Connexion() {
   const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
+  // Reset password
+  const [showReset, setShowReset] = useState(false);
+  const [resetPhone, setResetPhone] = useState('');
+  const [resetCountryCode, setResetCountryCode] = useState<CountryPhoneOption['code']>('CM');
+  const [resetOtpSent, setResetOtpSent] = useState(false);
+  const [resetOtpCode, setResetOtpCode] = useState('');
+  const [resetNewPassword, setResetNewPassword] = useState('');
+  const [resetMessage, setResetMessage] = useState('');
+  const [resetSuccess, setResetSuccess] = useState(false);
+
   // UI
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -351,7 +361,7 @@ export default function Connexion() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-sm font-bold text-gray-700">{isEn ? 'Password' : 'Mot de passe'}</label>
-                    <Link href="#" className="text-xs font-bold text-[#C4623F] hover:underline">{isEn ? 'Forgot?' : 'Oublie ?'}</Link>
+                    <button type="button" onClick={() => { setShowReset(true); setAuthError(''); setResetMessage(''); setResetSuccess(false); setResetOtpSent(false); setResetOtpCode(''); setResetNewPassword(''); }} className="text-xs font-bold text-[#C4623F] hover:underline">{isEn ? 'Forgot?' : 'Oublie ?'}</button>
                   </div>
                   <div className="relative">
                     <input type={showLoginPassword ? 'text' : 'password'} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
@@ -399,6 +409,115 @@ export default function Connexion() {
                 </svg>
                 {isEn ? 'Continue with Apple' : 'Continuer avec Apple'}
               </button>
+
+              {/* ━━━ RESET PASSWORD MODAL ━━━ */}
+              {showReset && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                  <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 relative">
+                    <button onClick={() => setShowReset(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-xl font-bold">&times;</button>
+                    <h3 className="text-xl font-extrabold text-gray-900">
+                      {isEn ? 'Reset your password' : 'Reinitialiser le mot de passe'}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {isEn ? 'Enter the phone number linked to your account. We will send you a verification code.' : 'Entrez le numero de telephone lie a votre compte. Nous vous enverrons un code de verification.'}
+                    </p>
+
+                    {!resetSuccess ? (
+                      <>
+                        {/* Phone input */}
+                        <div className="flex gap-2">
+                          <select value={resetCountryCode} onChange={(e) => setResetCountryCode(e.target.value as CountryPhoneOption['code'])} className="border border-gray-300 rounded-xl px-2 py-3 text-sm bg-white">
+                            {COUNTRY_PHONE_OPTIONS.map((c) => (
+                              <option key={c.code} value={c.code}>{c.flag} {c.dialCode}</option>
+                            ))}
+                          </select>
+                          <input type="tel" value={resetPhone} onChange={(e) => setResetPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
+                            placeholder={COUNTRY_PHONE_OPTIONS.find(c => c.code === resetCountryCode)?.placeholder || '6XX XX XX XX'}
+                            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-sm" />
+                        </div>
+
+                        {/* Send OTP button */}
+                        {!resetOtpSent && (
+                          <button
+                            onClick={async () => {
+                              setResetMessage('');
+                              const country = COUNTRY_PHONE_OPTIONS.find(c => c.code === resetCountryCode) || COUNTRY_PHONE_OPTIONS[0];
+                              const fullPhone = `${country.dialCode}${resetPhone.replace(/\D/g, '')}`;
+                              try {
+                                const res = await fetch(`${API}/api/auth/forgot-password`, {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ phone: fullPhone }),
+                                });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.error || 'Error');
+                                setResetOtpSent(true);
+                                setResetMessage(isEn ? 'Code sent! Check your SMS.' : 'Code envoye ! Verifiez vos SMS.');
+                              } catch (err: unknown) {
+                                setResetMessage(err instanceof Error ? err.message : 'Error');
+                              }
+                            }}
+                            className="w-full bg-[#DA7756] text-white font-bold py-3 rounded-xl hover:bg-[#C4623F] transition text-sm"
+                          >
+                            {isEn ? 'Send verification code' : 'Envoyer le code de verification'}
+                          </button>
+                        )}
+
+                        {/* OTP + new password */}
+                        {resetOtpSent && (
+                          <>
+                            <div>
+                              <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Verification code' : 'Code de verification'}</label>
+                              <input type="text" value={resetOtpCode} onChange={(e) => setResetOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                placeholder="123456" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-sm" />
+                            </div>
+                            <div>
+                              <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'New password' : 'Nouveau mot de passe'}</label>
+                              <input type="password" value={resetNewPassword} onChange={(e) => setResetNewPassword(e.target.value)}
+                                placeholder="••••••••" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-sm" />
+                            </div>
+                            <button
+                              onClick={async () => {
+                                setResetMessage('');
+                                const country = COUNTRY_PHONE_OPTIONS.find(c => c.code === resetCountryCode) || COUNTRY_PHONE_OPTIONS[0];
+                                const fullPhone = `${country.dialCode}${resetPhone.replace(/\D/g, '')}`;
+                                try {
+                                  const res = await fetch(`${API}/api/auth/reset-password`, {
+                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ phone: fullPhone, code: resetOtpCode.trim(), newPassword: resetNewPassword }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok) throw new Error(data.error || 'Error');
+                                  setResetSuccess(true);
+                                  setResetMessage(isEn ? 'Password changed! You can now sign in.' : 'Mot de passe modifie ! Vous pouvez maintenant vous connecter.');
+                                } catch (err: unknown) {
+                                  setResetMessage(err instanceof Error ? err.message : 'Error');
+                                }
+                              }}
+                              className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-black transition text-sm"
+                            >
+                              {isEn ? 'Reset password' : 'Reinitialiser le mot de passe'}
+                            </button>
+                          </>
+                        )}
+
+                        {resetMessage && (
+                          <p className={`text-xs font-bold px-3 py-2 rounded-lg ${resetMessage.includes('envoye') || resetMessage.includes('sent') ? 'bg-green-50 text-green-700' : resetMessage.includes('modifie') || resetMessage.includes('changed') ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'}`}>
+                            {resetMessage}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <div className="text-center py-4">
+                        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">✓</div>
+                        <p className="text-sm font-bold text-green-700 mb-4">{resetMessage}</p>
+                        <button onClick={() => setShowReset(false)} className="bg-[#DA7756] text-white font-bold py-3 px-8 rounded-xl hover:bg-[#C4623F] transition text-sm">
+                          {isEn ? 'Back to login' : 'Retour a la connexion'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

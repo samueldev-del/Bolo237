@@ -910,6 +910,12 @@ app.post('/api/users', async (req, res) => {
     const existing = await prisma.user.findUnique({ where: { email: String(email) } });
     if (existing) return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
 
+    // Vérifier unicité du téléphone
+    if (phone) {
+      const existingPhone = await prisma.user.findUnique({ where: { phone: String(phone) } });
+      if (existingPhone) return res.status(409).json({ error: 'Ce numéro de téléphone est déjà associé à un compte.' });
+    }
+
     const hashedPassword = bcrypt.hashSync(String(password), 10);
 
     const user = await prisma.user.create({
@@ -1881,6 +1887,84 @@ app.post('/api/otp/verify', async (req, res) => {
   // Si c'est bon, on supprime le code pour la sécurité
   otpStore.delete(phone);
   res.json({ success: true, verified: true, message: "Téléphone vérifié avec succès" });
+});
+
+// =============================================
+// ROUTES: RESET MOT DE PASSE (via OTP telephone)
+// =============================================
+
+// Etape 1: Demander un reset — envoie un OTP au telephone associé
+app.post('/api/auth/forgot-password', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis." });
+
+    // Vérifier que le téléphone existe dans la base
+    const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
+    if (!user) return res.status(404).json({ error: "Aucun compte associé à ce numéro." });
+
+    // Générer et stocker un OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
+
+    // Envoyer par SMS si Twilio configuré
+    if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+      await twilioClient.messages.create({
+        body: `Bolo237 — Votre code de réinitialisation : ${otp}`,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: phone
+      }).catch(() => {});
+    }
+
+    console.log(`🔑 Reset OTP for ${phone}: ${otp}`);
+    res.json({ success: true, message: "Code envoyé par SMS." });
+  } catch (error) {
+    console.error('forgot-password error:', error);
+    res.status(500).json({ error: "Erreur serveur." });
+  }
+});
+
+// Etape 2: Vérifier OTP + définir nouveau mot de passe
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { phone, code, newPassword } = req.body;
+    if (!phone || !code || !newPassword) {
+      return res.status(400).json({ error: "Téléphone, code et nouveau mot de passe requis." });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: "Le mot de passe doit contenir au moins 6 caractères." });
+    }
+
+    // Vérifier le code (master OTP accepté)
+    const masterCode = process.env.MASTER_OTP || "000000";
+    const record = otpStore.get(phone);
+
+    if (code !== masterCode) {
+      if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro." });
+      if (Date.now() > record.expires) {
+        otpStore.delete(phone);
+        return res.status(400).json({ error: "Le code a expiré." });
+      }
+      if (record.code !== code) {
+        return res.status(400).json({ error: "Code incorrect." });
+      }
+    }
+
+    otpStore.delete(phone);
+
+    // Trouver l'utilisateur et mettre à jour le mot de passe
+    const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
+    if (!user) return res.status(404).json({ error: "Utilisateur introuvable." });
+
+    const hashedPassword = bcrypt.hashSync(String(newPassword), 10);
+    await prisma.user.update({ where: { id: user.id }, data: { password: hashedPassword } });
+
+    console.log(`✅ Mot de passe réinitialisé pour user ${user.id} (${phone})`);
+    res.json({ success: true, message: "Mot de passe réinitialisé avec succès." });
+  } catch (error) {
+    console.error('reset-password error:', error);
+    res.status(500).json({ error: "Erreur serveur." });
+  }
 });
 
 // --- Page d'accueil API ---

@@ -2,12 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "admin",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3001,
-      "autoPort": true,
-      "cwd": "/Users/samuel/237jobs/admin-237jobs"
+      "name": "frontend",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "export PATH=/Users/samuel/.nvm/versions/node/v24.14.0/bin:$PATH && cd frontend && npx next dev --port 3000"],
+      "port": 3000
     }
   ]
 }

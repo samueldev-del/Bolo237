@@ -1865,7 +1865,7 @@ app.post('/api/otp/verify', async (req, res) => {
   // Le Master Code (0000 ou 000000) pour qu'Apple/Google puissent tester l'app plus tard
   const masterCode = process.env.MASTER_OTP || "000000";
   if (code === masterCode) {
-    return res.json({ success: true, message: "Code Master accepté" });
+    return res.json({ success: true, verified: true, message: "Code Master accepté" });
   }
 
   const record = otpStore.get(phone);
@@ -1880,7 +1880,7 @@ app.post('/api/otp/verify', async (req, res) => {
 
   // Si c'est bon, on supprime le code pour la sécurité
   otpStore.delete(phone);
-  res.json({ success: true, message: "Téléphone vérifié avec succès" });
+  res.json({ success: true, verified: true, message: "Téléphone vérifié avec succès" });
 });
 
 // --- Page d'accueil API ---

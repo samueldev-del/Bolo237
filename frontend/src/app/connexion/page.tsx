@@ -140,7 +140,7 @@ export default function Connexion() {
         body: JSON.stringify({ phone: internationalPhone, code: otpCode.trim() }),
       });
       const data = await res.json();
-      if (!res.ok || !data.verified) throw new Error(data.error || (isEn ? 'Invalid code' : 'Code invalide'));
+      if (!res.ok || (!data.verified && !data.success)) throw new Error(data.error || (isEn ? 'Invalid code' : 'Code invalide'));
       setOtpVerified(true);
       setStep(4);
     } catch (err: unknown) {

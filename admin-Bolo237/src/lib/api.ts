@@ -42,9 +42,14 @@ async function probeApiBase(base: string) {
       credentials: 'include',
     });
 
-    // 2xx/4xx usually means the HTTP server answered and routing is valid.
-    if (res.status < 500) return true;
-    return false;
+    // Accept only real API success responses to avoid false positives like
+    // admin frontend origins that return 404 for backend routes.
+    if (!res.ok) return false;
+
+    const contentType = String(res.headers.get('content-type') || '').toLowerCase();
+    if (!contentType.includes('application/json')) return false;
+
+    return true;
   } catch {
     return false;
   }

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 52">
+  <defs>
+    <linearGradient id="pillGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#15803d;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <!-- Pill vert avec dégradé -->
+  <rect x="2" y="6" width="88" height="40" rx="20" ry="20" fill="url(#pillGrad)"/>
+  <!-- Ombre douce sous le pill -->
+  <rect x="4" y="10" width="84" height="38" rx="19" ry="19" fill="#15803d" opacity="0.15"/>
+  <!-- Nombre 237 en blanc gras -->
+  <text x="46" y="33" font-family="'Inter', 'SF Pro Display', -apple-system, system-ui, Arial, sans-serif" font-size="24" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="-0.5">237</text>
+  <!-- Mot "jobs" en noir -->
+  <text x="100" y="35" font-family="'Inter', 'SF Pro Display', -apple-system, system-ui, Arial, sans-serif" font-size="30" font-weight="800" fill="#0f172a" text-anchor="start" letter-spacing="-1">jobs</text>
+</svg>

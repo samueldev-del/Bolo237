@@ -1,0 +1,133 @@
+// Configuration de base
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. Table des Utilisateurs
+model User {
+  id          Int      @id @default(autoincrement())
+  email       String   @unique
+  password    String
+  name        String?
+  phone       String?
+  role        String   @default("CANDIDAT")
+  isVerified  Boolean  @default(false)
+  isBanned    Boolean  @default(false)
+  bannedAt    DateTime?
+  banReason   String?
+  createdAt   DateTime @default(now())
+  jobs        Job[]
+  notifications Notification[]
+  appFeedbacks AppFeedback[]
+  reviewsGiven UserReview[] @relation("reviewer")
+  reviewsReceived UserReview[] @relation("reviewed")
+}
+
+// 2. Table des Offres d'Emploi
+model Job {
+  id          Int      @id @default(autoincrement())
+  title       String
+  company     String
+  location    String
+  description String
+  salary      String?
+  status      String   @default("PENDING") 
+  author      User     @relation(fields: [authorId], references: [id])
+  authorId    Int
+  createdAt   DateTime @default(now())
+}
+
+// 3. Table des Signalements (Pour la sécurité)
+model Report {
+  id          Int      @id @default(autoincrement())
+  reason      String
+  targetType  String   
+  targetId    Int
+  status      String   @default("OPEN")    
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  type      String
+  title     String
+  message   String
+  data      Json?
+  isRead    Boolean  @default(false)
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId, isRead, createdAt])
+}
+
+model AppFeedback {
+  id         Int      @id @default(autoincrement())
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId     Int?
+  authorName String?
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model UserReview {
+  id         Int      @id @default(autoincrement())
+  reviewer   User     @relation("reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewerId Int
+  reviewed   User     @relation("reviewed", fields: [reviewedId], references: [id], onDelete: Cascade)
+  reviewedId Int
+  rating     Int
+  comment    String
+  createdAt  DateTime @default(now())
+
+  @@index([reviewedId, createdAt])
+  @@index([reviewerId, createdAt])
+}
+
+model CandidateProfile {
+  id             Int      @id @default(autoincrement())
+  userId         Int?
+  nom            String
+  titre          String
+  localisation   String   @default("Douala")
+  experience     String   @default("Confirme")
+  disponibilite  String   @default("Immediatement")
+  etudes         String   @default("Bac+3")
+  competences    String[] @default([])
+  disponibleNow  Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+model UserProfile {
+  userId        Int      @id
+  fullName      String   @default("")
+  title         String   @default("")
+  location      String   @default("")
+  phone         String   @default("")
+  email         String   @default("")
+  profile       String   @default("")
+  experience    String   @default("")
+  education     String   @default("")
+  skillsText    String   @default("")
+  languagesText String   @default("")
+  updatedAt     DateTime @default(now()) @updatedAt
+}
+
+model SavedJob {
+  id     Int @id @default(autoincrement())
+  userId Int
+  jobId  Int
+
+  @@unique([userId, jobId])
+  @@index([userId])
+}

@@ -1,0 +1,38 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+
+  /* Brand Colors — Bolo237 (Terracotta palette) */
+  --brand-primary: #DA7756;        /* terracotta */
+  --brand-primary-dark: #C4623F;   /* deep terracotta */
+  --brand-primary-light: #FFF5EF;  /* warm cream */
+  --brand-terracotta: #DA7756;     /* primary terracotta */
+  --brand-terracotta-light: #FFF5EF; /* warm cream */
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', Arial, Helvetica, sans-serif;
+}
+
+/* Focus état sur les inputs de recherche */
+.search-input:focus {
+  border-color: #7C3AED !important;
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+}
+
+/* Scrollbar subtle */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #7C3AED; }

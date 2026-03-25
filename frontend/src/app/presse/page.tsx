@@ -94,34 +94,61 @@ export default function PressePage() {
 
         {/* Ressources Media */}
         <section className="max-w-3xl mx-auto px-4 py-12">
-          <h2 className="text-2xl font-extrabold text-gray-900 mb-6">
+          <h2 className="text-2xl font-extrabold text-gray-900 mb-2">
             {isEn ? 'Media Resources' : 'Ressources Media'}
           </h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="border border-gray-200 rounded-xl p-5 flex items-center gap-4 hover:border-[#DA7756] transition">
-              <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl">
-                🖼️
-              </div>
-              <div>
-                <p className="font-bold text-gray-900 text-sm">
-                  {isEn ? 'HD Logo' : 'Logo Haute Definition'}
-                </p>
-                <p className="text-xs text-gray-500">SVG, PNG</p>
+          <p className="text-sm text-gray-600 mb-6">
+            {isEn
+              ? 'Download or request our official communication assets for articles, TV/radio segments, and digital press coverage.'
+              : 'Telechargez ou demandez nos elements officiels de communication pour vos articles, reportages TV/radio et couvertures digitales.'}
+          </p>
+
+          <div className="space-y-4">
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  🖼️
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'HD Logo Pack' : 'Pack Logo Haute Definition'}
+                  </p>
+                  <p className="text-xs text-gray-500 mb-2">SVG, PNG, JPEG</p>
+                  <p className="text-xs text-gray-600">
+                    {isEn
+                      ? 'Official versions in light and dark variants for print and web.'
+                      : 'Versions officielles claires et sombres pour le print et le web.'}
+                  </p>
+                </div>
               </div>
             </div>
-            <div className="border border-gray-200 rounded-xl p-5 flex items-center gap-4 hover:border-[#DA7756] transition">
-              <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl">
-                📸
-              </div>
-              <div>
-                <p className="font-bold text-gray-900 text-sm">
-                  {isEn ? 'App Screenshots' : 'Captures d\'ecran'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {isEn ? 'Mobile & Desktop' : 'Mobile & Bureau'}
-                </p>
+
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  📸
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'App Screenshots' : 'Captures de l\'application'}
+                  </p>
+                  <p className="text-xs text-gray-500 mb-2">
+                    {isEn ? 'Mobile & Desktop' : 'Mobile et Desktop'}
+                  </p>
+                  <p className="text-xs text-gray-600">
+                    {isEn
+                      ? 'Curated visuals of key user journeys: hiring, candidate profile, and verification flow.'
+                      : 'Visuels selectionnes des parcours cles : recrutement, profil candidat et verification.'}
+                  </p>
+                </div>
               </div>
             </div>
+
+            <p className="text-xs text-gray-500">
+              {isEn
+                ? 'Need the full press kit (founder bio, product factsheet, and visuals)? Contact us below.'
+                : 'Besoin du kit presse complet (bio fondateur, fiche produit et visuels) ? Contactez-nous juste en dessous.'}
+            </p>
           </div>
         </section>
 
@@ -144,10 +171,10 @@ export default function PressePage() {
                 <span>📧</span> contact@bolo237.com
               </a>
               <a
-                href="tel:+237600000000"
+                href="tel:+4915124862693"
                 className="inline-flex items-center gap-2 bg-white border border-[#E8C4B0] rounded-full px-6 py-3 font-bold text-[#C4623F] hover:bg-[#FEEBD6] transition text-sm"
               >
-                <span>📱</span> +237 6XX XX XX XX
+                <span>📱</span> +4915124862693
               </a>
             </div>
           </div>

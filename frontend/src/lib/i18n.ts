@@ -24,6 +24,8 @@ export const dictionary = {
       hrKnowledge: 'Connaissances RH',
       follow: 'Suivez-nous',
       feedback: "N'hésitez pas à nous faire part de vos commentaires.",
+      contact: 'Contact',
+      whatsappSupport: 'Support 24/7',
       rights: 'Tous droits réservés.',
     },
     home: {
@@ -85,6 +87,8 @@ export const dictionary = {
       hrKnowledge: 'HR knowledge',
       follow: 'Follow us',
       feedback: 'Feel free to share your feedback with us.',
+      contact: 'Contact',
+      whatsappSupport: '24/7 Support',
       rights: 'All rights reserved.',
     },
     home: {

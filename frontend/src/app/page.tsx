@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -29,6 +29,37 @@ function apiJobToLocal(job: ApiJob, isEn: boolean) {
     publishedHours: hours,
     temps: timeAgo(job.createdAt, isEn),
   };
+}
+
+/* Animated counter hook */
+function useCountUp(target: number, duration: number = 1500) {
+  const [count, setCount] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const started = useRef(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !started.current) {
+          started.current = true;
+          const start = performance.now();
+          const animate = (now: number) => {
+            const progress = Math.min((now - start) / duration, 1);
+            setCount(Math.floor(progress * target));
+            if (progress < 1) requestAnimationFrame(animate);
+          };
+          requestAnimationFrame(animate);
+        }
+      },
+      { threshold: 0.3 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [target, duration]);
+
+  return { count, ref };
 }
 
 export default function Home() {
@@ -85,6 +116,11 @@ export default function Home() {
   const countUrgentImmediate = artisans.filter((a) => ["Immédiate", "Urgente"].includes(a.disponibilite)).length;
   const countVerifieOui = artisans.filter((a) => a.verifie).length;
   const countVerifieNon = artisans.filter((a) => !a.verifie).length;
+
+  /* Animated counters for trust section */
+  const counter1 = useCountUp(10, 1200);
+  const counter2 = useCountUp(100, 1500);
+  const counter3 = useCountUp(24, 1000);
 
   return (
     <div className="w-full font-sans bg-white text-black min-h-screen flex flex-col">
@@ -398,20 +434,305 @@ export default function Home() {
         </section>
       </div>
 
+      {/* ═══════════ COMMENT CA MARCHE ═══════════ */}
+      <section className="py-20 bg-[#FFF5EF] relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, #DA7756 1px, transparent 0)', backgroundSize: '40px 40px' }}></div>
+        <div className="relative max-w-[1400px] mx-auto px-4">
+          <div className="text-center mb-14">
+            <span className="inline-block bg-[#FEEBD6] text-[#A8502F] px-4 py-1.5 rounded-full text-xs font-bold tracking-wide mb-4">
+              {isEn ? 'SIMPLE & FAST' : 'SIMPLE & RAPIDE'}
+            </span>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
+              {isEn ? 'How does it work?' : 'Comment ça marche ?'}
+            </h2>
+            <p className="text-gray-500 font-medium max-w-xl mx-auto">
+              {isEn
+                ? '3 simple steps to find your next opportunity or the right professional.'
+                : '3 étapes simples pour trouver votre prochaine opportunité ou le bon professionnel.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                step: '01',
+                icon: '📝',
+                title: isEn ? 'Create your free account' : 'Créez votre compte gratuit',
+                desc: isEn
+                  ? 'In 2 minutes, sign up and choose your profile: candidate, employer, or artisan.'
+                  : 'En 2 minutes, inscrivez-vous et choisissez votre profil : candidat, entreprise ou artisan.',
+              },
+              {
+                step: '02',
+                icon: '✨',
+                title: isEn ? 'Complete your profile' : 'Complétez votre profil',
+                desc: isEn
+                  ? 'Add your skills, CV, or services. Our Identity Shield verification certifies your identity.'
+                  : 'Ajoutez vos compétences, votre CV ou vos services. Notre système de vérification Identity Shield certifie votre identité.',
+              },
+              {
+                step: '03',
+                icon: '🤝',
+                title: isEn ? 'Connect directly' : 'Connectez-vous directement',
+                desc: isEn
+                  ? 'Apply to jobs or contact artisans via WhatsApp. No middleman, no commission.'
+                  : 'Postulez aux offres ou contactez les artisans via WhatsApp. Pas d\'intermédiaire, pas de commission.',
+              },
+            ].map((item, i) => (
+              <div key={item.step} className="relative">
+                {i < 2 && (
+                  <div className="hidden md:block absolute top-14 left-[60%] w-[80%] border-t-2 border-dashed border-[#DA7756]/20"></div>
+                )}
+                <div className="bg-white rounded-2xl p-8 shadow-sm border border-[#FEEBD6] hover:shadow-xl hover:shadow-[#FEEBD6]/50 transition-all duration-300 text-center relative z-10">
+                  <div className="w-16 h-16 bg-gradient-to-br from-[#DA7756] to-[#C4623F] rounded-2xl flex items-center justify-center text-3xl mx-auto mb-5 shadow-lg shadow-[#DA7756]/20">
+                    {item.icon}
+                  </div>
+                  <span className="text-xs font-extrabold text-[#DA7756] tracking-widest">{isEn ? 'STEP' : 'ÉTAPE'} {item.step}</span>
+                  <h3 className="font-bold text-lg text-black mt-2 mb-3">{item.title}</h3>
+                  <p className="text-gray-500 text-sm leading-relaxed font-medium">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ TRUST / SOCIAL PROOF ═══════════ */}
+      <section className="py-16 bg-white border-y border-gray-100">
+        <div className="max-w-[1400px] mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              {
+                ref: counter1.ref,
+                value: `${counter1.count}`,
+                suffix: '+',
+                label: isEn ? 'Regions covered' : 'Régions couvertes',
+                icon: '🌍',
+                bg: 'bg-blue-50',
+                iconBg: 'bg-blue-100',
+              },
+              {
+                ref: null,
+                value: '',
+                suffix: '',
+                label: isEn ? 'Identity verification' : "Vérification d'identité",
+                icon: '🛡️',
+                bg: 'bg-[#FFF5EF]',
+                iconBg: 'bg-[#FEEBD6]',
+                custom: 'Identity Shield',
+              },
+              {
+                ref: counter2.ref,
+                value: `${counter2.count}`,
+                suffix: '%',
+                label: isEn ? 'Free' : 'Gratuit',
+                icon: '🆓',
+                bg: 'bg-green-50',
+                iconBg: 'bg-green-100',
+              },
+              {
+                ref: counter3.ref,
+                value: `${counter3.count}/7`,
+                suffix: '',
+                label: isEn ? 'WhatsApp support' : 'Support WhatsApp',
+                icon: '💬',
+                bg: 'bg-emerald-50',
+                iconBg: 'bg-emerald-100',
+              },
+            ].map((item) => (
+              <div
+                key={item.label}
+                ref={item.ref}
+                className={`${item.bg} rounded-2xl p-6 text-center hover:scale-105 transition-transform duration-300`}
+              >
+                <div className={`w-12 h-12 ${item.iconBg} rounded-xl flex items-center justify-center text-2xl mx-auto mb-3`}>
+                  {item.icon}
+                </div>
+                <div className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-1">
+                  {item.custom || `${item.value}${item.suffix}`}
+                </div>
+                <p className="text-sm font-medium text-gray-500">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ POUR QUI ? ═══════════ */}
+      <section className="py-20 bg-gradient-to-b from-gray-50 to-white">
+        <div className="max-w-[1400px] mx-auto px-4">
+          <div className="text-center mb-14">
+            <span className="inline-block bg-[#FEEBD6] text-[#A8502F] px-4 py-1.5 rounded-full text-xs font-bold tracking-wide mb-4">
+              {isEn ? 'FOR EVERYONE' : 'POUR TOUS'}
+            </span>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
+              {isEn ? 'Who is Bolo237 for?' : 'Pour qui est Bolo237 ?'}
+            </h2>
+            <p className="text-gray-500 font-medium max-w-xl mx-auto">
+              {isEn
+                ? 'Whether you are looking for a job, recruiting, or offering services, Bolo237 is for you.'
+                : "Que vous cherchiez un emploi, recrutiez ou offriez vos services, Bolo237 est fait pour vous."}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                icon: '💼',
+                emoji: '🎯',
+                bg: 'from-[#DA7756] to-[#C4623F]',
+                title: isEn ? 'Candidates' : 'Candidats',
+                desc: isEn
+                  ? 'Looking for a job? Create your profile, upload your CV and apply in one click. Get personalized alerts.'
+                  : 'Vous cherchez un emploi ? Créez votre profil, uploadez votre CV et postulez en un clic. Recevez des alertes personnalisées.',
+                cta: isEn ? 'Find a job' : 'Trouver un emploi',
+                href: '/connexion',
+              },
+              {
+                icon: '🏢',
+                emoji: '📢',
+                bg: 'from-blue-600 to-blue-700',
+                title: isEn ? 'Employers' : 'Entreprises',
+                desc: isEn
+                  ? 'Hiring? Post your jobs for free and access a base of verified talents across Cameroon.'
+                  : 'Vous recrutez ? Publiez vos offres gratuitement et accédez à une base de talents vérifiés dans tout le Cameroun.',
+                cta: isEn ? 'Post a job' : 'Publier une offre',
+                href: '/publier',
+              },
+              {
+                icon: '🛠️',
+                emoji: '⭐',
+                bg: 'from-amber-500 to-amber-600',
+                title: isEn ? 'Artisans' : 'Artisans',
+                desc: isEn
+                  ? 'Are you an artisan? Showcase your skills, receive direct requests and grow your clientele.'
+                  : 'Vous êtes artisan ? Montrez votre savoir-faire, recevez des demandes directes et développez votre clientèle.',
+                cta: isEn ? 'Create my profile' : 'Créer mon profil',
+                href: '/connexion',
+              },
+            ].map((card) => (
+              <div key={card.title} className="group relative bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-2xl hover:shadow-gray-200/60 transition-all duration-300">
+                <div className={`h-2 bg-gradient-to-r ${card.bg}`}></div>
+                <div className="p-8">
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className={`w-14 h-14 bg-gradient-to-br ${card.bg} rounded-2xl flex items-center justify-center text-2xl text-white shadow-lg`}>
+                      {card.icon}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-xl text-black">{card.title}</h3>
+                      <span className="text-xs text-gray-400 font-medium">{card.emoji}</span>
+                    </div>
+                  </div>
+                  <p className="text-gray-500 text-sm leading-relaxed font-medium mb-6">{card.desc}</p>
+                  <Link
+                    href={localizePath(card.href)}
+                    className={`inline-flex items-center gap-2 bg-gradient-to-r ${card.bg} text-white px-6 py-3 rounded-xl font-bold text-sm hover:opacity-90 transition shadow-md`}
+                  >
+                    {card.cta}
+                    <span className="group-hover:translate-x-1 transition-transform">→</span>
+                  </Link>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════ TESTIMONIALS ═══════════ */}
+      <section className="py-20 bg-[#FFF5EF] relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#FEEBD6] rounded-full opacity-30 blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#DA7756] rounded-full opacity-10 blur-3xl translate-y-1/2 -translate-x-1/2"></div>
+        <div className="relative max-w-[1400px] mx-auto px-4">
+          <div className="text-center mb-14">
+            <span className="inline-block bg-[#FEEBD6] text-[#A8502F] px-4 py-1.5 rounded-full text-xs font-bold tracking-wide mb-4">
+              {isEn ? 'TESTIMONIALS' : 'TÉMOIGNAGES'}
+            </span>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
+              {isEn ? 'They trust Bolo237' : 'Ils font confiance à Bolo237'}
+            </h2>
+            <p className="text-gray-500 font-medium max-w-xl mx-auto">
+              {isEn
+                ? 'Discover the stories of those who found their opportunity on our platform.'
+                : 'Découvrez les histoires de ceux qui ont trouvé leur opportunité sur notre plateforme.'}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {[
+              {
+                name: 'Marie K.',
+                location: 'Douala',
+                role: isEn ? 'Candidate' : 'Candidate',
+                stars: 5,
+                quote: isEn
+                  ? 'Thanks to Bolo237, I found my accounting position in less than a week. The platform is simple and the listings are verified.'
+                  : "Grâce à Bolo237, j'ai trouvé mon poste de comptable en moins d'une semaine. La plateforme est simple et les offres sont vérifiées.",
+                avatar: '👩🏽‍💼',
+              },
+              {
+                name: 'Jean-Paul M.',
+                location: 'Yaoundé',
+                role: isEn ? 'Employer' : 'Recruteur',
+                stars: 5,
+                quote: isEn
+                  ? 'We recruited 3 qualified developers through Bolo237. The verification process reassured us about profile quality.'
+                  : 'Nous avons recruté 3 développeurs qualifiés via Bolo237. Le processus de vérification nous a rassurés sur la qualité des profils.',
+                avatar: '👨🏽‍💻',
+              },
+              {
+                name: 'Amadou B.',
+                location: 'Bafoussam',
+                role: isEn ? 'Artisan plumber' : 'Artisan plombier',
+                stars: 5,
+                quote: isEn
+                  ? 'Since signing up on Bolo237, I regularly receive client requests in my area. My revenue has doubled.'
+                  : "Depuis mon inscription sur Bolo237, je reçois régulièrement des demandes de clients dans ma zone. Mon chiffre d'affaires a doublé.",
+                avatar: '👨🏽‍🔧',
+              },
+            ].map((testimonial) => (
+              <div key={testimonial.name} className="bg-white rounded-2xl p-8 border border-[#FEEBD6] shadow-sm hover:shadow-xl hover:shadow-[#FEEBD6]/30 transition-all duration-300">
+                <div className="flex items-center gap-1 mb-4">
+                  {Array.from({ length: testimonial.stars }).map((_, i) => (
+                    <span key={i} className="text-amber-400 text-lg">★</span>
+                  ))}
+                </div>
+                <p className="text-gray-700 text-sm leading-relaxed font-medium mb-6 italic">
+                  &ldquo;{testimonial.quote}&rdquo;
+                </p>
+                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
+                  <div className="w-12 h-12 bg-[#FEEBD6] rounded-full flex items-center justify-center text-2xl">
+                    {testimonial.avatar}
+                  </div>
+                  <div>
+                    <p className="font-bold text-black text-sm">{testimonial.name}</p>
+                    <p className="text-xs text-gray-400 font-medium">{testimonial.role} — {testimonial.location}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* ═══════════ POURQUOI BOLO237 ═══════════ */}
       <section className="bg-gradient-to-b from-white to-gray-50 py-20 border-t border-gray-100">
         <div className="max-w-[1400px] mx-auto px-4">
-          <h2 className="text-3xl font-extrabold text-center mb-3 tracking-tight">
-            {isEn ? 'Why choose' : 'Pourquoi choisir'}{' '}
-            <span className="text-[#DA7756]">Bolo237</span> ?
-          </h2>
-          <p className="text-center text-gray-500 font-medium mb-12 max-w-xl mx-auto">
-            {isEn
-              ? 'A platform built by Cameroonians, for Cameroonians.'
-              : 'Une plateforme créée par des Camerounais, pour les Camerounais.'}
-          </p>
+          <div className="text-center mb-14">
+            <span className="inline-block bg-[#FEEBD6] text-[#A8502F] px-4 py-1.5 rounded-full text-xs font-bold tracking-wide mb-4">
+              {isEn ? 'OUR ADVANTAGES' : 'NOS AVANTAGES'}
+            </span>
+            <h2 className="text-3xl md:text-4xl font-extrabold tracking-tight mb-3">
+              {isEn ? 'Why choose' : 'Pourquoi choisir'}{' '}
+              <span className="text-[#DA7756]">Bolo237</span> ?
+            </h2>
+            <p className="text-center text-gray-500 font-medium mb-0 max-w-xl mx-auto">
+              {isEn
+                ? 'A platform built by Cameroonians, for Cameroonians.'
+                : 'Une plateforme créée par des Camerounais, pour les Camerounais.'}
+            </p>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
                 icon: '🔒', bg: 'bg-[#FEEBD6]',
@@ -434,6 +755,27 @@ export default function Home() {
                   ? 'The only platform combining formal job offers and skilled artisan services in one place.'
                   : 'La seule plateforme combinant offres d\'emploi formelles et services d\'artisans qualifiés.',
               },
+              {
+                icon: '💬', bg: 'bg-emerald-100',
+                title: isEn ? 'WhatsApp integrated' : 'WhatsApp intégré',
+                desc: isEn
+                  ? 'Chat directly with recruiters or artisans via WhatsApp. Fast, familiar, effective.'
+                  : 'Échangez directement avec les recruteurs ou artisans via WhatsApp. Rapide, familier, efficace.',
+              },
+              {
+                icon: '📱', bg: 'bg-purple-100',
+                title: 'Mobile-first',
+                desc: isEn
+                  ? 'Designed for Cameroon, our app works even on low-bandwidth networks. Install it on your phone like a native app.'
+                  : 'Conçue pour le Cameroun, notre app fonctionne même sur les réseaux à faible débit. Installez-la sur votre téléphone comme une application native.',
+              },
+              {
+                icon: '🆓', bg: 'bg-green-100',
+                title: isEn ? '100% Free' : '100% Gratuit',
+                desc: isEn
+                  ? 'Registration, job posting, applications: everything is free. No hidden fees, no commission.'
+                  : 'Inscription, publication d\'offres, candidatures : tout est gratuit. Pas de frais cachés, pas de commission.',
+              },
             ].map((card) => (
               <div key={card.title} className="bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl hover:shadow-gray-100/80 transition-all duration-300 group">
                 <div className={`w-14 h-14 ${card.bg} rounded-2xl flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform`}>
@@ -448,25 +790,35 @@ export default function Home() {
       </section>
 
       {/* ═══════════ CTA ═══════════ */}
-      <section className="bg-[#DA7756] py-16 relative overflow-hidden">
+      <section className="bg-gradient-to-br from-[#DA7756] to-[#C4623F] py-20 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+        <div className="absolute top-0 left-0 w-96 h-96 bg-white rounded-full opacity-5 blur-3xl -translate-y-1/2 -translate-x-1/2"></div>
+        <div className="absolute bottom-0 right-0 w-72 h-72 bg-white rounded-full opacity-5 blur-3xl translate-y-1/2 translate-x-1/2"></div>
         <div className="relative max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-extrabold text-white mb-4 tracking-tight">
-            {isEn ? 'Ready to get started?' : 'Prêt à commencer ?'}
-          </h2>
-          <p className="text-[#FEEBD6] font-medium text-lg mb-8 max-w-xl mx-auto">
+          <span className="inline-block bg-white/20 text-white px-4 py-1.5 rounded-full text-xs font-bold tracking-wide mb-6 backdrop-blur-sm">
+            {isEn ? 'GET STARTED TODAY' : 'COMMENCEZ AUJOURD\'HUI'}
+          </span>
+          <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-5 tracking-tight leading-tight">
             {isEn
-              ? 'Create your free account in 2 minutes and access all opportunities.'
-              : 'Créez votre compte gratuit en 2 minutes et accédez à toutes les opportunités.'}
+              ? 'Join the talents building tomorrow\'s Cameroon'
+              : 'Rejoignez les talents qui construisent le Cameroun de demain'}
+          </h2>
+          <p className="text-[#FEEBD6] font-medium text-lg mb-10 max-w-xl mx-auto">
+            {isEn
+              ? 'Over 10 regions. Thousands of opportunities. One platform.'
+              : 'Plus de 10 régions. Des milliers d\'opportunités. Une seule plateforme.'}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link href={localizePath('/connexion')} className="bg-white text-[#C4623F] px-8 py-4 rounded-xl font-bold text-[15px] hover:bg-[#FFF5EF] transition shadow-lg">
-              {isEn ? 'Create my account' : 'Créer mon compte'}
+            <Link href={localizePath('/connexion')} className="bg-white text-[#C4623F] px-10 py-4 rounded-xl font-bold text-[15px] hover:bg-[#FFF5EF] transition shadow-lg hover:shadow-xl hover:scale-105 transform duration-200">
+              {isEn ? 'Create my free account' : 'Créer mon compte gratuit'}
             </Link>
-            <Link href={localizePath('/publier')} className="border-2 border-white text-white px-8 py-4 rounded-xl font-bold text-[15px] hover:bg-white/10 transition">
-              {isEn ? 'Post a job listing' : 'Publier une annonce'}
+            <Link href={localizePath('/publier')} className="border-2 border-white text-white px-10 py-4 rounded-xl font-bold text-[15px] hover:bg-white/10 transition hover:scale-105 transform duration-200">
+              {isEn ? 'Post a listing' : 'Publier une annonce'}
             </Link>
           </div>
+          <p className="text-white/60 text-xs font-medium mt-6">
+            {isEn ? 'Free registration. No credit card required.' : 'Inscription gratuite. Aucune carte bancaire requise.'}
+          </p>
         </div>
       </section>
 

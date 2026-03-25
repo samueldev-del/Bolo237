@@ -603,7 +603,7 @@ export default function DashboardCandidat() {
         </div>
 
         {/* ════════════ WELCOME BANNER ════════════ */}
-        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 p-5 sm:p-7 md:p-8 text-white shadow-lg shadow-green-600/20">
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-[#DA7756] via-[#C4623F] to-[#B5533A] p-5 sm:p-7 md:p-8 text-white shadow-lg shadow-[#DA7756]/20">
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 blur-2xl pointer-events-none" />
           <div className="absolute bottom-0 left-0 w-32 h-32 rounded-full bg-white/5 blur-xl pointer-events-none" />
           <div className="relative z-10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

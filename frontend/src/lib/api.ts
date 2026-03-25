@@ -334,13 +334,15 @@ export async function fetchAdminTrends(days: 7 | 30 = 7, locale: 'fr' | 'en' = '
 // ── OTP (Verification telephone) ─────────────────────────────────
 
 export type OtpSendResponse = {
-  message: string;
+  success?: boolean;
+  message?: string;
   demoCode?: string; // uniquement en dev
-  expiresIn: string;
+  expiresIn?: string;
 };
 
 export type OtpVerifyResponse = {
-  verified: boolean;
+  verified?: boolean;
+  success?: boolean;
   message?: string;
   error?: string;
 };

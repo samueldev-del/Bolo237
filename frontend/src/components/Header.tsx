@@ -10,6 +10,10 @@ const ROLE_KEY = 'bolo237-account-role';
 
 type UserData = { id: number; name?: string; role?: string; email?: string; isVerified?: boolean } | null;
 
+function normalizeRole(role: string | null | undefined): string {
+  return String(role || '').toLowerCase();
+}
+
 function getUserFromStorage(): UserData {
   if (typeof window === 'undefined') return null;
   try {
@@ -19,8 +23,9 @@ function getUserFromStorage(): UserData {
 }
 
 function getDashboard(role: string | undefined, localizePath: (p: string) => string) {
-  if (role === 'entreprise') return localizePath('/dashboard-entreprise');
-  if (role === 'artisan') return localizePath('/dashboard-artisan');
+  const normalized = normalizeRole(role);
+  if (normalized === 'entreprise') return localizePath('/dashboard-entreprise');
+  if (normalized === 'artisan') return localizePath('/dashboard-artisan');
   return localizePath('/dashboard');
 }
 
@@ -82,6 +87,7 @@ export default function Header() {
   }, [isMenuOpen]);
 
   const localRole = typeof window !== 'undefined' ? window.localStorage.getItem(ROLE_KEY) : null;
+  const localRoleNormalized = normalizeRole(localRole);
 
   const handleLogout = () => {
     window.localStorage.removeItem(USER_KEY);
@@ -116,10 +122,10 @@ export default function Header() {
           {user ? (
             <Link
               href={getDashboard(localRole || undefined, localizePath)}
-              className={`hidden sm:flex items-center gap-2 ${getRoleBadgeColor(localRole)} text-white px-5 py-2.5 rounded-full font-bold text-[13px] transition shadow-sm`}
+              className={`hidden sm:flex items-center gap-2 ${getRoleBadgeColor(localRoleNormalized)} text-white px-5 py-2.5 rounded-full font-bold text-[13px] transition shadow-sm`}
             >
               <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-[11px]">
-                {getRoleIcon(localRole)}
+                {getRoleIcon(localRoleNormalized)}
               </span>
               <span className="max-w-[120px] truncate">{(user.name || '').split(' ')[0] || (isEn ? 'Dashboard' : 'Mon espace')}</span>
               {user.isVerified && <span className="text-[11px]">✓</span>}
@@ -169,15 +175,15 @@ export default function Header() {
 
             {/* En-tête utilisateur connecté */}
             {user && (
-              <div className={`bg-gradient-to-r ${getRoleColor(localRole)} px-6 py-5 text-white`}>
+              <div className={`bg-gradient-to-r ${getRoleColor(localRoleNormalized)} px-6 py-5 text-white`}>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-lg">
-                    {getRoleIcon(localRole)}
+                    {getRoleIcon(localRoleNormalized)}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-sm truncate">{user.name || (isEn ? 'My account' : 'Mon compte')}</p>
                     <p className="text-white/70 text-xs flex items-center gap-1.5">
-                      <span>{getRoleLabel(localRole, isEn)}</span>
+                      <span>{getRoleLabel(localRoleNormalized, isEn)}</span>
                       {user.isVerified && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-extrabold">✓ {isEn ? 'Certified' : 'Certifie'}</span>}
                     </p>
                   </div>
@@ -216,7 +222,7 @@ export default function Header() {
                   <MenuLink href={getDashboard(localRole || undefined, localizePath)} icon="📊" label={isEn ? 'Dashboard' : 'Tableau de bord'} desc={isEn ? 'Manage your activity' : 'Gérer votre activité'} />
 
                   {/* Candidat links */}
-                  {(localRole === 'chercheur' || !localRole) && (
+                  {(localRoleNormalized === 'chercheur' || !localRoleNormalized) && (
                     <>
                       <MenuLink href={localizePath('/profil')} icon="✏️" label={isEn ? 'My CV / Profile' : 'Mon CV / Profil'} desc={isEn ? 'Build and update your CV' : 'Créer et mettre à jour votre CV'} />
                       <MenuLink href={localizePath('/emplois')} icon="🔎" label={isEn ? 'Find a job' : 'Trouver un emploi'} desc={isEn ? 'Browse available offers' : 'Parcourir les offres disponibles'} />
@@ -224,7 +230,7 @@ export default function Header() {
                   )}
 
                   {/* Entreprise links */}
-                  {localRole === 'entreprise' && (
+                  {localRoleNormalized === 'entreprise' && (
                     <>
                       <MenuLink href={localizePath('/publier')} icon="📝" label={isEn ? 'Post a job' : 'Publier une offre'} desc={isEn ? 'Reach thousands of candidates' : 'Touchez des milliers de candidats'} />
                       <MenuLink href={localizePath('/cvtheque')} icon="👥" label={isEn ? 'CV Library' : 'CVthèque'} desc={isEn ? 'Find the ideal candidate' : 'Trouver le candidat idéal'} />
@@ -232,7 +238,7 @@ export default function Header() {
                   )}
 
                   {/* Artisan links */}
-                  {localRole === 'artisan' && (
+                  {localRoleNormalized === 'artisan' && (
                     <>
                       <MenuLink href={localizePath('/profil')} icon="🛠️" label={isEn ? 'My profile' : 'Mon profil'} desc={isEn ? 'Manage your artisan profile' : 'Gérer votre profil artisan'} />
                       <MenuLink href={localizePath('/petits-boulots')} icon="📋" label={isEn ? 'Service requests' : 'Demandes de services'} desc={isEn ? 'Find clients near you' : 'Trouver des clients près de vous'} />

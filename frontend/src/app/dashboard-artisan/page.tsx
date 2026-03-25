@@ -11,12 +11,14 @@ import {
   verifyOtp as apiVerifyOtp,
   createJob,
   fetchJobs,
+  uploadFile,
   type ApiJob,
   fetchVerificationStatus,
   createVerificationSubmission,
   type VerificationStatus,
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
+import { mergeStoredUser } from '@/lib/session';
 
 type CountryPhoneOption = {
   code: string;
@@ -65,8 +67,8 @@ function CircularProgress({ value, size = 120, stroke = 10 }: { value: number; s
         />
         <defs>
           <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="#22c55e" />
-            <stop offset="100%" stopColor="#059669" />
+            <stop offset="0%" stopColor="#F59E0B" />
+            <stop offset="100%" stopColor="#D97706" />
           </linearGradient>
         </defs>
       </svg>
@@ -85,7 +87,7 @@ function StepCheck({ done, label }: { done: boolean; label: string }) {
         className={`
           w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 transition-all duration-300
           ${done
-            ? 'bg-gradient-to-br from-green-400 to-emerald-600 text-white shadow-md shadow-green-200'
+            ? 'bg-gradient-to-br from-amber-400 to-orange-600 text-white shadow-md shadow-amber-200'
             : 'bg-gray-100 text-gray-400 border border-gray-200'}
         `}
       >
@@ -151,6 +153,18 @@ export default function DashboardArtisan() {
     }
   });
 
+  // Load isVerified + photo from localStorage
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('bolo237-user');
+      if (raw) {
+        const u = JSON.parse(raw);
+        if (u.isVerified) setIsVerifiedFromBackend(true);
+        if (u.photoUrl) setProfilePhotoPreview(u.photoUrl);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   /* ---------- state ---------- */
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'portfolio' | 'services' | 'annonces'>('portfolio');
@@ -162,6 +176,9 @@ export default function DashboardArtisan() {
   const [otpInput, setOtpInput] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isVerifiedFromBackend, setIsVerifiedFromBackend] = useState(false);
   const [idType, setIdType] = useState<'cni' | 'passeport' | 'permis' | ''>('');
   const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
   const [idBackFile, setIdBackFile] = useState<File | null>(null);
@@ -195,9 +212,9 @@ export default function DashboardArtisan() {
   const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
   const cleanedLocalPhone = phone.replace(/\D/g, '');
   const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
-  const isArtisanVerified = !!profilePhotoFile;
+  const isArtisanVerified = isVerifiedFromBackend || verificationStatus === 'approved';
   const accountKey = (userName || internationalPhone || 'artisan').toLowerCase();
-  const verificationSteps = [!!profilePhotoFile];
+  const verificationSteps = [!!profilePhotoPreview];
   const completedSteps = verificationSteps.filter(Boolean).length;
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
 
@@ -239,6 +256,10 @@ export default function DashboardArtisan() {
       try {
         const status = await fetchVerificationStatus('artisan', accountKey);
         setVerificationStatus(status);
+        if (status === 'approved') {
+          setIsVerifiedFromBackend(true);
+          mergeStoredUser({ isVerified: true });
+        }
       } catch {
         setVerificationStatus('not_submitted');
       }
@@ -299,7 +320,7 @@ export default function DashboardArtisan() {
     setVerificationMessage('');
     try {
       const res = await apiVerifyOtp(internationalPhone, otpInput.trim());
-      if (res.verified) {
+      if (res.verified || res.success) {
         setOtpVerified(true);
         setVerificationMessage(isEn ? 'Phone verified.' : 'Numero verifie.');
       } else {
@@ -314,6 +335,33 @@ export default function DashboardArtisan() {
         setOtpVerified(false);
         setVerificationMessage(isEn ? 'Invalid OTP.' : 'OTP invalide.');
       }
+    }
+  };
+
+  const handleProfilePhotoUpload = async (file: File | null) => {
+    setProfilePhotoFile(file);
+    if (!file) {
+      setProfilePhotoPreview(null);
+      mergeStoredUser({ photoUrl: '' });
+      return;
+    }
+
+    try {
+      setIsUploadingPhoto(true);
+      const uploaded = await uploadFile(file, 'artisan-photos');
+      setProfilePhotoPreview(uploaded.url);
+      mergeStoredUser({ photoUrl: uploaded.url });
+      setVerificationMessage(isEn ? 'Profile photo uploaded.' : 'Photo de profil telechargee.');
+    } catch {
+      const localPreview = await fileToImageDataUrl(file);
+      setProfilePhotoPreview(localPreview);
+      setVerificationMessage(
+        isEn
+          ? 'Photo preview saved locally. Upload service unavailable for now.'
+          : 'Apercu enregistre localement. Service upload indisponible pour le moment.'
+      );
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
@@ -521,7 +569,7 @@ export default function DashboardArtisan() {
       {/* ============================================================ */}
       {/*  HERO PROFILE CARD                                            */}
       {/* ============================================================ */}
-      <section className="w-full bg-gradient-to-br from-emerald-600 via-green-600 to-teal-700 relative overflow-hidden">
+      <section className="w-full bg-gradient-to-br from-amber-500 via-orange-500 to-orange-700 relative overflow-hidden">
         {/* Decorative shapes */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute -top-20 -right-20 w-72 h-72 bg-white rounded-full" />
@@ -533,8 +581,18 @@ export default function DashboardArtisan() {
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5">
             {/* Avatar */}
             <div className="relative">
-              <div className="w-20 h-20 md:w-24 md:h-24 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border-2 border-white/30 shadow-lg">
-                <span className="text-4xl md:text-5xl">&#128736;</span>
+              <div className="w-20 h-20 md:w-24 md:h-24 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border-2 border-white/30 shadow-lg overflow-hidden">
+                {profilePhotoPreview ? (
+                  <Image
+                    src={profilePhotoPreview}
+                    alt="Photo profil artisan"
+                    width={96}
+                    height={96}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-4xl md:text-5xl">&#128736;</span>
+                )}
               </div>
               {isArtisanVerified && (
                 <span className="absolute -bottom-1 -right-1 w-7 h-7 bg-white rounded-full flex items-center justify-center shadow-md">
@@ -643,7 +701,7 @@ export default function DashboardArtisan() {
             {/* Visual checklist */}
             <div className="space-y-3 mb-5">
               <StepCheck done={true} label={isEn ? 'Phone verified at signup' : 'Telephone verifie a l inscription'} />
-              <StepCheck done={!!profilePhotoFile} label={isEn ? 'Profile photo uploaded' : 'Photo de profil fournie'} />
+              <StepCheck done={!!profilePhotoPreview} label={isEn ? 'Profile photo uploaded' : 'Photo de profil fournie'} />
             </div>
 
             {/* Toggle verification form */}
@@ -677,10 +735,11 @@ export default function DashboardArtisan() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={(e) => setProfilePhotoFile(e.target.files?.[0] ?? null)}
+                    onChange={(e) => handleProfilePhotoUpload(e.target.files?.[0] ?? null)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
                   />
                   {profilePhotoFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{profilePhotoFile.name}</p>}
+                  {isUploadingPhoto && <p className="mt-1 text-[11px] font-medium text-amber-700">{isEn ? 'Uploading...' : 'Telechargement en cours...'}</p>}
                 </div>
 
                 <button

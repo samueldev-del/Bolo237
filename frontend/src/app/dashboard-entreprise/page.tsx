@@ -10,6 +10,7 @@ import {
   sendOtp as apiSendOtp,
   verifyOtp as apiVerifyOtp,
   createJob,
+  uploadFile,
   fetchUserNotifications,
   markAllNotificationsAsRead,
   fetchVerificationStatus,
@@ -18,6 +19,7 @@ import {
   type VerificationStatus,
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
+import { mergeStoredUser } from '@/lib/session';
 
 type CountryPhoneOption = {
   code: string;
@@ -82,8 +84,10 @@ export default function DashboardEntreprise() {
   const [niu, setNiu] = useState('');
   const [rccm, setRccm] = useState('');
   const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+  const [companyLogoPreview, setCompanyLogoPreview] = useState<string>('');
   const [companyDocFile, setCompanyDocFile] = useState<File | null>(null);
   const [documentsVerificationStatus, setDocumentsVerificationStatus] = useState<VerificationStatus>('not_submitted');
+  const [isVerifiedFromBackend, setIsVerifiedFromBackend] = useState(false);
 
   // Job form - multi-step wizard
   const [wizardStep, setWizardStep] = useState(1);
@@ -106,6 +110,7 @@ export default function DashboardEntreprise() {
   const isRecruiterVerified = niu.trim().length > 4 || rccm.trim().length > 4;
   const accountKey = (companyName || userName || internationalPhone || 'entreprise').toLowerCase();
   const isEnterprisePublishingReady = otpVerified && documentsVerificationStatus === 'approved';
+  const isEnterpriseCertified = isVerifiedFromBackend || documentsVerificationStatus === 'approved';
 
   // Load user info
   useEffect(() => {
@@ -116,6 +121,8 @@ export default function DashboardEntreprise() {
         setUserId(Number(user.id || 0));
         setUserName(user.name || user.fullName || user.email || '');
         setCompanyName(user.company || user.companyName || '');
+        setIsVerifiedFromBackend(Boolean(user.isVerified));
+        setCompanyLogoPreview(String(user.logoUrl || ''));
       }
     } catch {
       // silently ignore
@@ -131,6 +138,10 @@ export default function DashboardEntreprise() {
       try {
         const status = await fetchVerificationStatus('entreprise', accountKey);
         setDocumentsVerificationStatus(status);
+        if (status === 'approved') {
+          setIsVerifiedFromBackend(true);
+          mergeStoredUser({ isVerified: true });
+        }
       } catch {
         setDocumentsVerificationStatus('not_submitted');
       }
@@ -202,7 +213,7 @@ export default function DashboardEntreprise() {
     setPublishMessage('');
     try {
       const res = await apiVerifyOtp(internationalPhone, otpInput.trim());
-      if (res.verified) {
+      if (res.verified || res.success) {
         setOtpVerified(true);
         setPublishMessage(isEn ? 'Phone verified successfully!' : 'Numero de telephone verifie avec succes!');
         setPublishMessageType('success');
@@ -221,6 +232,24 @@ export default function DashboardEntreprise() {
         setPublishMessage(isEn ? 'Invalid OTP code.' : 'Code OTP invalide.');
         setPublishMessageType('error');
       }
+    }
+  };
+
+  const handleCompanyLogoUpload = async (file: File | null) => {
+    setCompanyLogoFile(file);
+    if (!file) {
+      setCompanyLogoPreview('');
+      mergeStoredUser({ logoUrl: '' });
+      return;
+    }
+
+    try {
+      const uploaded = await uploadFile(file, 'company-logos');
+      setCompanyLogoPreview(uploaded.url);
+      mergeStoredUser({ logoUrl: uploaded.url });
+    } catch {
+      const localPreview = await fileToImageDataUrl(file);
+      setCompanyLogoPreview(localPreview);
     }
   };
 
@@ -510,8 +539,12 @@ export default function DashboardEntreprise() {
 
             {/* User avatar */}
             <div className="hidden sm:flex items-center gap-2.5 pl-3 border-l border-gray-200">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white text-xs font-bold">
-                {getInitials()}
+              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold overflow-hidden">
+                {companyLogoPreview ? (
+                  <Image src={companyLogoPreview} alt="Logo entreprise" width={36} height={36} className="w-full h-full object-cover" />
+                ) : (
+                  getInitials()
+                )}
               </div>
               <div className="hidden md:block">
                 <p className="text-sm font-bold text-gray-800 leading-tight">{companyName || (isEn ? 'My Company' : 'Mon Entreprise')}</p>
@@ -541,13 +574,17 @@ export default function DashboardEntreprise() {
         `}>
           {/* Gradient company header */}
           <div className="p-5">
-            <div className="bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 rounded-2xl p-5 text-white relative overflow-hidden">
+            <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-sky-700 rounded-2xl p-5 text-white relative overflow-hidden">
               {/* Decorative circles */}
               <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-white/10" />
               <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-white/5" />
               <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-xl font-extrabold mb-3 border border-white/20">
-                  {getInitials()}
+                <div className="w-14 h-14 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-xl font-extrabold mb-3 border border-white/20 overflow-hidden">
+                  {companyLogoPreview ? (
+                    <Image src={companyLogoPreview} alt="Logo entreprise" width={56} height={56} className="w-full h-full object-cover" />
+                  ) : (
+                    getInitials()
+                  )}
                 </div>
                 <p className="font-bold text-[15px] leading-tight truncate">
                   {companyName || (isEn ? 'My Company' : 'Mon Entreprise')}
@@ -556,13 +593,13 @@ export default function DashboardEntreprise() {
                   {userName || (isEn ? 'Recruiter' : 'Recruteur')}
                 </p>
                 <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full mt-3 ${
-                  isRecruiterVerified
+                  isEnterpriseCertified
                     ? 'bg-white/20 text-white'
                     : 'bg-amber-400/90 text-amber-900'
                 }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${isRecruiterVerified ? 'bg-green-300' : 'bg-amber-700'}`} />
-                  {isRecruiterVerified
-                    ? (isEn ? 'VERIFIED RECRUITER' : 'RECRUTEUR VERIFIE')
+                  <span className={`w-1.5 h-1.5 rounded-full ${isEnterpriseCertified ? 'bg-blue-200' : 'bg-amber-700'}`} />
+                  {isEnterpriseCertified
+                    ? (isEn ? 'CERTIFIED ACCOUNT' : 'COMPTE CERTIFIE')
                     : (isEn ? 'UNVERIFIED' : 'NON VERIFIE')}
                 </div>
               </div>
@@ -580,14 +617,14 @@ export default function DashboardEntreprise() {
                 onClick={() => navigateTo(item.key)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all mb-0.5
                   ${activeSection === item.key
-                    ? 'bg-green-50 text-green-700 shadow-sm'
+                    ? 'bg-blue-50 text-blue-700 shadow-sm'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
                 `}
               >
                 <span className="text-base w-6 text-center">{item.icon}</span>
                 <span>{item.label}</span>
                 {item.key === 'applications' && (
-                  <span className="ml-auto bg-green-600 text-white text-[10px] font-bold min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center">
+                  <span className="ml-auto bg-blue-600 text-white text-[10px] font-bold min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center">
                     {unreadNotifications > 99 ? '99+' : unreadNotifications}
                   </span>
                 )}
@@ -598,7 +635,7 @@ export default function DashboardEntreprise() {
             <div className="border-t border-gray-100 my-3" />
 
             {/* Launch offer banner in sidebar */}
-            <div className="mx-2 bg-gradient-to-r from-green-600 to-emerald-500 rounded-xl p-4 text-white">
+            <div className="mx-2 bg-gradient-to-r from-blue-600 to-indigo-500 rounded-xl p-4 text-white">
               <p className="text-[10px] font-bold uppercase tracking-wider opacity-80 mb-1">
                 {isEn ? 'Launch offer' : 'Offre de lancement'}
               </p>
@@ -980,7 +1017,7 @@ export default function DashboardEntreprise() {
                               type="file"
                               accept="image/*"
                               onChange={(e) => {
-                                setCompanyLogoFile(e.target.files?.[0] ?? null);
+                                handleCompanyLogoUpload(e.target.files?.[0] ?? null);
                                 if (documentsVerificationStatus === 'approved') {
                                   setDocumentsVerificationStatus('not_submitted');
                                 }
@@ -988,6 +1025,11 @@ export default function DashboardEntreprise() {
                               className="w-full p-2.5 border border-gray-300 rounded-xl text-sm bg-white"
                             />
                             {companyLogoFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{companyLogoFile.name}</p>}
+                            {companyLogoPreview && (
+                              <div className="mt-2 w-14 h-14 rounded-xl border border-gray-200 overflow-hidden bg-white">
+                                <Image src={companyLogoPreview} alt="Apercu logo" width={56} height={56} className="w-full h-full object-cover" />
+                              </div>
+                            )}
                           </div>
 
                           <div>

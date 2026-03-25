@@ -272,7 +272,7 @@ export async function fetchUser(id: number): Promise<ApiUser & { jobs: ApiJob[] 
 }
 
 export async function createUser(data: {
-  email: string;
+  email?: string;
   password: string;
   name?: string;
   role?: string;
@@ -285,7 +285,9 @@ export async function createUser(data: {
 }
 
 export async function loginUser(data: {
-  email: string;
+  email?: string;
+  phone?: string;
+  identifier?: string;
   password: string;
 }): Promise<ApiUser> {
   return apiFetch<ApiUser>('/api/auth/login', {

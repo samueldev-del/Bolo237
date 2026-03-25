@@ -7,8 +7,6 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
-  sendOtp as apiSendOtp,
-  verifyOtp as apiVerifyOtp,
   createJob,
   uploadFile,
   fetchSessionUser,
@@ -22,24 +20,6 @@ import {
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
 import { clearStoredSession, mergeStoredUser } from '@/lib/session';
-
-type CountryPhoneOption = {
-  code: string;
-  flag: string;
-  dialCode: string;
-  placeholder: string;
-};
-
-const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
-  { code: 'CM', flag: '🇨🇲', dialCode: '+237', placeholder: '6XX XX XX XX' },
-  { code: 'FR', flag: '🇫🇷', dialCode: '+33', placeholder: '6 12 34 56 78' },
-  { code: 'DE', flag: '🇩🇪', dialCode: '+49', placeholder: '1512 3456789' },
-  { code: 'CA', flag: '🇨🇦', dialCode: '+1', placeholder: '514 123 4567' },
-  { code: 'US', flag: '🇺🇸', dialCode: '+1', placeholder: '415 123 4567' },
-  { code: 'GB', flag: '🇬🇧', dialCode: '+44', placeholder: '7123 456789' },
-  { code: 'BE', flag: '🇧🇪', dialCode: '+32', placeholder: '470 12 34 56' },
-  { code: 'CH', flag: '🇨🇭', dialCode: '+41', placeholder: '79 123 45 67' },
-];
 
 /* ────────────────────────────────────────────
    Types
@@ -74,21 +54,10 @@ export default function DashboardEntreprise() {
   const [notifications, setNotifications] = useState<ApiNotification[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
-  // OTP flow
-  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryPhoneOption['code']>('CM');
-  const [phone, setPhone] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [otpInput, setOtpInput] = useState('');
-  const [otpVerified, setOtpVerified] = useState(false);
-
-  // Company verification
-  const [niu, setNiu] = useState('');
-  const [rccm, setRccm] = useState('');
+  // Company profile readiness
   const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
   const [companyLogoPreview, setCompanyLogoPreview] = useState<string>('');
-  const [companyDocFile, setCompanyDocFile] = useState<File | null>(null);
-  const [documentsVerificationStatus, setDocumentsVerificationStatus] = useState<VerificationStatus>('not_submitted');
+  const [profileReviewStatus, setProfileReviewStatus] = useState<VerificationStatus>('not_submitted');
   const [isVerifiedFromBackend, setIsVerifiedFromBackend] = useState(false);
 
   // Job form - multi-step wizard
@@ -105,14 +74,10 @@ export default function DashboardEntreprise() {
   const [jobsPublishedCount, setJobsPublishedCount] = useState(0);
   const [publishedJobs, setPublishedJobs] = useState<JobEntry[]>([]);
 
-  const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
-  const cleanedLocalPhone = phone.replace(/\D/g, '');
-  const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
-
-  const isRecruiterVerified = niu.trim().length > 4 || rccm.trim().length > 4;
-  const accountKey = (companyName || userName || internationalPhone || 'entreprise').toLowerCase();
-  const isEnterprisePublishingReady = otpVerified && documentsVerificationStatus === 'approved';
-  const isEnterpriseCertified = isVerifiedFromBackend || documentsVerificationStatus === 'approved';
+  const accountKey = (companyName || userName || 'entreprise').toLowerCase();
+  const hasCompanyPhoto = Boolean(companyLogoPreview || companyLogoFile);
+  const isEnterprisePublishingReady = hasCompanyPhoto;
+  const isEnterpriseCertified = isVerifiedFromBackend || profileReviewStatus === 'approved';
 
   // Load user info
   useEffect(() => {
@@ -152,18 +117,18 @@ export default function DashboardEntreprise() {
   useEffect(() => {
     const loadVerificationStatus = async () => {
       if (!accountKey) {
-        setDocumentsVerificationStatus('not_submitted');
+        setProfileReviewStatus('not_submitted');
         return;
       }
       try {
         const status = await fetchVerificationStatus('entreprise', accountKey);
-        setDocumentsVerificationStatus(status);
+        setProfileReviewStatus(status);
         if (status === 'approved') {
           setIsVerifiedFromBackend(true);
           mergeStoredUser({ isVerified: true });
         }
       } catch {
-        setDocumentsVerificationStatus('not_submitted');
+        setProfileReviewStatus('not_submitted');
       }
     };
 
@@ -208,53 +173,6 @@ export default function DashboardEntreprise() {
       .slice(0, 2);
   }, [companyName, userName, isEn]);
 
-  /* ── OTP Handlers ── */
-  const sendOtp = async () => {
-    if (!cleanedLocalPhone || cleanedLocalPhone.length < 6 || cleanedLocalPhone.length > 14) {
-      setPublishMessage(isEn ? 'Enter a valid phone number before sending OTP.' : 'Saisissez un numero de telephone valide avant l\'envoi OTP.');
-      setPublishMessageType('error');
-      return;
-    }
-    setPublishMessage('');
-    try {
-      const res = await apiSendOtp(internationalPhone);
-      setOtpCode(res.demoCode || '');
-      setOtpSent(true);
-      setOtpVerified(false);
-    } catch {
-      const fallback = String(Math.floor(100000 + Math.random() * 900000));
-      setOtpCode(fallback);
-      setOtpSent(true);
-      setOtpVerified(false);
-    }
-  };
-
-  const verifyOtp = async () => {
-    setPublishMessage('');
-    try {
-      const res = await apiVerifyOtp(internationalPhone, otpInput.trim());
-      if (res.verified || res.success) {
-        setOtpVerified(true);
-        setPublishMessage(isEn ? 'Phone verified successfully!' : 'Numero de telephone verifie avec succes!');
-        setPublishMessageType('success');
-      } else {
-        setOtpVerified(false);
-        setPublishMessage(res.error || (isEn ? 'Invalid OTP code.' : 'Code OTP invalide.'));
-        setPublishMessageType('error');
-      }
-    } catch {
-      if (otpInput.trim() === otpCode) {
-        setOtpVerified(true);
-        setPublishMessage(isEn ? 'Phone verified successfully!' : 'Numero de telephone verifie avec succes!');
-        setPublishMessageType('success');
-      } else {
-        setOtpVerified(false);
-        setPublishMessage(isEn ? 'Invalid OTP code.' : 'Code OTP invalide.');
-        setPublishMessageType('error');
-      }
-    }
-  };
-
   const handleCompanyLogoUpload = async (file: File | null) => {
     setCompanyLogoFile(file);
     if (!file) {
@@ -273,49 +191,32 @@ export default function DashboardEntreprise() {
     }
   };
 
-  const verifyCompanyDocuments = async () => {
+  const submitProfileReview = async () => {
     if (!companyLogoFile) {
-      setPublishMessage(isEn ? 'Upload your company logo before verification.' : 'Telechargez le logo de l entreprise avant verification.');
-      setPublishMessageType('error');
-      return;
-    }
-    if (!companyDocFile) {
-      setPublishMessage(isEn ? 'Upload NIU or RCCM supporting document first.' : 'Telechargez d abord le justificatif NIU ou RCCM.');
-      setPublishMessageType('error');
-      return;
-    }
-    if (!isRecruiterVerified) {
-      setPublishMessage(isEn ? 'Enter a valid NIU or RCCM before verification.' : 'Renseignez un NIU ou RCCM valide avant verification.');
+      setPublishMessage(isEn ? 'Upload your company logo before sending your profile.' : 'Telechargez le logo de votre entreprise avant envoi.');
       setPublishMessageType('error');
       return;
     }
 
-    const [logoPreview, legalDocPreview] = await Promise.all([
-      fileToImageDataUrl(companyLogoFile),
-      fileToImageDataUrl(companyDocFile),
-    ]);
+    const logoPreview = await fileToImageDataUrl(companyLogoFile);
 
     await createVerificationSubmission({
       role: 'entreprise',
       accountKey,
       displayName: companyName || userName || 'Entreprise',
-      phone: internationalPhone,
+      phone: '',
       payload: {
         userId,
-        niu,
-        rccm,
         hasLogo: !!companyLogoFile,
         logoFileName: companyLogoFile?.name ?? null,
-        legalDocFileName: companyDocFile?.name ?? null,
         logoPreview,
-        legalDocPreview,
       },
     });
-    setDocumentsVerificationStatus('pending');
+    setProfileReviewStatus('pending');
     setPublishMessage(
       isEn
-        ? 'Verification request sent. Waiting for Super Admin approval.'
-        : 'Demande de verification envoyee. En attente d approbation Super Admin.'
+        ? 'Profile submitted. Waiting for Super Admin approval.'
+        : 'Profil envoye. En attente d approbation Super Admin.'
     );
     setPublishMessageType('info');
   };
@@ -326,11 +227,6 @@ export default function DashboardEntreprise() {
   /* ── Publish Job ── */
   const publishJob = async () => {
     const blocked = containsBlockedKeyword(`${jobTitle} ${jobDescription}`);
-    if (!otpVerified) {
-      setPublishMessage(isEn ? 'OTP phone verification is mandatory for publication.' : 'La verification OTP du numero est obligatoire pour publier.');
-      setPublishMessageType('error');
-      return;
-    }
     if (!jobTitle.trim() || !jobDescription.trim()) {
       setPublishMessage(isEn ? 'Fill in title and description first.' : 'Renseignez d\'abord le titre et la description.');
       setPublishMessageType('error');
@@ -341,26 +237,14 @@ export default function DashboardEntreprise() {
       setPublishMessageType('error');
       return;
     }
-    if (documentsVerificationStatus !== 'approved') {
-      setPublishMessage(
-        isEn
-          ? 'Document verification must be approved by Super Admin before publication.'
-          : 'La verification documentaire doit etre approuvee par le Super Admin avant publication.'
-      );
-      setPublishMessageType('error');
-      return;
-    }
     if (blocked) {
       setPublishMessage(`${isEn ? 'Blocked by anti-fraud filter keyword:' : 'Bloque par le filtre anti-fraude, mot-cle:'} "${blocked}"`);
       setPublishMessageType('error');
       return;
     }
-    if (jobsPublishedCount >= 3 && !canPublishUnlimited(isRecruiterVerified)) {
-      setPublishMessage(
-        isEn
-          ? 'Unlimited publications are locked. Add NIU or RCCM to get the Verified Recruiter badge.'
-          : 'La publication illimitee est bloquee. Ajoutez le NIU ou le RCCM pour obtenir le badge Recruteur Verifie.'
-      );
+    const canPublishMore = canPublishUnlimited(true) || jobsPublishedCount < 999;
+    if (!canPublishMore) {
+      setPublishMessage(isEn ? 'Publication limit reached.' : 'Limite de publication atteinte.');
       setPublishMessageType('error');
       return;
     }
@@ -704,10 +588,9 @@ export default function DashboardEntreprise() {
               <div className="space-y-6">
                 {/* Enterprise Lock Banner */}
                 {(() => {
-                  const hasLogo = !!companyLogoFile;
-                  const hasDoc = !!companyDocFile;
-                  const isApproved = documentsVerificationStatus === 'approved';
-                  const allReady = hasLogo && hasDoc && isApproved;
+                  const hasLogo = hasCompanyPhoto;
+                  const isApproved = profileReviewStatus === 'approved';
+                  const allReady = hasLogo;
                   return (
                     <div className={`rounded-2xl border-2 p-4 sm:p-5 transition-all ${
                       allReady
@@ -729,18 +612,15 @@ export default function DashboardEntreprise() {
                           <p className={`text-xs font-medium mt-1 ${allReady ? 'text-green-600' : 'text-amber-700'}`}>
                             {allReady
                               ? (isEn ? 'All requirements have been met.' : 'Toutes les conditions sont remplies.')
-                              : (isEn ? 'Logo + NIU/RCCM document are required before posting.' : 'Le logo + document NIU/RCCM sont requis avant de publier.')}
+                              : (isEn ? 'Add your logo photo to unlock publication.' : 'Ajoutez la photo/logo de votre entreprise pour publier.')}
                           </p>
                           {/* Checklist */}
                           <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2.5">
                             <span className={`text-xs font-semibold flex items-center gap-1 ${hasLogo ? 'text-green-700' : 'text-gray-400'}`}>
                               {hasLogo ? '\u2713' : '\u25CB'} {isEn ? 'Company logo' : 'Logo entreprise'}
                             </span>
-                            <span className={`text-xs font-semibold flex items-center gap-1 ${hasDoc ? 'text-green-700' : 'text-gray-400'}`}>
-                              {hasDoc ? '\u2713' : '\u25CB'} {isEn ? 'NIU/RCCM document' : 'Document NIU/RCCM'}
-                            </span>
                             <span className={`text-xs font-semibold flex items-center gap-1 ${isApproved ? 'text-green-700' : 'text-gray-400'}`}>
-                              {isApproved ? '\u2713' : '\u25CB'} {isEn ? 'Documents approved' : 'Documents approuves'}
+                              {isApproved ? '\u2713' : '\u25CB'} {isEn ? 'Admin approved profile' : 'Profil approuve par admin'}
                             </span>
                           </div>
                           {!allReady && (
@@ -796,27 +676,27 @@ export default function DashboardEntreprise() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     onClick={() => navigateTo('post')}
-                    disabled={!(companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved')}
+                    disabled={!isEnterprisePublishingReady}
                     className={`group rounded-2xl p-6 text-center transition-all ${
-                      companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved'
+                      isEnterprisePublishingReady
                         ? 'bg-white border-2 border-dashed border-green-300 hover:border-green-500 hover:shadow-lg cursor-pointer'
                         : 'bg-gray-50 border-2 border-dashed border-gray-200 opacity-60 cursor-not-allowed'
                     }`}
                   >
                     <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3 transition text-2xl ${
-                      companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved'
+                      isEnterprisePublishingReady
                         ? 'bg-green-50 group-hover:bg-green-100'
                         : 'bg-gray-100'
                     }`}>
-                      {companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved' ? '\u{1F4DD}' : '\uD83D\uDD12'}
+                      {isEnterprisePublishingReady ? '\u{1F4DD}' : '\uD83D\uDD12'}
                     </div>
                     <p className={`font-bold text-[15px] ${
-                      companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved' ? 'text-gray-900' : 'text-gray-400'
+                      isEnterprisePublishingReady ? 'text-gray-900' : 'text-gray-400'
                     }`}>{isEn ? 'Post a New Job' : 'Publier une nouvelle offre'}</p>
                     <p className="text-xs text-gray-500 font-medium mt-1">
-                      {companyLogoFile && companyDocFile && documentsVerificationStatus === 'approved'
+                      {isEnterprisePublishingReady
                         ? (isEn ? 'Free during launch' : 'Gratuit pendant le lancement')
-                        : (isEn ? 'Complete verification first' : 'Completez la verification d\'abord')}
+                        : (isEn ? 'Add your logo photo first' : 'Ajoutez d abord votre photo/logo')}
                     </p>
                   </button>
 
@@ -916,7 +796,7 @@ export default function DashboardEntreprise() {
                   {/* Step labels */}
                   <div className="grid grid-cols-3 gap-2 mb-8">
                     <p className={`text-[11px] sm:text-xs font-bold text-center ${wizardStep >= 1 ? 'text-green-700' : 'text-gray-400'}`}>
-                      {isEn ? 'Verify Phone' : 'Verification'}
+                      {isEn ? 'Profile Setup' : 'Profil'}
                     </p>
                     <p className={`text-[11px] sm:text-xs font-bold text-center ${wizardStep >= 2 ? 'text-green-700' : 'text-gray-400'}`}>
                       {isEn ? 'Job Details' : 'Details offre'}
@@ -926,156 +806,84 @@ export default function DashboardEntreprise() {
                     </p>
                   </div>
 
-                  {/* ── STEP 1: OTP Verification ── */}
+                  {/* ── STEP 1: Profile setup ── */}
                   {wizardStep === 1 && (
                     <div className="space-y-5">
                       <div className={`rounded-2xl p-5 sm:p-6 border-2 transition-all ${
-                        otpVerified
+                        hasCompanyPhoto
                           ? 'bg-green-50 border-green-200'
                           : 'bg-amber-50 border-amber-200'
                       }`}>
                         <div className="flex items-start gap-3 mb-4">
                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${
-                            otpVerified ? 'bg-green-200' : 'bg-amber-200'
+                            hasCompanyPhoto ? 'bg-green-200' : 'bg-amber-200'
                           }`}>
-                            {otpVerified ? '\u2705' : '\u{1F4F1}'}
+                            {hasCompanyPhoto ? '\u2705' : '\u{1F3E2}'}
                           </div>
                           <div>
-                            <p className={`font-bold text-sm ${otpVerified ? 'text-green-800' : 'text-amber-800'}`}>
-                              {otpVerified
-                                ? (isEn ? 'Phone Verified!' : 'Telephone verifie!')
-                                : (isEn ? 'Phone Verification Required' : 'Verification telephone requise')}
+                            <p className={`font-bold text-sm ${hasCompanyPhoto ? 'text-green-800' : 'text-amber-800'}`}>
+                              {hasCompanyPhoto
+                                ? (isEn ? 'Company profile ready!' : 'Profil entreprise pret!')
+                                : (isEn ? 'Company logo required' : 'Logo entreprise requis')}
                             </p>
-                            <p className={`text-xs font-medium mt-0.5 ${otpVerified ? 'text-green-600' : 'text-amber-700'}`}>
+                            <p className={`text-xs font-medium mt-0.5 ${hasCompanyPhoto ? 'text-green-600' : 'text-amber-700'}`}>
                               {isEn
-                                ? 'OTP verification is mandatory before posting any job.'
-                                : 'La verification OTP est obligatoire avant toute publication.'}
+                                ? 'Upload your company logo to unlock posting.'
+                                : 'Telechargez votre logo entreprise pour debloquer la publication.'}
                             </p>
                           </div>
                         </div>
 
-                        {!otpVerified && (
-                          <div className="space-y-3">
-                            <div className="flex flex-col sm:flex-row gap-2">
-                              <input
-                                type="tel"
-                                value={phone}
-                                onChange={(e) => setPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
-                                placeholder={selectedCountry.placeholder}
-                                className="flex-1 p-3 border border-gray-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                              />
-                              <select
-                                value={selectedCountryCode}
-                                onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
-                                className="p-3 border border-gray-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
-                              >
-                                {COUNTRY_PHONE_OPTIONS.map((country) => (
-                                  <option key={country.code} value={country.code}>
-                                    {country.flag} {country.dialCode}
-                                  </option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={sendOtp}
-                                className="px-6 py-3 rounded-xl bg-gray-900 text-white font-bold text-sm hover:bg-black transition shrink-0 active:scale-[0.98]"
-                              >
-                                {isEn ? 'Send OTP' : 'Envoyer OTP'}
-                              </button>
+                        <div>
+                          <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                            {isEn ? 'Company logo' : 'Logo entreprise'}
+                          </label>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              handleCompanyLogoUpload(e.target.files?.[0] ?? null);
+                              if (profileReviewStatus === 'approved') {
+                                setProfileReviewStatus('not_submitted');
+                              }
+                            }}
+                            className="w-full p-2.5 border border-gray-300 rounded-xl text-sm bg-white"
+                          />
+                          {companyLogoFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{companyLogoFile.name}</p>}
+                          {companyLogoPreview && (
+                            <div className="mt-2 w-14 h-14 rounded-xl border border-gray-200 overflow-hidden bg-white">
+                              <Image src={companyLogoPreview} alt="Apercu logo" width={56} height={56} className="w-full h-full object-cover" />
                             </div>
-
-                            {otpSent && (
-                              <div className="space-y-3 pt-2">
-                                <p className="text-[11px] font-bold text-gray-500">
-                                  {isEn ? 'Demo code:' : 'Code demo:'} {otpCode}
-                                </p>
-                                <div className="flex flex-col sm:flex-row gap-2">
-                                  <input
-                                    value={otpInput}
-                                    onChange={(e) => setOtpInput(e.target.value)}
-                                    placeholder="000000"
-                                    className="flex-1 p-3 border border-gray-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none tracking-widest text-center font-bold text-lg"
-                                    maxLength={6}
-                                  />
-                                  <button
-                                    onClick={verifyOtp}
-                                    className="px-6 py-3 rounded-xl bg-green-600 text-white font-bold text-sm hover:bg-green-700 transition shrink-0 active:scale-[0.98]"
-                                  >
-                                    {isEn ? 'Verify' : 'Verifier'}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
 
                       <div className={`rounded-2xl p-5 sm:p-6 border-2 transition-all ${
-                        documentsVerificationStatus === 'approved' ? 'bg-green-50 border-green-200' : documentsVerificationStatus === 'pending' ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'
+                        profileReviewStatus === 'approved' ? 'bg-green-50 border-green-200' : profileReviewStatus === 'pending' ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'
                       }`}>
                         <div className="flex items-start gap-3 mb-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${documentsVerificationStatus === 'approved' ? 'bg-green-200' : documentsVerificationStatus === 'pending' ? 'bg-blue-200' : 'bg-amber-200'}`}>
-                            {documentsVerificationStatus === 'approved' ? '\u2705' : documentsVerificationStatus === 'pending' ? '\u{23F3}' : '\u{1F4C4}'}
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${profileReviewStatus === 'approved' ? 'bg-green-200' : profileReviewStatus === 'pending' ? 'bg-blue-200' : 'bg-amber-200'}`}>
+                            {profileReviewStatus === 'approved' ? '\u2705' : profileReviewStatus === 'pending' ? '\u{23F3}' : '\u{1F6E1}'}
                           </div>
                           <div>
-                            <p className={`font-bold text-sm ${documentsVerificationStatus === 'approved' ? 'text-green-800' : documentsVerificationStatus === 'pending' ? 'text-blue-800' : 'text-amber-800'}`}>
-                              {documentsVerificationStatus === 'approved'
+                            <p className={`font-bold text-sm ${profileReviewStatus === 'approved' ? 'text-green-800' : profileReviewStatus === 'pending' ? 'text-blue-800' : 'text-amber-800'}`}>
+                              {profileReviewStatus === 'approved'
                                 ? (isEn ? 'Approved by Super Admin' : 'Approuve par le Super Admin')
-                                : documentsVerificationStatus === 'pending'
+                                : profileReviewStatus === 'pending'
                                   ? (isEn ? 'Pending Super Admin review' : 'En attente de validation Super Admin')
-                                  : (isEn ? 'Logo + Legal documents required' : 'Logo + documents legaux requis')}
+                                  : (isEn ? 'Submit your profile for admin review' : 'Soumettez votre profil a la validation admin')}
                             </p>
-                            <p className={`text-xs font-medium mt-0.5 ${documentsVerificationStatus === 'approved' ? 'text-green-600' : documentsVerificationStatus === 'pending' ? 'text-blue-700' : 'text-amber-700'}`}>
+                            <p className={`text-xs font-medium mt-0.5 ${profileReviewStatus === 'approved' ? 'text-green-600' : profileReviewStatus === 'pending' ? 'text-blue-700' : 'text-amber-700'}`}>
                               {isEn
-                                ? 'Upload your logo and NIU/RCCM proof, then submit to Super Admin for validation before posting.'
-                                : 'Telechargez votre logo et un justificatif NIU/RCCM, puis soumettez au Super Admin avant publication.'}
+                                ? 'Admin review is optional for publication, but recommended to build trust.'
+                                : 'La validation admin est optionnelle pour publier, mais recommandee pour la confiance.'}
                             </p>
                           </div>
                         </div>
 
                         <div className="space-y-3">
-                          <div>
-                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
-                              {isEn ? 'Company logo' : 'Logo entreprise'}
-                            </label>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                handleCompanyLogoUpload(e.target.files?.[0] ?? null);
-                                if (documentsVerificationStatus === 'approved') {
-                                  setDocumentsVerificationStatus('not_submitted');
-                                }
-                              }}
-                              className="w-full p-2.5 border border-gray-300 rounded-xl text-sm bg-white"
-                            />
-                            {companyLogoFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{companyLogoFile.name}</p>}
-                            {companyLogoPreview && (
-                              <div className="mt-2 w-14 h-14 rounded-xl border border-gray-200 overflow-hidden bg-white">
-                                <Image src={companyLogoPreview} alt="Apercu logo" width={56} height={56} className="w-full h-full object-cover" />
-                              </div>
-                            )}
-                          </div>
-
-                          <div>
-                            <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
-                              {isEn ? 'NIU/RCCM proof document' : 'Justificatif NIU/RCCM'}
-                            </label>
-                            <input
-                              type="file"
-                              accept="image/*,.pdf"
-                              onChange={(e) => {
-                                setCompanyDocFile(e.target.files?.[0] ?? null);
-                                if (documentsVerificationStatus === 'approved') {
-                                  setDocumentsVerificationStatus('not_submitted');
-                                }
-                              }}
-                              className="w-full p-2.5 border border-gray-300 rounded-xl text-sm bg-white"
-                            />
-                            {companyDocFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{companyDocFile.name}</p>}
-                          </div>
-
                           <button
-                            onClick={verifyCompanyDocuments}
+                            onClick={submitProfileReview}
                             className="w-full px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-bold hover:bg-black transition"
                           >
                             {isEn ? 'Submit to Super Admin' : 'Soumettre au Super Admin'}
@@ -1096,14 +904,14 @@ export default function DashboardEntreprise() {
 
                       <button
                         onClick={() => {
-                          if (otpVerified && documentsVerificationStatus === 'approved') {
+                          if (isEnterprisePublishingReady) {
                             setPublishMessage('');
                             setWizardStep(2);
                           } else {
                             setPublishMessage(
                               isEn
-                                ? 'Complete phone verification and get Super Admin approval for your documents before continuing.'
-                                : 'Completez la verification telephone et obtenez la validation Super Admin de vos documents avant de continuer.'
+                                ? 'Add your company logo photo before continuing.'
+                                : 'Ajoutez la photo/logo de votre entreprise avant de continuer.'
                             );
                             setPublishMessageType('error');
                           }
@@ -1277,9 +1085,9 @@ export default function DashboardEntreprise() {
                             <p className="text-sm text-gray-700 whitespace-pre-line leading-relaxed">{jobDescription}</p>
                           </div>
                           <div>
-                            <p className="text-[10px] font-bold uppercase text-gray-400 tracking-wider mb-1">{isEn ? 'Phone' : 'Telephone'}</p>
+                            <p className="text-[10px] font-bold uppercase text-gray-400 tracking-wider mb-1">{isEn ? 'Company' : 'Entreprise'}</p>
                             <p className="font-bold text-green-600 text-sm flex items-center gap-1.5">
-                              {'\u2705'} {internationalPhone}
+                              {'\u2705'} {companyName || userName || '-'}
                             </p>
                           </div>
                         </div>
@@ -1380,71 +1188,62 @@ export default function DashboardEntreprise() {
               <div className="space-y-6">
                 <h2 className="text-lg font-extrabold text-gray-900">{isEn ? 'Company Profile' : 'Profil Entreprise'}</h2>
 
-                {/* Verification section */}
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center gap-3">
                     <span className="text-xl">{'\u{1F6E1}'}</span>
                     <div>
-                      <p className="font-bold text-gray-900 text-sm">{isEn ? 'Identity Shield' : 'Bouclier Identite'}</p>
-                      <p className="text-xs text-gray-500">{isEn ? 'Verify your company to unlock unlimited posting' : 'Verifiez votre entreprise pour debloquer la publication illimitee'}</p>
+                      <p className="font-bold text-gray-900 text-sm">{isEn ? 'Trust Profile' : 'Profil de confiance'}</p>
+                      <p className="text-xs text-gray-500">{isEn ? 'A serious profile improves conversion and credibility.' : 'Un profil serieux ameliore la conversion et la credibilite.'}</p>
                     </div>
                   </div>
                   <div className="p-5 sm:p-6 space-y-4">
-                    <div className={`rounded-xl p-4 border-2 ${isRecruiterVerified ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+                    <div className={`rounded-xl p-4 border-2 ${isEnterpriseCertified ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${isRecruiterVerified ? 'bg-green-500' : 'bg-amber-500'}`} />
-                        <p className={`text-sm font-bold ${isRecruiterVerified ? 'text-green-800' : 'text-amber-800'}`}>
-                          {isRecruiterVerified
-                            ? (isEn ? 'Verified Recruiter' : 'Recruteur Verifie')
-                            : (isEn ? 'Unverified - Limited to 3 posts' : 'Non verifie - Limite a 3 publications')}
+                        <span className={`w-2.5 h-2.5 rounded-full ${isEnterpriseCertified ? 'bg-green-500' : 'bg-amber-500'}`} />
+                        <p className={`text-sm font-bold ${isEnterpriseCertified ? 'text-green-800' : 'text-amber-800'}`}>
+                          {isEnterpriseCertified
+                            ? (isEn ? 'Verified badge active' : 'Badge verifie actif')
+                            : (isEn ? 'Awaiting admin validation' : 'En attente de validation admin')}
                         </p>
                       </div>
                       <p className="text-xs text-gray-600 font-medium">
                         {isEn
-                          ? 'Enter your NIU or RCCM number (5+ characters) to unlock unlimited job posting.'
-                          : 'Entrez votre NIU ou RCCM (5+ caracteres) pour debloquer la publication illimitee.'}
+                          ? 'Admins can validate serious accounts directly from the admin panel.'
+                          : 'Les admins peuvent valider les comptes serieux directement depuis le panel admin.'}
                       </p>
                     </div>
 
-                    <div className={`rounded-xl p-4 border-2 ${documentsVerificationStatus === 'approved' ? 'bg-green-50 border-green-200' : documentsVerificationStatus === 'pending' ? 'bg-blue-50 border-blue-200' : 'bg-amber-50 border-amber-200'}`}>
+                    <div className={`rounded-xl p-4 border-2 ${hasCompanyPhoto ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
                       <div className="flex items-center gap-2 mb-2">
-                        <span className={`w-2.5 h-2.5 rounded-full ${documentsVerificationStatus === 'approved' ? 'bg-green-500' : documentsVerificationStatus === 'pending' ? 'bg-blue-500' : 'bg-amber-500'}`} />
-                        <p className={`text-sm font-bold ${documentsVerificationStatus === 'approved' ? 'text-green-800' : documentsVerificationStatus === 'pending' ? 'text-blue-800' : 'text-amber-800'}`}>
-                          {documentsVerificationStatus === 'approved'
-                            ? (isEn ? 'Documents approved by Super Admin' : 'Documents approuves par Super Admin')
-                            : documentsVerificationStatus === 'pending'
-                              ? (isEn ? 'Documents pending Super Admin review' : 'Documents en attente Super Admin')
-                              : (isEn ? 'Documents & logo not submitted' : 'Documents et logo non soumis')}
+                        <span className={`w-2.5 h-2.5 rounded-full ${hasCompanyPhoto ? 'bg-green-500' : 'bg-amber-500'}`} />
+                        <p className={`text-sm font-bold ${hasCompanyPhoto ? 'text-green-800' : 'text-amber-800'}`}>
+                          {hasCompanyPhoto
+                            ? (isEn ? 'Photo/logo uploaded' : 'Photo/logo telecharge')
+                            : (isEn ? 'Photo/logo missing' : 'Photo/logo manquant')}
                         </p>
                       </div>
                       <p className="text-xs text-gray-600 font-medium">
                         {isEn
-                          ? 'A company cannot publish any job before Super Admin validates logo and legal documents.'
-                          : 'Une entreprise ne peut pas publier d offre tant que le Super Admin n a pas valide le logo et les documents legaux.'}
+                          ? 'Add a clean logo/photo to improve trust on listings and profile pages.'
+                          : 'Ajoutez un logo/photo propre pour renforcer la confiance sur vos annonces et votre profil.'}
                       </p>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">NIU</label>
-                        <input
-                          type="text"
-                          value={niu}
-                          onChange={(e) => setNiu(e.target.value)}
-                          placeholder={isEn ? 'Tax identification number' : 'Numero d\'identification fiscale'}
-                          className="w-full p-3.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">RCCM</label>
-                        <input
-                          type="text"
-                          value={rccm}
-                          onChange={(e) => setRccm(e.target.value)}
-                          placeholder={isEn ? 'Trade register number' : 'Registre de commerce'}
-                          className="w-full p-3.5 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                        />
-                      </div>
+                    <div>
+                      <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                        {isEn ? 'Company logo / profile photo' : 'Logo / photo entreprise'}
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleCompanyLogoUpload(e.target.files?.[0] ?? null)}
+                        className="w-full p-3 border border-gray-200 rounded-xl text-sm bg-white"
+                      />
+                      {companyLogoPreview && (
+                        <div className="mt-2 w-14 h-14 rounded-xl border border-gray-200 overflow-hidden bg-white">
+                          <Image src={companyLogoPreview} alt="Apercu logo" width={56} height={56} className="w-full h-full object-cover" />
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

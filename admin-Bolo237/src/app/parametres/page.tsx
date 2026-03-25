@@ -83,7 +83,17 @@ export default function ParametresPage() {
   const [healthChecking, setHealthChecking] = useState(false);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+  const apiUrl = (() => {
+    const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+    if (fromEnv) return fromEnv;
+    if (typeof window !== "undefined") {
+      const host = window.location.hostname;
+      if (host === "localhost" || host === "127.0.0.1") {
+        return "http://localhost:5000";
+      }
+    }
+    return "https://api-bolo237.onrender.com";
+  })();
 
   function showToast(message: string, type: "success" | "error") {
     setToast({ message, type });

@@ -7,8 +7,6 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
-  sendOtp as apiSendOtp,
-  verifyOtp as apiVerifyOtp,
   createJob,
   fetchJobs,
   fetchSessionUser,
@@ -21,24 +19,6 @@ import {
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
 import { clearStoredSession, mergeStoredUser } from '@/lib/session';
-
-type CountryPhoneOption = {
-  code: string;
-  flag: string;
-  dialCode: string;
-  placeholder: string;
-};
-
-const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
-  { code: 'CM', flag: '🇨🇲', dialCode: '+237', placeholder: '6XX XX XX XX' },
-  { code: 'FR', flag: '🇫🇷', dialCode: '+33', placeholder: '6 12 34 56 78' },
-  { code: 'DE', flag: '🇩🇪', dialCode: '+49', placeholder: '1512 3456789' },
-  { code: 'CA', flag: '🇨🇦', dialCode: '+1', placeholder: '514 123 4567' },
-  { code: 'US', flag: '🇺🇸', dialCode: '+1', placeholder: '415 123 4567' },
-  { code: 'GB', flag: '🇬🇧', dialCode: '+44', placeholder: '7123 456789' },
-  { code: 'BE', flag: '🇧🇪', dialCode: '+32', placeholder: '470 12 34 56' },
-  { code: 'CH', flag: '🇨🇭', dialCode: '+41', placeholder: '79 123 45 67' },
-];
 
 /* ------------------------------------------------------------------ */
 /*  Animated circular progress (SVG, no deps)                         */
@@ -171,21 +151,10 @@ export default function DashboardArtisan() {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'portfolio' | 'services' | 'annonces'>('portfolio');
   const [mobileTab, setMobileTab] = useState<'home' | 'portfolio' | 'services' | 'annonces' | 'account'>('home');
-  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryPhoneOption['code']>('CM');
-  const [phone, setPhone] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [otpInput, setOtpInput] = useState('');
-  const [otpVerified, setOtpVerified] = useState(false);
   const [profilePhotoFile, setProfilePhotoFile] = useState<File | null>(null);
   const [profilePhotoPreview, setProfilePhotoPreview] = useState<string | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [isVerifiedFromBackend, setIsVerifiedFromBackend] = useState(false);
-  const [idType, setIdType] = useState<'cni' | 'passeport' | 'permis' | ''>('');
-  const [idFrontFile, setIdFrontFile] = useState<File | null>(null);
-  const [idBackFile, setIdBackFile] = useState<File | null>(null);
-  const [passportFile, setPassportFile] = useState<File | null>(null);
-  const [selfieVideoFile, setSelfieVideoFile] = useState<File | null>(null);
   const [servicesPostedCount, setServicesPostedCount] = useState(0);
   const [verificationMessage, setVerificationMessage] = useState('');
   const [whatsAppMessage, setWhatsAppMessage] = useState('');
@@ -212,11 +181,8 @@ export default function DashboardArtisan() {
   const [portfolioImages, setPortfolioImages] = useState<{ url: string; name: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
 
-  const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
-  const cleanedLocalPhone = phone.replace(/\D/g, '');
-  const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
   const isArtisanVerified = isVerifiedFromBackend || verificationStatus === 'approved';
-  const accountKey = (userName || internationalPhone || 'artisan').toLowerCase();
+  const accountKey = (userName || 'artisan').toLowerCase();
   const verificationSteps = [!!profilePhotoPreview];
   const completedSteps = verificationSteps.filter(Boolean).length;
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
@@ -291,11 +257,7 @@ export default function DashboardArtisan() {
     const intro = isEn
       ? `Hello Bolo237, this is ${userName || 'an artisan'} and I want to connect my WhatsApp account.`
       : `Bonjour Bolo237, je suis ${userName || 'un artisan'} et je veux connecter mon compte WhatsApp.`;
-    const normalizedPhone = cleanedLocalPhone ? internationalPhone : '';
-
-    const targetUrl = normalizedPhone
-      ? `https://wa.me/${normalizedPhone.replace('+', '')}?text=${encodeURIComponent(intro)}`
-      : `https://wa.me/?text=${encodeURIComponent(intro)}`;
+    const targetUrl = `https://wa.me/?text=${encodeURIComponent(intro)}`;
 
     try {
       window.open(targetUrl, '_blank', 'noopener,noreferrer');
@@ -312,48 +274,6 @@ export default function DashboardArtisan() {
           ? 'Unable to open WhatsApp on this device.'
           : 'Impossible d ouvrir WhatsApp sur cet appareil.'
       );
-    }
-  };
-
-  /* ---------- OTP handlers ---------- */
-  const sendOtp = async () => {
-    if (!cleanedLocalPhone || cleanedLocalPhone.length < 6 || cleanedLocalPhone.length > 14) {
-      setVerificationMessage(isEn ? 'Enter phone number first.' : 'Saisissez d\'abord le numero de telephone.');
-      return;
-    }
-    setVerificationMessage('');
-    try {
-      const res = await apiSendOtp(internationalPhone);
-      setOtpCode(res.demoCode || '');
-      setOtpSent(true);
-      setOtpVerified(false);
-    } catch {
-      const fallback = String(Math.floor(100000 + Math.random() * 900000));
-      setOtpCode(fallback);
-      setOtpSent(true);
-      setOtpVerified(false);
-    }
-  };
-
-  const verifyOtp = async () => {
-    setVerificationMessage('');
-    try {
-      const res = await apiVerifyOtp(internationalPhone, otpInput.trim());
-      if (res.verified || res.success) {
-        setOtpVerified(true);
-        setVerificationMessage(isEn ? 'Phone verified.' : 'Numero verifie.');
-      } else {
-        setOtpVerified(false);
-        setVerificationMessage(res.error || (isEn ? 'Invalid OTP.' : 'OTP invalide.'));
-      }
-    } catch {
-      if (otpInput.trim() === otpCode || otpInput.trim() === '0000') {
-        setOtpVerified(true);
-        setVerificationMessage(isEn ? 'Phone verified.' : 'Numero verifie.');
-      } else {
-        setOtpVerified(false);
-        setVerificationMessage(isEn ? 'Invalid OTP.' : 'OTP invalide.');
-      }
     }
   };
 
@@ -387,14 +307,6 @@ export default function DashboardArtisan() {
   const publishServiceNeed = async () => {
     if (!userId) {
       setVerificationMessage(isEn ? 'Session not found. Please sign in again.' : 'Session introuvable. Veuillez vous reconnecter.');
-      return;
-    }
-    if (verificationStatus !== 'approved') {
-      setVerificationMessage(
-        isEn
-          ? 'Publication blocked: waiting for Super Admin approval of your identity documents.'
-          : 'Publication bloquee: en attente de validation Super Admin de vos pieces.'
-      );
       return;
     }
 
@@ -484,7 +396,7 @@ export default function DashboardArtisan() {
       role: 'artisan',
       accountKey,
       displayName: userName || 'Artisan',
-      phone: internationalPhone,
+      phone: '',
       payload: {
         userId,
         hasProfilePhoto: !!profilePhotoFile,
@@ -1057,19 +969,17 @@ export default function DashboardArtisan() {
                     </p>
                   </div>
                   <Link
-                    href={verificationStatus === 'approved' ? localizePath('/publier') : '#'}
+                    href={localizePath('/publier')}
                     onClick={(e) => {
-                      if (verificationStatus !== 'approved') {
-                        e.preventDefault();
+                      if (!profilePhotoPreview) {
                         setVerificationMessage(
                           isEn
-                            ? 'You must be approved by Super Admin before publishing.'
-                            : 'Vous devez etre approuve par le Super Admin avant de publier.'
+                            ? 'Tip: add a profile photo to increase trust and visibility.'
+                            : 'Conseil: ajoutez une photo de profil pour renforcer la confiance et la visibilite.'
                         );
-                        setShowVerification(true);
                       }
                     }}
-                    className={`px-6 py-3 rounded-xl font-bold shadow-md transition text-sm whitespace-nowrap text-center w-full md:w-auto ${verificationStatus === 'approved' ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-300 text-gray-600 cursor-not-allowed'}`}
+                    className="px-6 py-3 rounded-xl font-bold shadow-md transition text-sm whitespace-nowrap text-center w-full md:w-auto bg-gray-900 text-white hover:bg-gray-800"
                   >
                     + {isEn ? 'Post a job ad' : 'Publier une annonce'}
                   </Link>

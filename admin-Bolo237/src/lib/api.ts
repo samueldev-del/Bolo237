@@ -1,4 +1,20 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const DEFAULT_REMOTE_API = 'https://api-bolo237.onrender.com';
+
+function resolveApiBase() {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+  }
+
+  return DEFAULT_REMOTE_API;
+}
+
+const API_BASE = resolveApiBase();
 
 // ── Types ────────────────────────────────────────────────────────
 

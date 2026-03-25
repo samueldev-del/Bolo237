@@ -687,7 +687,7 @@ export default function DashboardArtisan() {
                   onClick={submitToSuperAdmin}
                   className="w-full bg-gray-900 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-black transition"
                 >
-                  {isEn ? 'Submit for Super Admin validation' : 'Soumettre pour validation Super Admin'}
+                  {isEn ? 'Submit' : 'Soumettre'}
                 </button>
 
                 {verificationMessage && (

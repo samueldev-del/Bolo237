@@ -104,6 +104,7 @@ export default function PressePage() {
           </p>
 
           <div className="space-y-4">
+            {/* Logo Pack */}
             <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
@@ -113,16 +114,81 @@ export default function PressePage() {
                   <p className="font-bold text-gray-900 text-sm mb-1">
                     {isEn ? 'HD Logo Pack' : 'Pack Logo Haute Definition'}
                   </p>
-                  <p className="text-xs text-gray-500 mb-2">SVG, PNG, JPEG</p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-gray-500 mb-2">SVG</p>
+                  <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Official versions in light and dark variants for print and web.'
                       : 'Versions officielles claires et sombres pour le print et le web.'}
                   </p>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href="/logo.svg"
+                      download="bolo237-logo.svg"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                    >
+                      <span>⬇</span> {isEn ? 'Logo (Color)' : 'Logo (Couleur)'}
+                    </a>
+                    <a
+                      href="/logo-white.svg"
+                      download="bolo237-logo-white.svg"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                    >
+                      <span>⬇</span> {isEn ? 'Logo (White)' : 'Logo (Blanc)'}
+                    </a>
+                    <a
+                      href="/logo-icon.svg"
+                      download="bolo237-icon.svg"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                    >
+                      <span>⬇</span> {isEn ? 'Icon Only' : 'Icone seule'}
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
 
+            {/* Brand Colors */}
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  🎨
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'Brand Color Palette' : 'Palette de Couleurs'}
+                  </p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    {isEn
+                      ? 'Official brand colors for consistent visual representation.'
+                      : 'Couleurs officielles de la marque pour une representation visuelle coherente.'}
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <div className="text-center">
+                      <div className="w-full h-10 rounded-lg bg-[#C4623F] mb-1"></div>
+                      <p className="text-[10px] font-mono text-gray-500">#C4623F</p>
+                      <p className="text-[10px] text-gray-400">{isEn ? 'Primary' : 'Primaire'}</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-full h-10 rounded-lg bg-[#DA7756] mb-1"></div>
+                      <p className="text-[10px] font-mono text-gray-500">#DA7756</p>
+                      <p className="text-[10px] text-gray-400">{isEn ? 'Accent' : 'Accent'}</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-full h-10 rounded-lg bg-[#FEEBD6] mb-1"></div>
+                      <p className="text-[10px] font-mono text-gray-500">#FEEBD6</p>
+                      <p className="text-[10px] text-gray-400">{isEn ? 'Light' : 'Clair'}</p>
+                    </div>
+                    <div className="text-center">
+                      <div className="w-full h-10 rounded-lg bg-[#1F2937] mb-1"></div>
+                      <p className="text-[10px] font-mono text-gray-500">#1F2937</p>
+                      <p className="text-[10px] text-gray-400">{isEn ? 'Dark' : 'Sombre'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* App Screenshots */}
             <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
@@ -133,22 +199,84 @@ export default function PressePage() {
                     {isEn ? 'App Screenshots' : 'Captures de l\'application'}
                   </p>
                   <p className="text-xs text-gray-500 mb-2">
-                    {isEn ? 'Mobile & Desktop' : 'Mobile et Desktop'}
+                    {isEn ? 'Mobile & Desktop — PNG' : 'Mobile et Desktop — PNG'}
                   </p>
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Curated visuals of key user journeys: hiring, candidate profile, and verification flow.'
                       : 'Visuels selectionnes des parcours cles : recrutement, profil candidat et verification.'}
                   </p>
+                  <a
+                    href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Screenshots"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                  >
+                    <span>📧</span> {isEn ? 'Request by email' : 'Demander par email'}
+                  </a>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-gray-500">
-              {isEn
-                ? 'Need the full press kit (founder bio, product factsheet, and visuals)? Contact us below.'
-                : 'Besoin du kit presse complet (bio fondateur, fiche produit et visuels) ? Contactez-nous juste en dessous.'}
-            </p>
+            {/* Key Figures */}
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  📊
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'Key Figures' : 'Chiffres Cles'}
+                  </p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    {isEn
+                      ? 'Use these figures when referencing Bolo237 in your publications.'
+                      : 'Utilisez ces chiffres pour referencier Bolo237 dans vos publications.'}
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-[#FFF5EF] rounded-lg p-3 text-center">
+                      <p className="text-lg font-extrabold text-[#C4623F]">2024</p>
+                      <p className="text-[10px] text-gray-600">{isEn ? 'Year Founded' : 'Annee de creation'}</p>
+                    </div>
+                    <div className="bg-[#FFF5EF] rounded-lg p-3 text-center">
+                      <p className="text-lg font-extrabold text-[#C4623F]">PWA</p>
+                      <p className="text-[10px] text-gray-600">{isEn ? 'Technology' : 'Technologie'}</p>
+                    </div>
+                    <div className="bg-[#FFF5EF] rounded-lg p-3 text-center">
+                      <p className="text-lg font-extrabold text-[#C4623F]">🇨🇲</p>
+                      <p className="text-[10px] text-gray-600">{isEn ? 'Target Market' : 'Marche cible'}</p>
+                    </div>
+                    <div className="bg-[#FFF5EF] rounded-lg p-3 text-center">
+                      <p className="text-lg font-extrabold text-[#C4623F]">KYC</p>
+                      <p className="text-[10px] text-gray-600">{isEn ? 'Identity Verification' : 'Verification d\'identite'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Full Press Kit */}
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  📁
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'Full Press Kit' : 'Kit Presse Complet'}
+                  </p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    {isEn
+                      ? 'Get the complete package: founder biography, product factsheet, high-resolution visuals, and brand guidelines.'
+                      : 'Recevez le package complet : biographie du fondateur, fiche produit, visuels haute resolution et charte graphique.'}
+                  </p>
+                  <a
+                    href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Full%20Kit"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-[#C4623F] rounded-lg px-4 py-2 hover:bg-[#A8502F] transition"
+                  >
+                    <span>📧</span> {isEn ? 'Request full press kit' : 'Demander le kit complet'}
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

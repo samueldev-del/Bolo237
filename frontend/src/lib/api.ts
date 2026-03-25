@@ -12,7 +12,7 @@ export type ApiJob = {
   status: string;
   authorId: number;
   createdAt: string;
-  author?: { id: number; name: string | null; email: string; role?: string };
+  author?: { id: number; name: string | null; email: string; role?: string; isVerified?: boolean; photoUrl?: string | null };
 };
 
 export type ApiUser = {

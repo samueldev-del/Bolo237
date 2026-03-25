@@ -316,7 +316,7 @@ app.get('/api/jobs', async (req, res) => {
         orderBy: { createdAt: 'desc' },
         skip,
         take,
-        include: { author: { select: { id: true, name: true, email: true, role: true } } },
+        include: { author: { select: { id: true, name: true, email: true, role: true, isVerified: true, photoUrl: true } } },
       }),
       prisma.job.count({ where }),
     ]);
@@ -681,7 +681,7 @@ app.get('/api/users/:id/saved-jobs', async (req, res) => {
 
     const jobs = await prisma.job.findMany({
       where: { id: { in: ids } },
-      include: { author: { select: { id: true, name: true, email: true, role: true } } },
+      include: { author: { select: { id: true, name: true, email: true, role: true, isVerified: true, photoUrl: true } } },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -739,7 +739,7 @@ app.get('/api/jobs/:id', async (req, res) => {
 
     const job = await prisma.job.findUnique({
       where: { id },
-      include: { author: { select: { id: true, name: true, email: true, role: true } } },
+      include: { author: { select: { id: true, name: true, email: true, role: true, isVerified: true, photoUrl: true } } },
     });
 
     if (!job) return res.status(404).json({ error: 'Offre non trouvée.' });
@@ -953,7 +953,7 @@ app.get('/api/users', async (req, res) => {
         orderBy: { createdAt: 'desc' },
         skip,
         take,
-        select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
+        select: { id: true, email: true, name: true, role: true, photoUrl: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
       }),
       prisma.user.count({ where }),
     ]);
@@ -1016,7 +1016,7 @@ app.post('/api/users', async (req, res) => {
         phone: phone ? String(phone) : null,
         isVerified: false,
       },
-      select: { id: true, email: true, name: true, role: true, phone: true, isVerified: true, isBanned: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, phone: true, photoUrl: true, isVerified: true, isBanned: true, createdAt: true },
     });
 
     console.log(`✅ Nouveau user créé: ID=${user.id} Role=${user.role} Email=${user.email}`);
@@ -1047,18 +1047,19 @@ app.put('/api/users/:id', async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
 
-    const { name, role, isVerified } = req.body;
+    const { name, role, isVerified, photoUrl } = req.body;
     const data = {};
     if (name !== undefined) data.name = String(name);
     if (role !== undefined) data.role = String(role);
     if (isVerified !== undefined) data.isVerified = Boolean(isVerified);
+    if (photoUrl !== undefined) data.photoUrl = photoUrl ? String(photoUrl) : null;
 
     console.log(`PUT /api/users/${id} — updating:`, JSON.stringify(data));
 
     const user = await prisma.user.update({
       where: { id },
       data,
-      select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, photoUrl: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
     });
 
     console.log(`PUT /api/users/${id} — result: isVerified=${user.isVerified}`);
@@ -1102,7 +1103,7 @@ app.put('/api/users/:id/ban', async (req, res) => {
         bannedAt: isBanned ? new Date() : null,
         banReason: isBanned ? (reason ? String(reason) : 'Banni par l administrateur') : null,
       },
-      select: { id: true, email: true, name: true, role: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, photoUrl: true, isVerified: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
     });
 
     res.json(user);
@@ -1435,7 +1436,7 @@ app.get('/api/auth/me', async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: Number(payload.userId) },
-      select: { id: true, email: true, name: true, role: true, phone: true, isVerified: true, isBanned: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, phone: true, photoUrl: true, isVerified: true, isBanned: true, createdAt: true },
     });
 
     if (!user) {

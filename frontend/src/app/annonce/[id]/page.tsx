@@ -127,6 +127,8 @@ export default function OffreEmploiPage({ params }: JobParams) {
         titre: apiJob.title,
         entreprise: apiJob.company,
         logo: apiJob.company.slice(0, 2).toUpperCase(),
+        logoUrl: apiJob.author?.photoUrl || null,
+        isVerified: apiJob.author?.isVerified || false,
         contrat: 'CDI',
         lieu: apiJob.location,
         mode: 'Sur site',
@@ -242,13 +244,34 @@ export default function OffreEmploiPage({ params }: JobParams) {
         <div className="max-w-6xl mx-auto px-4 py-8 md:py-10">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center font-extrabold text-[#C4623F]">
-                {annonce.logo}
+              <div className="relative shrink-0">
+                {'logoUrl' in annonce && annonce.logoUrl ? (
+                  <img
+                    src={annonce.logoUrl}
+                    alt={annonce.entreprise}
+                    className="w-14 h-14 rounded-xl object-contain bg-white border border-gray-200 p-1"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center font-extrabold text-[#C4623F]">
+                    {annonce.logo}
+                  </div>
+                )}
+                {'isVerified' in annonce && annonce.isVerified && (
+                  <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-600 border-2 border-white flex items-center justify-center text-[9px] text-white font-bold">&#10003;</span>
+                )}
               </div>
 
               <div>
                 <h1 className="text-3xl md:text-4xl font-extrabold leading-tight text-black">{display.titre}</h1>
-                <p className="text-gray-600 font-bold mt-2">{display.entreprise}</p>
+                <p className="text-gray-600 font-bold mt-2 flex items-center gap-2">
+                  {display.entreprise}
+                  {'isVerified' in annonce && annonce.isVerified && (
+                    <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[11px] font-bold px-2 py-0.5 rounded-full border border-green-200">
+                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="#059669"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                      Certifie
+                    </span>
+                  )}
+                </p>
                 <button
                   onClick={() => setTranslated((s) => !s)}
                   className="mt-3 inline-flex text-xs font-extrabold text-[#C4623F] bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-full hover:bg-orange-100 transition"

@@ -15,6 +15,8 @@ type Offre = {
   entreprise: string;
   logoInitiales: string;
   logoColor: string;
+  logoUrl: string | null;
+  isVerified: boolean;
   lieu: string;
   region: string;
   teletravail: string;
@@ -45,6 +47,8 @@ function apiJobToOffre(job: ApiJob, index: number): Offre {
     entreprise: job.company,
     logoInitiales: job.company.slice(0, 2).toUpperCase(),
     logoColor: LOGO_COLORS[index % LOGO_COLORS.length],
+    logoUrl: job.author?.photoUrl || null,
+    isVerified: job.author?.isVerified || false,
     lieu: job.location,
     region: job.location.split(',')[0]?.trim() || '',
     teletravail: 'Non',
@@ -63,31 +67,31 @@ function apiJobToOffre(job: ApiJob, index: number): Offre {
 // ── Mock data (fallback si backend indisponible) ──────────────────
 const MOCK_OFFRES: Offre[] = [
   {
-    id: 1, titre: 'Développeur Web React.js', entreprise: 'TechCamer', logoInitiales: 'TC', logoColor: '#7C3AED',
+    id: 1, titre: 'Développeur Web React.js', entreprise: 'TechCamer', logoInitiales: 'TC', logoColor: '#7C3AED', logoUrl: null, isVerified: false,
     lieu: 'Douala, Akwa', region: 'Littoral', teletravail: 'Partiel', contrat: 'CDI', secteur: 'Informatique & Tech', niveau: 'Bac+3',
     salaire: '300 000 – 400 000 FCFA', description: 'Nous recherchons un développeur React.js passionné pour rejoindre notre équipe. Vous travaillerez sur des projets innovants pour des clients locaux et internationaux.',
     heures: 'Il y a 2h', candidatureRapide: true, nouveau: true, saved: false,
   },
   {
-    id: 3, titre: 'Comptable Junior (H/F)', entreprise: 'K-Finance SA', logoInitiales: 'KF', logoColor: '#059669',
+    id: 3, titre: 'Comptable Junior (H/F)', entreprise: 'K-Finance SA', logoInitiales: 'KF', logoColor: '#059669', logoUrl: null, isVerified: false,
     lieu: 'Douala, Bonanjo', region: 'Littoral', teletravail: 'Non', contrat: 'Stage', secteur: 'Finance & Banque', niveau: 'Bac+2',
     salaire: null, description: 'Stage de 6 mois en comptabilité générale. Saisie, rapprochement bancaire, préparation des bilans. Encadrement par un senior.',
     heures: 'Il y a 1 jour', candidatureRapide: false, nouveau: true, saved: false,
   },
   {
-    id: 5, titre: 'Responsable Marketing Digital', entreprise: 'MTN Cameroun', logoInitiales: 'MT', logoColor: '#D97706',
+    id: 5, titre: 'Responsable Marketing Digital', entreprise: 'MTN Cameroun', logoInitiales: 'MT', logoColor: '#D97706', logoUrl: null, isVerified: false,
     lieu: 'Yaoundé, Bastos', region: 'Centre', teletravail: 'Partiel', contrat: 'CDI', secteur: 'Télécommunications', niveau: 'Bac+4/5',
     salaire: '450 000 – 600 000 FCFA', description: 'Pilotage de la stratégie de communication digitale, gestion des réseaux sociaux, campagnes publicitaires et analyse des performances.',
     heures: 'Il y a 3 jours', candidatureRapide: true, nouveau: false, saved: false,
   },
   {
-    id: 7, titre: 'Ingénieur Génie Civil', entreprise: 'BATIGROUP SA', logoInitiales: 'BG', logoColor: '#DC2626',
+    id: 7, titre: 'Ingénieur Génie Civil', entreprise: 'BATIGROUP SA', logoInitiales: 'BG', logoColor: '#DC2626', logoUrl: null, isVerified: false,
     lieu: 'Bafoussam', region: 'Ouest', teletravail: 'Non', contrat: 'CDD', secteur: 'BTP & Construction', niveau: 'Bac+5',
     salaire: '350 000 – 500 000 FCFA', description: 'Supervision de chantiers, coordination des équipes, contrôle qualité et respect des délais sur des projets d\'infrastructure publique.',
     heures: 'Il y a 5 jours', candidatureRapide: false, nouveau: false, saved: false,
   },
   {
-    id: 8, titre: 'Data Analyst', entreprise: 'Orange Cameroun', logoInitiales: 'OC', logoColor: '#EA580C',
+    id: 8, titre: 'Data Analyst', entreprise: 'Orange Cameroun', logoInitiales: 'OC', logoColor: '#EA580C', logoUrl: null, isVerified: false,
     lieu: 'Douala', region: 'Littoral', teletravail: 'Oui', contrat: 'CDI', secteur: 'Télécommunications', niveau: 'Bac+4/5',
     salaire: '400 000 – 550 000 FCFA', description: 'Analyse des données clients, modélisation prédictive, dashboards et rapports de performance pour la direction commerciale.',
     heures: 'Il y a 1 semaine', candidatureRapide: true, nouveau: false, saved: false,
@@ -462,6 +466,12 @@ export default function EmploisFormels() {
                       <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.83rem', color: '#374151' }}>
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#94A3B8" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16M3 21h18M9 21V11h6v10" /></svg>
                         <strong>{offre.entreprise}</strong>
+                        {offre.isVerified && (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#ECFDF5', color: '#059669', fontSize: '0.7rem', fontWeight: 700, padding: '1px 7px', borderRadius: '6px', border: '1px solid #A7F3D0' }}>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="#059669"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                            Certifie
+                          </span>
+                        )}
                       </span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '0.83rem', color: '#64748B' }}>
                         <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#94A3B8" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" /></svg>
@@ -501,13 +511,36 @@ export default function EmploisFormels() {
                   {/* Logo + actions droite */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '12px', flexShrink: 0 }}>
                     {/* Logo entreprise */}
-                    <div style={{
-                      width: '52px', height: '52px', borderRadius: '10px', background: offre.logoColor + '18',
-                      border: '1.5px solid ' + offre.logoColor + '30',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: offre.logoColor, fontWeight: 900, fontSize: '0.9rem',
-                    }}>
-                      {offre.logoInitiales}
+                    <div style={{ position: 'relative' }}>
+                      {offre.logoUrl ? (
+                        <img
+                          src={offre.logoUrl}
+                          alt={offre.entreprise}
+                          style={{
+                            width: '52px', height: '52px', borderRadius: '10px',
+                            objectFit: 'contain', background: '#fff',
+                            border: '1.5px solid #E2E8F0', padding: '4px',
+                          }}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling && ((e.target as HTMLImageElement).nextElementSibling as HTMLElement).style.removeProperty('display'); }}
+                        />
+                      ) : null}
+                      <div style={{
+                        width: '52px', height: '52px', borderRadius: '10px', background: offre.logoColor + '18',
+                        border: '1.5px solid ' + offre.logoColor + '30',
+                        display: offre.logoUrl ? 'none' : 'flex', alignItems: 'center', justifyContent: 'center',
+                        color: offre.logoColor, fontWeight: 900, fontSize: '0.9rem',
+                      }}>
+                        {offre.logoInitiales}
+                      </div>
+                      {offre.isVerified && (
+                        <span style={{
+                          position: 'absolute', bottom: '-4px', right: '-4px',
+                          width: '20px', height: '20px', borderRadius: '50%',
+                          background: '#059669', border: '2px solid white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: '10px', color: 'white', fontWeight: 700,
+                        }} title="Entreprise certifiee">&#10003;</span>
+                      )}
                     </div>
                     {/* Cœur sauvegarder */}
                     <button

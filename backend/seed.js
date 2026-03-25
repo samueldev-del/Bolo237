@@ -18,7 +18,7 @@ async function main() {
 
   console.log('🌱 Bolo237 Seed — Demarrage...\n');
 
-  // ─── 5 Entreprises seed ───
+  // ─── 5 Entreprises seed (avec logos officiels) ───
   const companies = [
     {
       email: 'rh@nexttel-cameroun.cm',
@@ -27,6 +27,7 @@ async function main() {
       role: 'ENTREPRISE',
       phone: '+237650000001',
       isVerified: true,
+      photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Nexttel_logo.png/200px-Nexttel_logo.png',
     },
     {
       email: 'recrutement@orangecm.com',
@@ -35,6 +36,7 @@ async function main() {
       role: 'ENTREPRISE',
       phone: '+237650000002',
       isVerified: true,
+      photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/Orange_logo.svg/200px-Orange_logo.svg.png',
     },
     {
       email: 'jobs@afrilandfirstbank.com',
@@ -43,6 +45,7 @@ async function main() {
       role: 'ENTREPRISE',
       phone: '+237650000003',
       isVerified: true,
+      photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/Afriland_First_Bank_logo.png/200px-Afriland_First_Bank_logo.png',
     },
     {
       email: 'talent@totalenergies-cm.com',
@@ -51,6 +54,7 @@ async function main() {
       role: 'ENTREPRISE',
       phone: '+237650000004',
       isVerified: true,
+      photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/TotalEnergies_logo.svg/200px-TotalEnergies_logo.svg.png',
     },
     {
       email: 'carrieres@bollorecm.com',
@@ -59,6 +63,7 @@ async function main() {
       role: 'ENTREPRISE',
       phone: '+237650000005',
       isVerified: true,
+      photoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/Bollor%C3%A9_logo.svg/200px-Bollor%C3%A9_logo.svg.png',
     },
   ];
 
@@ -66,8 +71,13 @@ async function main() {
   for (const c of companies) {
     const existing = await prisma.user.findUnique({ where: { email: c.email } });
     if (existing) {
-      console.log(`  ⏭️  ${c.name} existe deja (ID ${existing.id})`);
-      createdCompanies.push(existing);
+      // Mettre a jour le logo et le badge si necessaire
+      const updated = await prisma.user.update({
+        where: { id: existing.id },
+        data: { photoUrl: c.photoUrl, isVerified: true },
+      });
+      console.log(`  🔄 ${c.name} mis a jour (ID ${existing.id}) — logo + badge`);
+      createdCompanies.push(updated);
     } else {
       const user = await prisma.user.create({ data: c });
       console.log(`  ✅ ${c.name} cree (ID ${user.id})`);

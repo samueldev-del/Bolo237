@@ -192,15 +192,12 @@ export default function DashboardArtisan() {
   const [portfolioImages, setPortfolioImages] = useState<{ url: string; name: string }[]>([]);
   const [dragOver, setDragOver] = useState(false);
 
-  const hasIdentityDocument = idType === 'passeport'
-    ? !!passportFile
-    : !!idFrontFile && !!idBackFile;
   const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
   const cleanedLocalPhone = phone.replace(/\D/g, '');
   const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
-  const isArtisanVerified = otpVerified && !!profilePhotoFile && hasIdentityDocument && !!selfieVideoFile;
+  const isArtisanVerified = !!profilePhotoFile;
   const accountKey = (userName || internationalPhone || 'artisan').toLowerCase();
-  const verificationSteps = [otpVerified, !!profilePhotoFile, hasIdentityDocument, !!selfieVideoFile];
+  const verificationSteps = [!!profilePhotoFile];
   const completedSteps = verificationSteps.filter(Boolean).length;
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
 
@@ -408,18 +405,13 @@ export default function DashboardArtisan() {
     if (!isArtisanVerified) {
       setVerificationMessage(
         isEn
-          ? 'Complete all required uploads first: profile photo, identity document, and selfie video with ID.'
-          : 'Completez d abord tous les telechargements requis: photo profil, piece d identite et selfie video avec la piece.'
+          ? 'Please upload your profile photo first.'
+          : 'Veuillez d abord telecharger votre photo de profil.'
       );
       return;
     }
 
-    const [profilePhotoPreview, idFrontPreview, idBackPreview, passportPreview] = await Promise.all([
-      fileToImageDataUrl(profilePhotoFile),
-      fileToImageDataUrl(idFrontFile),
-      fileToImageDataUrl(idBackFile),
-      fileToImageDataUrl(passportFile),
-    ]);
+    const profilePhotoPreview = await fileToImageDataUrl(profilePhotoFile);
 
     await createVerificationSubmission({
       role: 'artisan',
@@ -428,18 +420,9 @@ export default function DashboardArtisan() {
       phone: internationalPhone,
       payload: {
         userId,
-        idType,
         hasProfilePhoto: !!profilePhotoFile,
         profilePhotoName: profilePhotoFile?.name ?? null,
-        hasIdentityDocument,
-        idFrontName: idFrontFile?.name ?? null,
-        idBackName: idBackFile?.name ?? null,
-        passportName: passportFile?.name ?? null,
-        selfieVideoName: selfieVideoFile?.name ?? null,
         profilePhotoPreview,
-        idFrontPreview,
-        idBackPreview,
-        passportPreview,
       },
     });
 
@@ -653,16 +636,14 @@ export default function DashboardArtisan() {
                 &#128737; {isEn ? 'Identity Shield' : 'Bouclier Identite'}
               </h3>
               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isArtisanVerified ? 'bg-green-100 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
-                {verificationStatus === 'approved' ? (isEn ? 'APPROVED' : 'APPROUVE') : verificationStatus === 'pending' ? (isEn ? 'PENDING' : 'EN ATTENTE') : `${completedSteps}/4`}
+                {verificationStatus === 'approved' ? (isEn ? 'APPROVED' : 'APPROUVE') : verificationStatus === 'pending' ? (isEn ? 'PENDING' : 'EN ATTENTE') : `${completedSteps}/1`}
               </span>
             </div>
 
             {/* Visual checklist */}
             <div className="space-y-3 mb-5">
-              <StepCheck done={otpVerified} label={isEn ? 'Phone verified (OTP)' : 'Telephone verifie (OTP)'} />
+              <StepCheck done={true} label={isEn ? 'Phone verified at signup' : 'Telephone verifie a l inscription'} />
               <StepCheck done={!!profilePhotoFile} label={isEn ? 'Profile photo uploaded' : 'Photo de profil fournie'} />
-              <StepCheck done={hasIdentityDocument} label={isEn ? 'Identity document uploaded' : 'Piece d identite fournie'} />
-              <StepCheck done={!!selfieVideoFile} label={isEn ? 'Selfie video with ID' : 'Selfie video avec piece'} />
             </div>
 
             {/* Toggle verification form */}
@@ -685,8 +666,8 @@ export default function DashboardArtisan() {
               <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 anim-fadeUp">
                 <p className="text-xs text-gray-500 font-medium leading-relaxed">
                   {isEn
-                    ? 'Verify phone by OTP, upload profile photo, ID document (front/back for CNI or license, passport accepted), and a short selfie video with the document.'
-                    : 'Verifiez le telephone par OTP, telechargez photo profil, piece d identite (recto/verso pour CNI ou permis, passeport accepte), puis une courte selfie video avec la piece.'}
+                    ? 'Upload your profile photo to complete your verification. Your phone was already verified during signup.'
+                    : 'Telechargez votre photo de profil pour completer votre verification. Votre telephone a deja ete verifie lors de l inscription.'}
                 </p>
 
                 <div>
@@ -700,125 +681,6 @@ export default function DashboardArtisan() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
                   />
                   {profilePhotoFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{profilePhotoFile.name}</p>}
-                </div>
-
-                {/* Phone + OTP */}
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
-                  placeholder={selectedCountry.placeholder}
-                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 transition"
-                />
-                <select
-                  value={selectedCountryCode}
-                  onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white"
-                >
-                  {COUNTRY_PHONE_OPTIONS.map((country) => (
-                    <option key={country.code} value={country.code}>
-                      {country.flag} {country.dialCode}
-                    </option>
-                  ))}
-                </select>
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={sendOtp} className="bg-gray-900 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-gray-800 transition">
-                    {isEn ? 'Send OTP' : 'Envoyer OTP'}
-                  </button>
-                  <button onClick={verifyOtp} className="bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl py-2.5 text-sm font-bold hover:from-green-600 hover:to-emerald-700 transition">
-                    {isEn ? 'Verify' : 'Verifier'}
-                  </button>
-                </div>
-
-                {otpSent && (
-                  <>
-                    <p className="text-[11px] font-bold text-gray-400">
-                      {isEn ? 'Demo code:' : 'Code demo :'} {otpCode} | Master: 0000
-                    </p>
-                    <input
-                      value={otpInput}
-                      onChange={(e) => setOtpInput(e.target.value)}
-                      placeholder="123456"
-                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 transition"
-                    />
-                  </>
-                )}
-
-                <div className="space-y-3 pt-1">
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
-                      {isEn ? 'Identity document type' : 'Type de piece d identite'}
-                    </label>
-                    <select
-                      value={idType}
-                      onChange={(e) => {
-                        const next = e.target.value as 'cni' | 'passeport' | 'permis' | '';
-                        setIdType(next);
-                        setIdFrontFile(null);
-                        setIdBackFile(null);
-                        setPassportFile(null);
-                      }}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white"
-                    >
-                      <option value="">{isEn ? 'Select document type' : 'Choisir le type de piece'}</option>
-                      <option value="cni">CNI</option>
-                      <option value="permis">{isEn ? 'Driving license' : 'Permis de conduire'}</option>
-                      <option value="passeport">Passeport</option>
-                    </select>
-                  </div>
-
-                  {idType && idType !== 'passeport' && (
-                    <>
-                      <div>
-                        <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
-                          {isEn ? 'Document front side' : 'Recto de la piece'}
-                        </label>
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={(e) => setIdFrontFile(e.target.files?.[0] ?? null)}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
-                          {isEn ? 'Document back side' : 'Verso de la piece'}
-                        </label>
-                        <input
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={(e) => setIdBackFile(e.target.files?.[0] ?? null)}
-                          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {idType === 'passeport' && (
-                    <div>
-                      <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
-                        {isEn ? 'Passport file' : 'Fichier passeport'}
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={(e) => setPassportFile(e.target.files?.[0] ?? null)}
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
-                      />
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
-                      {isEn ? 'Short selfie video with ID' : 'Courte selfie video avec piece'}
-                    </label>
-                    <input
-                      type="file"
-                      accept="video/*"
-                      onChange={(e) => setSelfieVideoFile(e.target.files?.[0] ?? null)}
-                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white"
-                    />
-                  </div>
                 </div>
 
                 <button

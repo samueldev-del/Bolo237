@@ -18,6 +18,24 @@ import {
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
 
+type CountryPhoneOption = {
+  code: string;
+  flag: string;
+  dialCode: string;
+  placeholder: string;
+};
+
+const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
+  { code: 'CM', flag: '🇨🇲', dialCode: '+237', placeholder: '6XX XX XX XX' },
+  { code: 'FR', flag: '🇫🇷', dialCode: '+33', placeholder: '6 12 34 56 78' },
+  { code: 'DE', flag: '🇩🇪', dialCode: '+49', placeholder: '1512 3456789' },
+  { code: 'CA', flag: '🇨🇦', dialCode: '+1', placeholder: '514 123 4567' },
+  { code: 'US', flag: '🇺🇸', dialCode: '+1', placeholder: '415 123 4567' },
+  { code: 'GB', flag: '🇬🇧', dialCode: '+44', placeholder: '7123 456789' },
+  { code: 'BE', flag: '🇧🇪', dialCode: '+32', placeholder: '470 12 34 56' },
+  { code: 'CH', flag: '🇨🇭', dialCode: '+41', placeholder: '79 123 45 67' },
+];
+
 /* ------------------------------------------------------------------ */
 /*  Animated circular progress (SVG, no deps)                         */
 /* ------------------------------------------------------------------ */
@@ -137,6 +155,7 @@ export default function DashboardArtisan() {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'portfolio' | 'services' | 'annonces'>('portfolio');
   const [mobileTab, setMobileTab] = useState<'home' | 'portfolio' | 'services' | 'annonces' | 'account'>('home');
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryPhoneOption['code']>('CM');
   const [phone, setPhone] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -176,8 +195,11 @@ export default function DashboardArtisan() {
   const hasIdentityDocument = idType === 'passeport'
     ? !!passportFile
     : !!idFrontFile && !!idBackFile;
+  const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
+  const cleanedLocalPhone = phone.replace(/\D/g, '');
+  const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
   const isArtisanVerified = otpVerified && !!profilePhotoFile && hasIdentityDocument && !!selfieVideoFile;
-  const accountKey = (userName || phone || 'artisan').toLowerCase();
+  const accountKey = (userName || internationalPhone || 'artisan').toLowerCase();
   const verificationSteps = [otpVerified, !!profilePhotoFile, hasIdentityDocument, !!selfieVideoFile];
   const completedSteps = verificationSteps.filter(Boolean).length;
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
@@ -232,13 +254,7 @@ export default function DashboardArtisan() {
     const intro = isEn
       ? `Hello Bolo237, this is ${userName || 'an artisan'} and I want to connect my WhatsApp account.`
       : `Bonjour Bolo237, je suis ${userName || 'un artisan'} et je veux connecter mon compte WhatsApp.`;
-    const rawPhone = phone.replace(/\s+/g, '');
-    const hasCmPrefix = rawPhone.startsWith('237');
-    const normalizedPhone = rawPhone.startsWith('+')
-      ? rawPhone
-      : rawPhone
-        ? `+${hasCmPrefix ? rawPhone : `237${rawPhone.replace(/^0+/, '')}`}`
-        : '';
+    const normalizedPhone = cleanedLocalPhone ? internationalPhone : '';
 
     const targetUrl = normalizedPhone
       ? `https://wa.me/${normalizedPhone.replace('+', '')}?text=${encodeURIComponent(intro)}`
@@ -264,13 +280,13 @@ export default function DashboardArtisan() {
 
   /* ---------- OTP handlers ---------- */
   const sendOtp = async () => {
-    if (!phone.trim()) {
+    if (!cleanedLocalPhone || cleanedLocalPhone.length < 6 || cleanedLocalPhone.length > 14) {
       setVerificationMessage(isEn ? 'Enter phone number first.' : 'Saisissez d\'abord le numero de telephone.');
       return;
     }
     setVerificationMessage('');
     try {
-      const res = await apiSendOtp(phone);
+      const res = await apiSendOtp(internationalPhone);
       setOtpCode(res.demoCode || '');
       setOtpSent(true);
       setOtpVerified(false);
@@ -285,7 +301,7 @@ export default function DashboardArtisan() {
   const verifyOtp = async () => {
     setVerificationMessage('');
     try {
-      const res = await apiVerifyOtp(phone, otpInput.trim());
+      const res = await apiVerifyOtp(internationalPhone, otpInput.trim());
       if (res.verified) {
         setOtpVerified(true);
         setVerificationMessage(isEn ? 'Phone verified.' : 'Numero verifie.');
@@ -409,7 +425,7 @@ export default function DashboardArtisan() {
       role: 'artisan',
       accountKey,
       displayName: userName || 'Artisan',
-      phone,
+      phone: internationalPhone,
       payload: {
         idType,
         hasProfilePhoto: !!profilePhotoFile,
@@ -689,10 +705,21 @@ export default function DashboardArtisan() {
                 <input
                   type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+237 6XX XX XX XX"
+                  onChange={(e) => setPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
+                  placeholder={selectedCountry.placeholder}
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 transition"
                 />
+                <select
+                  value={selectedCountryCode}
+                  onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white"
+                >
+                  {COUNTRY_PHONE_OPTIONS.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.flag} {country.dialCode}
+                    </option>
+                  ))}
+                </select>
                 <div className="grid grid-cols-2 gap-2">
                   <button onClick={sendOtp} className="bg-gray-900 text-white rounded-xl py-2.5 text-sm font-bold hover:bg-gray-800 transition">
                     {isEn ? 'Send OTP' : 'Envoyer OTP'}

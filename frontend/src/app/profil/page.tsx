@@ -12,6 +12,38 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 type Experience = { poste: string; entreprise: string; dateDebut: string; dateFin: string; description: string };
 type Formation = { diplome: string; ecole: string; annee: string };
 
+type CountryPhoneOption = {
+  code: string;
+  flag: string;
+  dialCode: string;
+  placeholder: string;
+};
+
+const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
+  { code: 'CM', flag: '🇨🇲', dialCode: '+237', placeholder: '6XX XX XX XX' },
+  { code: 'FR', flag: '🇫🇷', dialCode: '+33', placeholder: '6 12 34 56 78' },
+  { code: 'DE', flag: '🇩🇪', dialCode: '+49', placeholder: '1512 3456789' },
+  { code: 'CA', flag: '🇨🇦', dialCode: '+1', placeholder: '514 123 4567' },
+  { code: 'US', flag: '🇺🇸', dialCode: '+1', placeholder: '415 123 4567' },
+  { code: 'GB', flag: '🇬🇧', dialCode: '+44', placeholder: '7123 456789' },
+  { code: 'BE', flag: '🇧🇪', dialCode: '+32', placeholder: '470 12 34 56' },
+  { code: 'CH', flag: '🇨🇭', dialCode: '+41', placeholder: '79 123 45 67' },
+];
+
+function parseInternationalPhone(value: string): { countryCode: CountryPhoneOption['code']; localNumber: string } {
+  const digits = value.replace(/\D/g, '');
+  for (const option of COUNTRY_PHONE_OPTIONS) {
+    const dialDigits = option.dialCode.replace('+', '');
+    if (digits.startsWith(dialDigits)) {
+      return {
+        countryCode: option.code,
+        localNumber: digits.slice(dialDigits.length),
+      };
+    }
+  }
+  return { countryCode: 'CM', localNumber: digits };
+}
+
 export default function ProfilCV() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
@@ -24,6 +56,7 @@ export default function ProfilCV() {
   const [fullName, setFullName] = useState('');
   const [title, setTitle] = useState('');
   const [city, setCity] = useState('');
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryPhoneOption['code']>('CM');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [bio, setBio] = useState('');
@@ -44,6 +77,9 @@ export default function ProfilCV() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
+  const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
+  const cleanedLocalPhone = phone.replace(/\D/g, '');
+  const internationalPhone = cleanedLocalPhone ? `${selectedCountry.dialCode}${cleanedLocalPhone}` : '';
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -68,7 +104,11 @@ export default function ProfilCV() {
         if (data.fullName) setFullName(data.fullName);
         if (data.title) setTitle(data.title);
         if (data.location) setCity(data.location);
-        if (data.phone) setPhone(data.phone);
+        if (data.phone) {
+          const parsed = parseInternationalPhone(data.phone);
+          setSelectedCountryCode(parsed.countryCode);
+          setPhone(parsed.localNumber);
+        }
         if (data.email) setEmail(data.email);
         if (data.profile) setBio(data.profile);
         if (data.skillsText) setSkills(data.skillsText.split(',').map((s: string) => s.trim()).filter(Boolean));
@@ -107,7 +147,7 @@ export default function ProfilCV() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          fullName, title, location: city, phone, email, profile: bio,
+          fullName, title, location: city, phone: internationalPhone, email, profile: bio,
           experience: JSON.stringify(experiences.filter(e => e.poste)),
           education: JSON.stringify(formations.filter(f => f.diplome)),
           skillsText: skills.join(', '),
@@ -188,9 +228,22 @@ export default function ProfilCV() {
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Phone' : 'Telephone'}</label>
-                <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+237 6XX XX XX XX"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none" />
+                <div className="flex gap-2">
+                  <select
+                    value={selectedCountryCode}
+                    onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
+                    className="w-[120px] px-2 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none bg-white"
+                  >
+                    {COUNTRY_PHONE_OPTIONS.map((country) => (
+                      <option key={country.code} value={country.code}>
+                        {country.flag} {country.dialCode}
+                      </option>
+                    ))}
+                  </select>
+                  <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
+                    placeholder={selectedCountry.placeholder}
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none" />
+                </div>
               </div>
             </div>
 
@@ -371,7 +424,7 @@ export default function ProfilCV() {
                 <div className="border-b border-gray-100 pb-3">
                   <h3 className="text-xl font-extrabold">{fullName || '—'}</h3>
                   <p className="text-sm font-bold text-green-700">{title || '—'}</p>
-                  <p className="text-xs text-gray-500">{city} {phone && `• ${phone}`} {email && `• ${email}`}</p>
+                  <p className="text-xs text-gray-500">{city} {internationalPhone && `• ${internationalPhone}`} {email && `• ${email}`}</p>
                 </div>
                 {bio && <div><p className="text-xs font-bold text-gray-400 uppercase mb-1">{isEn ? 'About' : 'Profil'}</p><p className="text-sm text-gray-700">{bio}</p></div>}
 

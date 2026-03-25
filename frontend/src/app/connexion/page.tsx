@@ -28,6 +28,25 @@ const BACKEND_ROLE_TO_LOCAL: Record<string, Role> = {
   SUPER_ADMIN: 'admin',
 };
 
+type CountryPhoneOption = {
+  code: string;
+  name: string;
+  flag: string;
+  dialCode: string;
+  placeholder: string;
+};
+
+const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
+  { code: 'CM', name: 'Cameroun', flag: '🇨🇲', dialCode: '+237', placeholder: '6XX XX XX XX' },
+  { code: 'FR', name: 'France', flag: '🇫🇷', dialCode: '+33', placeholder: '6 12 34 56 78' },
+  { code: 'DE', name: 'Deutschland', flag: '🇩🇪', dialCode: '+49', placeholder: '1512 3456789' },
+  { code: 'CA', name: 'Canada', flag: '🇨🇦', dialCode: '+1', placeholder: '514 123 4567' },
+  { code: 'US', name: 'United States', flag: '🇺🇸', dialCode: '+1', placeholder: '415 123 4567' },
+  { code: 'GB', name: 'United Kingdom', flag: '🇬🇧', dialCode: '+44', placeholder: '7123 456789' },
+  { code: 'BE', name: 'Belgique', flag: '🇧🇪', dialCode: '+32', placeholder: '470 12 34 56' },
+  { code: 'CH', name: 'Suisse', flag: '🇨🇭', dialCode: '+41', placeholder: '79 123 45 67' },
+];
+
 export default function Connexion() {
   const router = useRouter();
   const { locale, localizePath } = useLocale();
@@ -43,6 +62,7 @@ export default function Connexion() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryPhoneOption['code']>('CM');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,6 +88,10 @@ export default function Connexion() {
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
+  const cleanedLocalPhone = phone.replace(/\D/g, '');
+  const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
+
   const getDashboardRoute = (role: Role) => {
     if (role === 'admin') return localizePath('/super-admin');
     if (role === 'entreprise') return localizePath('/dashboard-entreprise');
@@ -77,8 +101,7 @@ export default function Connexion() {
 
   // Send OTP
   const handleSendOtp = async () => {
-    const cleaned = phone.replace(/\s/g, '');
-    if (!cleaned || cleaned.length < 9) {
+    if (!cleanedLocalPhone || cleanedLocalPhone.length < 6 || cleanedLocalPhone.length > 14) {
       setAuthError(isEn ? 'Please enter a valid phone number.' : 'Veuillez saisir un numero de telephone valide.');
       return;
     }
@@ -88,7 +111,7 @@ export default function Connexion() {
       const res = await fetch(`${API}/api/otp/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleaned }),
+        body: JSON.stringify({ phone: internationalPhone }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'OTP failed');
@@ -114,7 +137,7 @@ export default function Connexion() {
       const res = await fetch(`${API}/api/otp/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: phone.replace(/\s/g, ''), code: otpCode.trim() }),
+        body: JSON.stringify({ phone: internationalPhone, code: otpCode.trim() }),
       });
       const data = await res.json();
       if (!res.ok || !data.verified) throw new Error(data.error || (isEn ? 'Invalid code' : 'Code invalide'));
@@ -151,11 +174,11 @@ export default function Connexion() {
           : `${firstName.trim()} ${lastName.trim()}`;
 
       const user = await createUser({
-        email: email.trim() || `${phone.replace(/\s|\+/g, '')}@bolo237.local`,
+        email: email.trim() || `${internationalPhone.replace(/\D/g, '')}@bolo237.local`,
         password: password,
         name: fullName,
         role: ROLE_MAP[selectedRole],
-        phone: phone.replace(/\s/g, ''),
+        phone: internationalPhone,
       });
 
       if (typeof window !== 'undefined') {
@@ -500,14 +523,24 @@ export default function Connexion() {
                     <div>
                       <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Phone number' : 'Numero de telephone'} * 🔒</label>
                       <div className="flex gap-2">
-                        <div className="flex items-center px-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold text-gray-600">
-                          +237
-                        </div>
-                        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d\s]/g, ''))}
-                          placeholder="6XX XX XX XX"
+                        <select
+                          value={selectedCountryCode}
+                          onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
+                          className="w-[170px] px-3 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-[#DA7756] outline-none"
+                        >
+                          {COUNTRY_PHONE_OPTIONS.map((country) => (
+                            <option key={country.code} value={country.code}>
+                              {country.flag} {country.dialCode}
+                            </option>
+                          ))}
+                        </select>
+                        <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
+                          placeholder={selectedCountry.placeholder}
                           className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]" />
                       </div>
-                      <p className="text-[10px] text-gray-400 mt-1">{isEn ? 'We will send a verification code via SMS' : 'Nous enverrons un code de verification par SMS'}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {isEn ? 'We will send a verification code via SMS to' : 'Nous enverrons un code de verification par SMS au'} {internationalPhone}
+                      </p>
                     </div>
                     <div>
                       <label className="text-xs font-bold text-gray-600 mb-1 block">Email <span className="text-gray-400">({isEn ? 'optional' : 'optionnel'})</span></label>
@@ -520,7 +553,7 @@ export default function Connexion() {
                   <button onClick={() => {
                     if (!lastName.trim() || !firstName.trim()) { setAuthError(isEn ? 'Name and first name are required.' : 'Le nom et le prenom sont obligatoires.'); return; }
                     if (!username.trim()) { setAuthError(isEn ? 'Please choose a username.' : 'Veuillez choisir un nom d\'utilisateur.'); return; }
-                    if (!phone.replace(/\s/g, '') || phone.replace(/\s/g, '').length < 9) { setAuthError(isEn ? 'Valid phone number required.' : 'Numero de telephone valide requis.'); return; }
+                    if (!cleanedLocalPhone || cleanedLocalPhone.length < 6 || cleanedLocalPhone.length > 14) { setAuthError(isEn ? 'Valid phone number required.' : 'Numero de telephone valide requis.'); return; }
                     setAuthError('');
                     handleSendOtp();
                   }} disabled={isSubmitting}
@@ -539,7 +572,7 @@ export default function Connexion() {
                     </button>
                     <div>
                       <h2 className="text-xl font-extrabold">{isEn ? 'Verify your number' : 'Verifiez votre numero'}</h2>
-                      <p className="text-xs text-gray-500">{isEn ? 'Enter the code sent to' : 'Entrez le code envoye au'} +237 {phone}</p>
+                      <p className="text-xs text-gray-500">{isEn ? 'Enter the code sent to' : 'Entrez le code envoye au'} {internationalPhone}</p>
                     </div>
                   </div>
 
@@ -586,7 +619,7 @@ export default function Connexion() {
 
                   <div className="flex items-center gap-2 text-sm">
                     <span className="w-6 h-6 bg-[#DA7756] rounded-full flex items-center justify-center text-white text-xs">✓</span>
-                    <span className="font-bold text-[#C4623F]">{isEn ? 'Phone verified' : 'Telephone verifie'}: +237 {phone}</span>
+                    <span className="font-bold text-[#C4623F]">{isEn ? 'Phone verified' : 'Telephone verifie'}: {internationalPhone}</span>
                   </div>
 
                   <div className="space-y-3">

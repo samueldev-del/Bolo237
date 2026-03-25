@@ -19,6 +19,24 @@ import {
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
 
+type CountryPhoneOption = {
+  code: string;
+  flag: string;
+  dialCode: string;
+  placeholder: string;
+};
+
+const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
+  { code: 'CM', flag: '🇨🇲', dialCode: '+237', placeholder: '6XX XX XX XX' },
+  { code: 'FR', flag: '🇫🇷', dialCode: '+33', placeholder: '6 12 34 56 78' },
+  { code: 'DE', flag: '🇩🇪', dialCode: '+49', placeholder: '1512 3456789' },
+  { code: 'CA', flag: '🇨🇦', dialCode: '+1', placeholder: '514 123 4567' },
+  { code: 'US', flag: '🇺🇸', dialCode: '+1', placeholder: '415 123 4567' },
+  { code: 'GB', flag: '🇬🇧', dialCode: '+44', placeholder: '7123 456789' },
+  { code: 'BE', flag: '🇧🇪', dialCode: '+32', placeholder: '470 12 34 56' },
+  { code: 'CH', flag: '🇨🇭', dialCode: '+41', placeholder: '79 123 45 67' },
+];
+
 /* ────────────────────────────────────────────
    Types
    ──────────────────────────────────────────── */
@@ -53,6 +71,7 @@ export default function DashboardEntreprise() {
   const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   // OTP flow
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryPhoneOption['code']>('CM');
   const [phone, setPhone] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -80,8 +99,12 @@ export default function DashboardEntreprise() {
   const [jobsPublishedCount, setJobsPublishedCount] = useState(0);
   const [publishedJobs, setPublishedJobs] = useState<JobEntry[]>([]);
 
+  const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
+  const cleanedLocalPhone = phone.replace(/\D/g, '');
+  const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
+
   const isRecruiterVerified = niu.trim().length > 4 || rccm.trim().length > 4;
-  const accountKey = (companyName || userName || phone || 'entreprise').toLowerCase();
+  const accountKey = (companyName || userName || internationalPhone || 'entreprise').toLowerCase();
   const isEnterprisePublishingReady = otpVerified && documentsVerificationStatus === 'approved';
 
   // Load user info
@@ -156,14 +179,14 @@ export default function DashboardEntreprise() {
 
   /* ── OTP Handlers ── */
   const sendOtp = async () => {
-    if (!phone.trim()) {
+    if (!cleanedLocalPhone || cleanedLocalPhone.length < 6 || cleanedLocalPhone.length > 14) {
       setPublishMessage(isEn ? 'Enter a valid phone number before sending OTP.' : 'Saisissez un numero de telephone valide avant l\'envoi OTP.');
       setPublishMessageType('error');
       return;
     }
     setPublishMessage('');
     try {
-      const res = await apiSendOtp(phone);
+      const res = await apiSendOtp(internationalPhone);
       setOtpCode(res.demoCode || '');
       setOtpSent(true);
       setOtpVerified(false);
@@ -178,7 +201,7 @@ export default function DashboardEntreprise() {
   const verifyOtp = async () => {
     setPublishMessage('');
     try {
-      const res = await apiVerifyOtp(phone, otpInput.trim());
+      const res = await apiVerifyOtp(internationalPhone, otpInput.trim());
       if (res.verified) {
         setOtpVerified(true);
         setPublishMessage(isEn ? 'Phone verified successfully!' : 'Numero de telephone verifie avec succes!');
@@ -227,7 +250,7 @@ export default function DashboardEntreprise() {
       role: 'entreprise',
       accountKey,
       displayName: companyName || userName || 'Entreprise',
-      phone,
+      phone: internationalPhone,
       payload: {
         niu,
         rccm,
@@ -875,10 +898,21 @@ export default function DashboardEntreprise() {
                               <input
                                 type="tel"
                                 value={phone}
-                                onChange={(e) => setPhone(e.target.value)}
-                                placeholder="+237 6XX XX XX XX"
+                                onChange={(e) => setPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
+                                placeholder={selectedCountry.placeholder}
                                 className="flex-1 p-3 border border-gray-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
                               />
+                              <select
+                                value={selectedCountryCode}
+                                onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
+                                className="p-3 border border-gray-300 rounded-xl text-sm bg-white focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                              >
+                                {COUNTRY_PHONE_OPTIONS.map((country) => (
+                                  <option key={country.code} value={country.code}>
+                                    {country.flag} {country.dialCode}
+                                  </option>
+                                ))}
+                              </select>
                               <button
                                 onClick={sendOtp}
                                 className="px-6 py-3 rounded-xl bg-gray-900 text-white font-bold text-sm hover:bg-black transition shrink-0 active:scale-[0.98]"
@@ -1178,7 +1212,7 @@ export default function DashboardEntreprise() {
                           <div>
                             <p className="text-[10px] font-bold uppercase text-gray-400 tracking-wider mb-1">{isEn ? 'Phone' : 'Telephone'}</p>
                             <p className="font-bold text-green-600 text-sm flex items-center gap-1.5">
-                              {'\u2705'} {phone}
+                              {'\u2705'} {internationalPhone}
                             </p>
                           </div>
                         </div>

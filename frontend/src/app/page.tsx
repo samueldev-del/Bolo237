@@ -398,7 +398,7 @@ export default function Home() {
         </section>
       </div>
 
-      {/* ═══════════ POURQUOI 237JOBS ═══════════ */}
+      {/* ═══════════ POURQUOI BOLO237 ═══════════ */}
       <section className="bg-gradient-to-b from-white to-gray-50 py-20 border-t border-gray-100">
         <div className="max-w-[1400px] mx-auto px-4">
           <h2 className="text-3xl font-extrabold text-center mb-3 tracking-tight">

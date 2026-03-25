@@ -174,7 +174,7 @@ export default function Connexion() {
           : `${firstName.trim()} ${lastName.trim()}`;
 
       const user = await createUser({
-        email: email.trim() || `${internationalPhone.replace(/\D/g, '')}@bolo237.local`,
+        email: email.trim() || `${internationalPhone.replace(/\D/g, '')}@phone.bolo237.com`,
         password: password,
         name: fullName,
         role: ROLE_MAP[selectedRole],

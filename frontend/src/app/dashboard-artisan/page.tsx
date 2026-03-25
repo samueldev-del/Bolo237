@@ -11,6 +11,8 @@ import {
   verifyOtp as apiVerifyOtp,
   createJob,
   fetchJobs,
+  fetchSessionUser,
+  logoutUser,
   uploadFile,
   type ApiJob,
   fetchVerificationStatus,
@@ -18,7 +20,7 @@ import {
   type VerificationStatus,
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
-import { mergeStoredUser } from '@/lib/session';
+import { clearStoredSession, mergeStoredUser } from '@/lib/session';
 
 type CountryPhoneOption = {
   code: string;
@@ -246,6 +248,24 @@ export default function DashboardArtisan() {
       // ignore localStorage errors
     }
   }, []);
+
+  useEffect(() => {
+    const ensureActiveUser = async () => {
+      if (!userId) return;
+      try {
+        const sessionUser = await fetchSessionUser();
+        if (Number(sessionUser.id) !== Number(userId)) {
+          throw new Error('Session mismatch');
+        }
+      } catch {
+        await logoutUser().catch(() => undefined);
+        clearStoredSession();
+        window.location.href = localizePath('/');
+      }
+    };
+
+    ensureActiveUser();
+  }, [userId, localizePath]);
 
   useEffect(() => {
     const loadVerificationStatus = async () => {
@@ -556,9 +576,16 @@ export default function DashboardArtisan() {
                     <span>&#11088;</span> {isEn ? 'Premium plan' : 'Abonnement Premium'}
                   </Link>
                   <hr className="my-1 border-gray-100" />
-                  <Link href={localizePath('/')} className="px-5 py-2.5 hover:bg-red-50 hover:text-red-600 transition font-medium text-sm flex items-center gap-2 rounded-lg mx-1">
+                  <button
+                    onClick={() => {
+                      logoutUser().catch(() => undefined);
+                      clearStoredSession();
+                      window.location.href = localizePath('/');
+                    }}
+                    className="w-full text-left px-5 py-2.5 hover:bg-red-50 hover:text-red-600 transition font-medium text-sm flex items-center gap-2 rounded-lg mx-1"
+                  >
                     <span>&#10140;</span> {isEn ? 'Logout' : 'Deconnexion'}
-                  </Link>
+                  </button>
                 </div>
               )}
             </div>

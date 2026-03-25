@@ -6,8 +6,8 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { createCandidateProfile, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, uploadFile, upsertUserProfile, type ApiJob, type UserApplication } from '@/lib/api';
-import { getStoredUser, mergeStoredUser } from '@/lib/session';
+import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, type ApiJob, type UserApplication } from '@/lib/api';
+import { clearStoredSession, getStoredUser, mergeStoredUser } from '@/lib/session';
 
 export default function DashboardCandidat() {
   const { locale, localizePath } = useLocale();
@@ -131,6 +131,24 @@ export default function DashboardCandidat() {
 
     loadProfile();
   }, [userId]);
+
+  useEffect(() => {
+    const ensureActiveUser = async () => {
+      if (!userId) return;
+      try {
+        const sessionUser = await fetchSessionUser();
+        if (Number(sessionUser.id) !== Number(userId)) {
+          throw new Error('Session mismatch');
+        }
+      } catch {
+        await logoutUser().catch(() => undefined);
+        clearStoredSession();
+        window.location.href = localizePath('/');
+      }
+    };
+
+    ensureActiveUser();
+  }, [userId, localizePath]);
 
   // Vide — sera rempli par les vraies offres sauvegardees
   const emploisSauvegardes: { id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[] = savedJobs.map((job) => {

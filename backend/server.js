@@ -1,5 +1,10 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const cookieParser = require('cookie-parser');
+const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const twilio = require('twilio');
 const multer = require('multer');
@@ -18,6 +23,11 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 const app = express();
+app.set('trust proxy', 1);
+const SESSION_COOKIE_NAME = 'bolo237_session';
+const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET || process.env.MASTER_OTP || 'change-me-in-production';
+const activeSessionTokens = new Map(); // jti -> expiresAtMs
+const revokedSessionTokens = new Map(); // token -> expiresAtMs
 
 const uploadsRoot = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsRoot)) {
@@ -91,21 +101,100 @@ async function sendOtpWithTwilio(phone, code) {
 }
 
 // --- Middleware ---
+const envOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((entry) => entry.trim())
+  .filter(Boolean);
+
+const allowedOrigins = new Set([
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'https://www.bolo237.com',
+  'https://admin.bolo237.com',
+  ...envOrigins,
+]);
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000',
-    'http://localhost:3001',
-    'https://bolo237.com',
-    'https://www.bolo237.com',
-    'https://admin.bolo237.com',
-    // Vercel preview URLs
-    /https:\/\/bolo237(-[a-z0-9]+)?\.vercel\.app$/,
-    /https:\/\/.*\.vercel\.app$/,
-  ],
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error('CORS policy blocked this origin'));
+  },
   credentials: true,
 }));
+
+const apiGlobalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de requetes depuis cette IP. Reessayez dans 15 minutes.' },
+});
+
+app.use('/api', apiGlobalLimiter);
+app.use(cookieParser());
 app.use(express.json());
 app.use('/uploads', express.static(uploadsRoot));
+
+function getSessionCookieOptions() {
+  const isProd = process.env.NODE_ENV === 'production';
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
+
+function createSessionToken(user) {
+  const jti = crypto.randomUUID();
+  const token = jwt.sign(
+    { userId: user.id, email: user.email, role: user.role, jti },
+    SESSION_JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+
+  const decoded = jwt.decode(token);
+  const expMs = decoded?.exp ? Number(decoded.exp) * 1000 : Date.now() + (7 * 24 * 60 * 60 * 1000);
+  activeSessionTokens.set(jti, expMs);
+
+  return token;
+}
+
+function readSessionToken(req) {
+  const raw = req.cookies?.[SESSION_COOKIE_NAME];
+  if (!raw) return null;
+
+  const revokedUntil = revokedSessionTokens.get(raw);
+  const now = Date.now();
+  if (revokedUntil && revokedUntil > now) {
+    return null;
+  }
+  if (revokedUntil && revokedUntil <= now) {
+    revokedSessionTokens.delete(raw);
+  }
+
+  try {
+    const payload = jwt.verify(raw, SESSION_JWT_SECRET);
+    const jti = String(payload?.jti || '');
+    if (!jti) return null;
+
+    const activeUntil = activeSessionTokens.get(jti);
+    if (!activeUntil || activeUntil <= now) {
+      if (activeUntil && activeUntil <= now) activeSessionTokens.delete(jti);
+      return null;
+    }
+
+    return payload;
+  } catch {
+    return null;
+  }
+}
 
 // Verification queue is persisted via Prisma VerificationSubmission model
 
@@ -1326,6 +1415,9 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
     }
 
+    const token = createSessionToken(user);
+    res.cookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions());
+
     // Return user data without password
     const { password: _pw, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
@@ -1333,6 +1425,53 @@ app.post('/api/auth/login', async (req, res) => {
     console.error('POST /api/auth/login error:', error);
     res.status(500).json({ error: 'Erreur lors de la connexion.' });
   }
+});
+
+// GET /api/auth/me — Retourner l'utilisateur de session
+app.get('/api/auth/me', async (req, res) => {
+  try {
+    const payload = readSessionToken(req);
+    if (!payload?.userId) return res.status(401).json({ error: 'Session invalide.' });
+
+    const user = await prisma.user.findUnique({
+      where: { id: Number(payload.userId) },
+      select: { id: true, email: true, name: true, role: true, phone: true, isVerified: true, isBanned: true, createdAt: true },
+    });
+
+    if (!user) {
+      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+      return res.status(401).json({ error: 'Session invalide.' });
+    }
+
+    if (user.isBanned) {
+      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+      return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
+    }
+
+    return res.json(user);
+  } catch (error) {
+    console.error('GET /api/auth/me error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la verification de session.' });
+  }
+});
+
+// POST /api/auth/logout — Fermer la session
+app.post('/api/auth/logout', (_req, res) => {
+  const raw = _req.cookies?.[SESSION_COOKIE_NAME];
+  if (raw) {
+    try {
+      const decoded = jwt.decode(raw);
+      if (decoded?.jti) {
+        activeSessionTokens.delete(String(decoded.jti));
+      }
+      const expMs = decoded?.exp ? Number(decoded.exp) * 1000 : Date.now() + (7 * 24 * 60 * 60 * 1000);
+      revokedSessionTokens.set(raw, expMs);
+    } catch {
+      // ignore decode errors during logout
+    }
+  }
+  res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+  res.json({ ok: true });
 });
 
 // =============================================
@@ -1786,11 +1925,25 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+const ALLOWED_UPLOAD_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_UPLOAD_MIME.has(String(file.mimetype || '').toLowerCase())) {
+      return cb(new Error('Invalid file type'));
+    }
+    cb(null, true);
+  },
+});
 
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
+    if (!ALLOWED_UPLOAD_MIME.has(String(req.file.mimetype || '').toLowerCase())) {
+      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp.' });
+    }
 
     const safeFolder = String(req.query.folder || 'general').replace(/[^a-zA-Z0-9/_-]/g, '') || 'general';
 
@@ -1799,7 +1952,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
       const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { folder, resource_type: 'auto' },
+          { folder, resource_type: 'image' },
           (error, uploadResult) => error ? reject(error) : resolve(uploadResult)
         );
         stream.end(req.file.buffer);
@@ -1822,6 +1975,12 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     res.json({ url: `${baseUrl}/uploads/${relativePath}`, publicId: relativePath });
   } catch (error) {
     console.error('Upload error:', error);
+    if (error?.message === 'Invalid file type') {
+      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp.' });
+    }
+    if (error?.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 5 Mo.' });
+    }
     res.status(500).json({ error: 'Upload failed' });
   }
 });
@@ -1833,8 +1992,28 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 // Stockage en memoire des codes OTP (en prod : Redis ou DB)
 const otpStore = new Map(); // phone -> { code, expires }
 
+const otpIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de demandes OTP depuis cette IP. Reessayez dans 15 minutes.' },
+});
+
+const otpPhoneLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const phone = String(req.body?.phone || '').replace(/\D/g, '');
+    return phone || ipKeyGenerator(req.ip);
+  },
+  message: { error: 'Trop de demandes OTP pour ce numero. Reessayez dans 15 minutes.' },
+});
+
 // Route pour ENVOYER le code SMS
-app.post('/api/otp/send', async (req, res) => {
+app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis" });
 
@@ -1980,6 +2159,8 @@ app.get('/', (_req, res) => {
       reports: 'GET /api/reports',
       admin: 'GET /api/admin/stats',
       auth_login: 'POST /api/auth/login',
+      auth_me: 'GET /api/auth/me',
+      auth_logout: 'POST /api/auth/logout',
       otp_send: 'POST /api/otp/send',
       otp_verify: 'POST /api/otp/verify',
     },

@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
+import { clearStoredSession } from '@/lib/session';
+import { logoutUser } from '@/lib/api';
 
 const USER_KEY = 'bolo237-user';
 const ROLE_KEY = 'bolo237-account-role';
@@ -89,10 +91,9 @@ export default function Header() {
   const localRole = typeof window !== 'undefined' ? window.localStorage.getItem(ROLE_KEY) : null;
   const localRoleNormalized = normalizeRole(localRole);
 
-  const handleLogout = () => {
-    window.localStorage.removeItem(USER_KEY);
-    window.localStorage.removeItem(ROLE_KEY);
-    window.localStorage.removeItem('bolo237-phone-verified');
+  const handleLogout = async () => {
+    await logoutUser().catch(() => undefined);
+    clearStoredSession();
     setUser(null);
     setIsMenuOpen(false);
     window.location.href = localizePath('/');

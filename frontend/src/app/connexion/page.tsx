@@ -191,9 +191,15 @@ export default function Connexion() {
         phone: internationalPhone,
       });
 
+      // Open secure HttpOnly session cookie immediately after signup.
+      const loggedUser = await loginUser({
+        email: user.email,
+        password,
+      });
+
       if (typeof window !== 'undefined') {
-        const localRole = BACKEND_ROLE_TO_LOCAL[user.role] || 'chercheur';
-        window.localStorage.setItem(USER_KEY, JSON.stringify(user));
+        const localRole = BACKEND_ROLE_TO_LOCAL[loggedUser.role] || 'chercheur';
+        window.localStorage.setItem(USER_KEY, JSON.stringify(loggedUser));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
         window.localStorage.setItem('bolo237-phone-verified', 'true');
         router.push(getDashboardRoute(localRole));

@@ -11,7 +11,9 @@ import {
   verifyOtp as apiVerifyOtp,
   createJob,
   uploadFile,
+  fetchSessionUser,
   fetchUserNotifications,
+  logoutUser,
   markAllNotificationsAsRead,
   fetchVerificationStatus,
   createVerificationSubmission,
@@ -19,7 +21,7 @@ import {
   type VerificationStatus,
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
-import { mergeStoredUser } from '@/lib/session';
+import { clearStoredSession, mergeStoredUser } from '@/lib/session';
 
 type CountryPhoneOption = {
   code: string;
@@ -128,6 +130,24 @@ export default function DashboardEntreprise() {
       // silently ignore
     }
   }, []);
+
+  useEffect(() => {
+    const ensureActiveUser = async () => {
+      if (!userId) return;
+      try {
+        const sessionUser = await fetchSessionUser();
+        if (Number(sessionUser.id) !== Number(userId)) {
+          throw new Error('Session mismatch');
+        }
+      } catch {
+        await logoutUser().catch(() => undefined);
+        clearStoredSession();
+        window.location.href = localizePath('/');
+      }
+    };
+
+    ensureActiveUser();
+  }, [userId, localizePath]);
 
   useEffect(() => {
     const loadVerificationStatus = async () => {
@@ -651,13 +671,17 @@ export default function DashboardEntreprise() {
             <div className="border-t border-gray-100 my-3" />
 
             {/* Logout */}
-            <Link
-              href={localizePath('/')}
-              className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition"
+            <button
+              onClick={() => {
+                logoutUser().catch(() => undefined);
+                clearStoredSession();
+                window.location.href = localizePath('/');
+              }}
+              className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition"
             >
               <span className="text-base w-6 text-center">{'\u{1F6AA}'}</span>
               <span>{isEn ? 'Logout' : 'Deconnexion'}</span>
-            </Link>
+            </button>
           </nav>
         </aside>
 

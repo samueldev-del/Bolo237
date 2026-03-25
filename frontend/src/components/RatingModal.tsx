@@ -31,7 +31,7 @@ export default function RatingModal({ isOpen, onClose, reviewedId, reviewedName,
 
     let reviewerId = 0;
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (raw) {
         const user = JSON.parse(raw);
         reviewerId = Number(user?.id || 0);

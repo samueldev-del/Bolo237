@@ -93,6 +93,31 @@ export type Pagination = {
   totalPages: number;
 };
 
+export type PlatformSettings = {
+  platformName: string;
+  maintenanceMode: boolean;
+  moderationRules: { autoApproveAfterPosts: number; blockedKeywords: string[] };
+  notificationPreferences: { emailOnNewReport: boolean; whatsappOnNewJob: boolean };
+};
+
+export type AdminNotification = {
+  id: number;
+  userId: number;
+  type: string;
+  title: string;
+  message: string;
+  isRead: boolean;
+  createdAt: string;
+  user: { id: number; name: string | null; email: string; role: string };
+};
+
+export type ActivityEvent = {
+  type: string;
+  description: string;
+  timestamp: string;
+  meta?: Record<string, unknown>;
+};
+
 // ── Fetch helper ─────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -248,6 +273,53 @@ export function fetchAppFeedbacks(
 
 export function fetchAdminReviews(): Promise<{ reviews: UserReview[]; alerts: ReviewAlert[] }> {
   return apiFetch('/api/admin/reviews');
+}
+
+// ── Banned Users ────────────────────────────────────────────────
+
+export async function fetchBannedUsers(filters: { search?: string; page?: number; limit?: number } = {}): Promise<{ users: User[]; pagination: Pagination }> {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.page) params.set('page', String(filters.page));
+  if (filters.limit) params.set('limit', String(filters.limit));
+  const qs = params.toString();
+  return apiFetch(`/api/admin/banned-users${qs ? `?${qs}` : ''}`);
+}
+
+// ── Platform Settings ───────────────────────────────────────────
+
+export async function fetchPlatformSettings(): Promise<PlatformSettings> {
+  return apiFetch('/api/admin/settings');
+}
+
+export async function updatePlatformSettings(data: Partial<PlatformSettings>): Promise<PlatformSettings> {
+  return apiFetch('/api/admin/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+}
+
+// ── Notifications ───────────────────────────────────────────────
+
+export async function broadcastNotification(data: { title: string; message: string; type: string; targetRole: string }): Promise<{ sent: number }> {
+  return apiFetch('/api/admin/notifications/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+}
+
+export async function fetchAdminNotifications(params: { limit?: number; page?: number } = {}): Promise<{ items: AdminNotification[]; pagination: Pagination }> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.page) qs.set('page', String(params.page));
+  const q = qs.toString();
+  return apiFetch(`/api/admin/notifications${q ? `?${q}` : ''}`);
+}
+
+// ── Admin Search ────────────────────────────────────────────────
+
+export async function adminSearch(query: string): Promise<{ users: User[]; jobs: Job[] }> {
+  return apiFetch(`/api/admin/search?q=${encodeURIComponent(query)}`);
+}
+
+// ── Activity Log ────────────────────────────────────────────────
+
+export async function fetchActivityLog(limit = 20): Promise<{ events: ActivityEvent[] }> {
+  return apiFetch(`/api/admin/activity-log?limit=${limit}`);
 }
 
 // ── Health ───────────────────────────────────────────────────────

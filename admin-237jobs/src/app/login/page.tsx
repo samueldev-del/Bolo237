@@ -12,7 +12,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-800 via-green-900 to-green-950 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#8B4332] via-[#6B3325] to-[#4A2218] p-4">
       {/* Subtle pattern overlay */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.05),transparent_50%),radial-gradient(circle_at_70%_80%,rgba(255,255,255,0.03),transparent_50%)]" />
 
@@ -20,19 +20,19 @@ export default function LoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-white.svg" alt="237jobs" className="h-10 w-auto mx-auto mb-4" />
+          <img src="/logo-white.svg" alt="Bolo237" className="h-10 w-auto mx-auto mb-4" />
           <div className="flex items-center justify-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-green-300" />
-            <span className="text-sm font-semibold text-green-200 uppercase tracking-widest">Admin</span>
+            <ShieldCheck className="h-4 w-4 text-[#F5C5A3]" />
+            <span className="text-sm font-semibold text-[#F5C5A3] uppercase tracking-widest">Admin</span>
           </div>
-          <p className="text-sm text-green-300/70 mt-2">Acces securise au back-office</p>
+          <p className="text-sm text-[#F5C5A3]/70 mt-2">Acces securise au back-office</p>
         </div>
 
         {/* Card */}
         <div className="bg-white rounded-3xl border border-zinc-200 shadow-[0_24px_80px_rgba(0,0,0,0.25)] p-8">
           <div className="flex items-center gap-3 mb-6">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-green-50">
-              <Lock className="h-5 w-5 text-green-600" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FFF5EF]">
+              <Lock className="h-5 w-5 text-[#DA7756]" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-zinc-900">Connexion</h2>
@@ -69,7 +69,7 @@ export default function LoginPage() {
                   required
                   autoFocus
                   placeholder="Entrez le mot de passe..."
-                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-4 pr-12 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-green-400 focus:bg-white focus:ring-2 focus:ring-green-100"
+                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-4 pr-12 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#DA7756] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
                 />
                 <button
                   type="button"
@@ -85,7 +85,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isPending}
-              className="relative h-12 w-full rounded-xl bg-gradient-to-b from-green-600 to-green-700 text-sm font-semibold text-white shadow-sm transition hover:from-green-500 hover:to-green-600 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="relative h-12 w-full rounded-xl bg-gradient-to-b from-[#DA7756] to-[#C4623F] text-sm font-semibold text-white shadow-sm transition hover:from-[#E8A87C] hover:to-[#DA7756] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {isPending ? (
                 <span className="flex items-center justify-center gap-2">
@@ -108,8 +108,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-green-300/50 mt-6">
-          &copy; 2026 237jobs &mdash; Panneau d&apos;administration
+        <p className="text-center text-xs text-[#F5C5A3]/50 mt-6">
+          &copy; 2026 Bolo237 &mdash; Panneau d&apos;administration
         </p>
       </div>
     </div>

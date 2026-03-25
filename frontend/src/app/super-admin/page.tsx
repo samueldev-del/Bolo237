@@ -147,7 +147,7 @@ export default function SuperAdminPage() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold">{isEn ? 'Command Center' : 'Centre de Commande'} 🗼</h1>
-            <p className="text-sm text-gray-500 font-medium mt-1">237jobs Super Admin — 24/7</p>
+            <p className="text-sm text-gray-500 font-medium mt-1">Bolo237 Super Admin — 24/7</p>
           </div>
           <Link href={localizePath('/')} className="text-sm font-bold text-green-700 hover:underline">{isEn ? 'Back to home' : 'Retour a l\'accueil'}</Link>
         </div>

@@ -1,12 +1,12 @@
 {
-  "name": "237jobs - Emplois et Services au Cameroun",
-  "short_name": "237jobs",
+  "name": "Bolo237 - Emplois et Services au Cameroun",
+  "short_name": "Bolo237",
   "description": "Trouvez l'emploi idéal ou proposez vos services partout au Cameroun.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#ffffff",
-  "theme_color": "#16a34a",
+  "theme_color": "#DA7756",
   "categories": ["business", "productivity"],
   "lang": "fr",
   "dir": "ltr",
@@ -66,14 +66,14 @@
       "sizes": "512x512",
       "type": "image/png",
       "form_factor": "wide",
-      "label": "237jobs - Emplois au Cameroun"
+      "label": "Bolo237 - Emplois au Cameroun"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "form_factor": "narrow",
-      "label": "237jobs Mobile"
+      "label": "Bolo237 Mobile"
     }
   ],
   "shortcuts": [

@@ -14,12 +14,12 @@ export default function AProposPage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="bg-gradient-to-br from-green-600 to-green-800 text-white py-16 px-4">
+        <section className="bg-gradient-to-br from-[#DA7756] to-[#A8502F] text-white py-16 px-4">
           <div className="max-w-3xl mx-auto text-center">
             <h1 className="text-3xl md:text-4xl font-extrabold mb-4">
-              {isEn ? 'About 237jobs' : 'A propos de 237jobs'}
+              {isEn ? 'About Bolo237' : 'A propos de Bolo237'}
             </h1>
-            <p className="text-lg text-green-100 max-w-xl mx-auto">
+            <p className="text-lg text-[#FEEBD6] max-w-xl mx-auto">
               {isEn
                 ? 'The new generation platform dedicated to jobs and local services in Cameroon.'
                 : 'La plateforme nouvelle generation dediee a l\'emploi et aux services de proximite au Cameroun.'}
@@ -34,21 +34,21 @@ export default function AProposPage() {
           </h2>
           <p className="text-gray-700 leading-relaxed mb-6">
             {isEn
-              ? 'Welcome to 237jobs, the new generation platform dedicated to jobs and local services in Cameroon. Our mission is simple: instantly connect those who have a need with those who have the talent to answer it.'
-              : 'Bienvenue sur 237jobs, la plateforme nouvelle generation dediee a l\'emploi et aux services de proximite au Cameroun. Notre mission est simple : connecter instantanement ceux qui ont un besoin avec ceux qui ont le talent pour y repondre.'}
+              ? 'Welcome to Bolo237, the new generation platform dedicated to jobs and local services in Cameroon. Our mission is simple: instantly connect those who have a need with those who have the talent to answer it.'
+              : 'Bienvenue sur Bolo237, la plateforme nouvelle generation dediee a l\'emploi et aux services de proximite au Cameroun. Notre mission est simple : connecter instantanement ceux qui ont un besoin avec ceux qui ont le talent pour y repondre.'}
           </p>
           <p className="text-gray-700 leading-relaxed">
             {isEn
-              ? 'Whether you are a company looking for the perfect candidate, an individual needing a qualified artisan, or a talent seeking your next opportunity, 237jobs is your bridge of trust.'
-              : 'Que vous soyez une entreprise cherchant la perle rare, un particulier ayant besoin d\'un artisan qualifie, ou un talent cherchant sa prochaine opportunite, 237jobs est votre pont de confiance.'}
+              ? 'Whether you are a company looking for the perfect candidate, an individual needing a qualified artisan, or a talent seeking your next opportunity, Bolo237 is your bridge of trust.'
+              : 'Que vous soyez une entreprise cherchant la perle rare, un particulier ayant besoin d\'un artisan qualifie, ou un talent cherchant sa prochaine opportunite, Bolo237 est votre pont de confiance.'}
           </p>
         </section>
 
         {/* Pourquoi */}
-        <section className="bg-green-50 py-12 px-4">
+        <section className="bg-[#FFF5EF] py-12 px-4">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-2xl font-extrabold text-gray-900 mb-4">
-              {isEn ? 'Why 237jobs?' : 'Pourquoi 237jobs ?'}
+              {isEn ? 'Why Bolo237?' : 'Pourquoi Bolo237 ?'}
             </h2>
             <p className="text-gray-700 leading-relaxed mb-8">
               {isEn
@@ -62,8 +62,8 @@ export default function AProposPage() {
 
             <div className="grid gap-6 md:grid-cols-3">
               {/* Confiance */}
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-green-100">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-2xl mb-4">
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-[#FEEBD6]">
+                <div className="w-12 h-12 bg-[#FEEBD6] rounded-full flex items-center justify-center text-2xl mb-4">
                   🛡️
                 </div>
                 <h4 className="font-bold text-gray-900 mb-2">
@@ -77,8 +77,8 @@ export default function AProposPage() {
               </div>
 
               {/* Rapidite */}
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-green-100">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-2xl mb-4">
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-[#FEEBD6]">
+                <div className="w-12 h-12 bg-[#FEEBD6] rounded-full flex items-center justify-center text-2xl mb-4">
                   ⚡
                 </div>
                 <h4 className="font-bold text-gray-900 mb-2">
@@ -92,8 +92,8 @@ export default function AProposPage() {
               </div>
 
               {/* Accessibilite */}
-              <div className="bg-white rounded-xl p-6 shadow-sm border border-green-100">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-2xl mb-4">
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-[#FEEBD6]">
+                <div className="w-12 h-12 bg-[#FEEBD6] rounded-full flex items-center justify-center text-2xl mb-4">
                   📱
                 </div>
                 <h4 className="font-bold text-gray-900 mb-2">
@@ -111,10 +111,10 @@ export default function AProposPage() {
 
         {/* Tagline */}
         <section className="py-12 px-4 text-center">
-          <p className="text-xl font-bold text-green-700">
+          <p className="text-xl font-bold text-[#C4623F]">
             {isEn
-              ? '237jobs — Cameroonian talent, one click away.'
-              : '237jobs, c\'est le talent camerounais, a portee de clic.'}
+              ? 'Bolo237 — Cameroonian talent, one click away.'
+              : 'Bolo237, c\'est le talent camerounais, a portee de clic.'}
           </p>
         </section>
       </main>

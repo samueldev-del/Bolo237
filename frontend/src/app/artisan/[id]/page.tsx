@@ -32,7 +32,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const userRaw = window.localStorage.getItem('237jobs-user');
+    const userRaw = window.localStorage.getItem('bolo237-user');
     setIsLoggedIn(!!userRaw);
   }, []);
 
@@ -119,7 +119,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
       <nav className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href={localizePath('/')}>
-            <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto" />
+            <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
           </Link>
           <Link href={localizePath('/recherche')} className="text-sm font-bold text-gray-600 hover:text-green-700">
             {locale === 'fr' ? 'Retour a la recherche' : 'Back to search'}

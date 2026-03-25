@@ -1,4 +1,4 @@
-const CACHE_NAME = '237jobs-v1';
+const CACHE_NAME = 'Bolo237-v1';
 
 // Pages et assets essentiels à mettre en cache
 const PRECACHE_URLS = [
@@ -70,7 +70,7 @@ self.addEventListener('fetch', (event) => {
 
           // Rien en cache → réponse offline
           return new Response(
-            '<html><body style="font-family:sans-serif;text-align:center;padding:60px 20px"><h1>237jobs</h1><p>Pas de connexion internet.<br>Vérifiez votre réseau et réessayez.</p><button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#16a34a;color:white;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer">Réessayer</button></body></html>',
+            '<html><body style="font-family:sans-serif;text-align:center;padding:60px 20px"><h1>Bolo237</h1><p>Pas de connexion internet.<br>Vérifiez votre réseau et réessayez.</p><button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#DA7756;color:white;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer">Réessayer</button></body></html>',
             { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
           );
         });

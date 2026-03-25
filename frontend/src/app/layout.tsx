@@ -8,14 +8,14 @@ import { cookies } from "next/headers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://237jobs.com"),
-  title: "237jobs - Emplois et Services au Cameroun",
+  metadataBase: new URL("https://www.bolo237.com"),
+  title: "Bolo237 - Emplois et Services au Cameroun",
   description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "237jobs",
+    title: "Bolo237",
   },
   icons: {
     icon: "/icon.svg",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#16a34a",
+  themeColor: "#DA7756",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode; }>) {

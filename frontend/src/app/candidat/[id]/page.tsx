@@ -21,8 +21,8 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
   const [userRole, setUserRole] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const userRaw = window.localStorage.getItem('237jobs-user');
-    const role = window.localStorage.getItem('237jobs-account-role');
+    const userRaw = window.localStorage.getItem('bolo237-user');
+    const role = window.localStorage.getItem('bolo237-account-role');
     setIsLoggedIn(!!userRaw);
     setUserRole(role);
   }, []);

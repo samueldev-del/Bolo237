@@ -7,8 +7,8 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchCandidateProfiles } from '@/lib/api';
 
-const USER_KEY = '237jobs-user';
-const ROLE_KEY = '237jobs-account-role';
+const USER_KEY = 'bolo237-user';
+const ROLE_KEY = 'bolo237-account-role';
 
 type Candidate = {
   id: number;

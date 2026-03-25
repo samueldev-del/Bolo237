@@ -95,7 +95,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
     let candidateId = 0;
     let candidateName = '';
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (raw) {
         const user = JSON.parse(raw);
         candidateId = Number(user.id || 0);
@@ -148,7 +148,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
       <nav className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href={localizePath('/')}>
-            <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto" />
+            <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
           </Link>
           <Link href={localizePath('/recherche')} className="text-sm font-bold text-gray-600 hover:text-green-700">
             {locale === 'fr' ? 'Retour aux offres' : 'Back to listings'}

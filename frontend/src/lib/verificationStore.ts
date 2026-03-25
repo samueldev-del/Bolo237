@@ -15,7 +15,7 @@ export type VerificationSubmission = {
   payload: Record<string, string | boolean | number | null>;
 };
 
-const STORE_KEY = '237jobs-verification-submissions';
+const STORE_KEY = 'bolo237-verification-submissions';
 
 function readAll(): VerificationSubmission[] {
   if (typeof window === 'undefined') return [];

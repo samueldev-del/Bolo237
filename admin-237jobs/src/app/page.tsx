@@ -104,7 +104,7 @@ export default function AdminDashboard() {
     return (
       <AdminShell title="Tableau de bord" description="Chargement des donnees...">
         <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-[#DA7756]" />
         </div>
       </AdminShell>
     );
@@ -119,7 +119,7 @@ export default function AdminDashboard() {
           <p className="text-sm text-zinc-500 mb-6 max-w-md">{error}</p>
           <button
             onClick={loadData}
-            className="rounded-xl bg-green-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-green-700"
+            className="rounded-xl bg-[#DA7756] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#C4623F]"
           >
             Reessayer
           </button>
@@ -129,16 +129,16 @@ export default function AdminDashboard() {
   }
 
   return (
-    <AdminShell title="Tableau de bord" description="Vue d'ensemble de la plateforme 237jobs">
+    <AdminShell title="Tableau de bord" description="Vue d'ensemble de la plateforme Bolo237">
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatCard
           title="Utilisateurs"
           value={stats?.users ?? 0}
           icon={<Users className="h-5 w-5" />}
-          color="text-green-600"
-          bg="bg-green-50"
-          border="border-green-200"
+          color="text-[#DA7756]"
+          bg="bg-[#FFF5EF]"
+          border="border-[#E8C4B0]"
           href="/utilisateurs/liste"
         />
         <StatCard
@@ -206,7 +206,7 @@ export default function AdminDashboard() {
               onClick={() => setTrendDays(7)}
               className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
                 trendDays === 7
-                  ? "bg-green-600 text-white"
+                  ? "bg-[#DA7756] text-white"
                   : "text-zinc-500 hover:text-zinc-700"
               }`}
             >
@@ -216,7 +216,7 @@ export default function AdminDashboard() {
               onClick={() => setTrendDays(30)}
               className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
                 trendDays === 30
-                  ? "bg-green-600 text-white"
+                  ? "bg-[#DA7756] text-white"
                   : "text-zinc-500 hover:text-zinc-700"
               }`}
             >
@@ -233,12 +233,12 @@ export default function AdminDashboard() {
             <AreaChart data={trendPoints} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
               <defs>
                 <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#DA7756" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#DA7756" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="colorJobs" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#34d399" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#34d399" stopOpacity={0} />
+                  <stop offset="5%" stopColor="#E8A87C" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#E8A87C" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
@@ -265,7 +265,7 @@ export default function AdminDashboard() {
                 type="monotone"
                 dataKey="users"
                 name="Inscriptions"
-                stroke="#22c55e"
+                stroke="#DA7756"
                 strokeWidth={2}
                 fill="url(#colorUsers)"
               />
@@ -273,7 +273,7 @@ export default function AdminDashboard() {
                 type="monotone"
                 dataKey="jobs"
                 name="Publications"
-                stroke="#34d399"
+                stroke="#E8A87C"
                 strokeWidth={2}
                 fill="url(#colorJobs)"
               />
@@ -287,7 +287,7 @@ export default function AdminDashboard() {
         <div className="xl:col-span-2 rounded-2xl border border-zinc-200 bg-white">
           <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
             <h3 className="text-base font-semibold text-zinc-800">Derniers utilisateurs inscrits</h3>
-            <Link href="/utilisateurs/liste" className="text-xs font-medium text-green-600 hover:text-green-700 transition">
+            <Link href="/utilisateurs/liste" className="text-xs font-medium text-[#DA7756] hover:text-[#C4623F] transition">
               Voir tout &rarr;
             </Link>
           </div>
@@ -303,7 +303,7 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                       user.isVerified
-                        ? "bg-green-100 text-green-700"
+                        ? "bg-[#FEEBD6] text-[#DA7756]"
                         : "bg-zinc-100 text-zinc-500"
                     }`}>
                       {(user.name || user.email).slice(0, 2).toUpperCase()}
@@ -319,12 +319,12 @@ export default function AdminDashboard() {
                     <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${
                       user.role === "ENTREPRISE" ? "bg-purple-50 text-purple-700 border-purple-200"
                       : user.role === "ARTISAN" ? "bg-amber-50 text-amber-700 border-amber-200"
-                      : user.role === "ADMIN" ? "bg-green-50 text-green-700 border-green-200"
+                      : user.role === "ADMIN" ? "bg-[#FFF5EF] text-[#DA7756] border-[#E8C4B0]"
                       : "bg-blue-50 text-blue-700 border-blue-200"
                     }`}>
                       {user.role}
                     </span>
-                    {user.isVerified && <UserCheck className="h-3.5 w-3.5 text-green-500" />}
+                    {user.isVerified && <UserCheck className="h-3.5 w-3.5 text-[#DA7756]" />}
                   </div>
                 </div>
               ))}
@@ -343,14 +343,14 @@ export default function AdminDashboard() {
                 </span>
               )}
             </h3>
-            <Link href="/moderation/jobs" className="text-xs font-medium text-green-600 hover:text-green-700 transition">
+            <Link href="/moderation/jobs" className="text-xs font-medium text-[#DA7756] hover:text-[#C4623F] transition">
               Tout voir &rarr;
             </Link>
           </div>
 
           {pendingJobs.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
-              <CheckCircle className="h-10 w-10 text-green-400 mb-3" />
+              <CheckCircle className="h-10 w-10 text-[#DA7756] mb-3" />
               <p className="text-sm font-medium text-zinc-600">Aucune annonce en attente</p>
               <p className="text-xs text-zinc-400 mt-1">Tout est a jour !</p>
             </div>
@@ -371,7 +371,7 @@ export default function AdminDashboard() {
                     <button
                       onClick={() => handleModeration(job.id, "APPROVED")}
                       disabled={actionLoading === job.id}
-                      className="rounded-lg bg-green-50 p-2 text-green-600 hover:bg-green-100 transition disabled:opacity-50"
+                      className="rounded-lg bg-[#FFF5EF] p-2 text-[#DA7756] hover:bg-[#FEEBD6] transition disabled:opacity-50"
                       title="Approuver"
                     >
                       {actionLoading === job.id ? (

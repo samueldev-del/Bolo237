@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const BASE_URL = 'https://237jobs.com';
+const BASE_URL = 'https://www.bolo237.com';
 
 const paths = [
   '/',

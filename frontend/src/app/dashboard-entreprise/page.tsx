@@ -87,7 +87,7 @@ export default function DashboardEntreprise() {
   // Load user info
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (raw) {
         const user = JSON.parse(raw);
         setUserId(Number(user.id || 0));
@@ -296,7 +296,7 @@ export default function DashboardEntreprise() {
     let authorId = 0;
     let authorCompany = companyName || userName || '';
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (raw) {
         const user = JSON.parse(raw);
         authorId = user.id;
@@ -461,7 +461,7 @@ export default function DashboardEntreprise() {
               </svg>
             </button>
             <Link href={localizePath('/')} className="flex items-center gap-3">
-              <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto" />
+              <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
               <span className="text-sm font-medium text-gray-400 hidden sm:inline">| {isEn ? 'Recruiter Space' : 'Espace Recruteur'}</span>
             </Link>
           </div>

@@ -6,6 +6,8 @@ const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
 
+const fs = require('fs');
+const path = require('path');
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('@prisma/client');
@@ -67,10 +69,10 @@ app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:3001',
-    'https://237jobs.vercel.app',
-    'https://admin-237jobs.vercel.app',
+    'https://www.bolo237.com',
+    'https://admin.bolo237.com',
     // Vercel preview URLs
-    /https:\/\/237jobs-.*\.vercel\.app$/,
+    /https:\/\/bolo237(-[a-z0-9]+)?\.vercel\.app$/,
     /https:\/\/.*\.vercel\.app$/,
   ],
   credentials: true,
@@ -91,6 +93,19 @@ function listVerificationItems() {
     return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
   });
 }
+
+// =============================================
+// In-memory store: Admin platform settings
+// =============================================
+const SETTINGS_PATH = path.join(__dirname, 'admin-settings.json');
+const DEFAULT_SETTINGS = {
+  platformName: 'Bolo237',
+  maintenanceMode: false,
+  moderationRules: { autoApproveAfterPosts: 3, blockedKeywords: ['frais de dossier', 'transfert mobile money', 'investissement'] },
+  notificationPreferences: { emailOnNewReport: true, whatsappOnNewJob: true }
+};
+let platformSettings = DEFAULT_SETTINGS;
+try { platformSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')) }; } catch { /* use defaults */ }
 
 // candidateProfiles, userProfiles, savedJobs are now in the database (Prisma)
 
@@ -1355,6 +1370,226 @@ app.get('/api/admin/trends', async (req, res) => {
   }
 });
 
+// GET /api/admin/banned-users — Liste des utilisateurs bannis
+app.get('/api/admin/banned-users', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
+    const search = req.query.search ? String(req.query.search).trim() : '';
+    const skip = (page - 1) * limit;
+
+    const where = { isBanned: true };
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        orderBy: { bannedAt: 'desc' },
+        skip,
+        take: limit,
+        select: { id: true, name: true, email: true, role: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (error) {
+    console.error('GET /api/admin/banned-users error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des utilisateurs bannis.' });
+  }
+});
+
+// POST /api/admin/notifications/broadcast — Envoyer une notification a tous ou par role
+app.post('/api/admin/notifications/broadcast', async (req, res) => {
+  try {
+    const { title, message, type, targetRole } = req.body;
+    if (!title || !message) return res.status(400).json({ error: 'title et message requis.' });
+
+    const roleFilter = targetRole && targetRole !== 'ALL' ? String(targetRole).toUpperCase() : undefined;
+    const userWhere = roleFilter ? { role: roleFilter } : {};
+
+    const users = await prisma.user.findMany({
+      where: userWhere,
+      select: { id: true },
+    });
+
+    if (users.length === 0) return res.json({ sent: 0 });
+
+    const data = users.map((u) => ({
+      userId: u.id,
+      type: type || 'broadcast',
+      title: String(title),
+      message: String(message),
+    }));
+
+    const result = await prisma.notification.createMany({ data });
+    res.json({ sent: result.count });
+  } catch (error) {
+    console.error('POST /api/admin/notifications/broadcast error:', error);
+    res.status(500).json({ error: 'Erreur lors de l envoi des notifications.' });
+  }
+});
+
+// GET /api/admin/notifications — Toutes les notifications (admin)
+app.get('/api/admin/notifications', async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      prisma.notification.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+        },
+      }),
+      prisma.notification.count(),
+    ]);
+
+    res.json({ items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+  } catch (error) {
+    console.error('GET /api/admin/notifications error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des notifications.' });
+  }
+});
+
+// GET /api/admin/search?q=term — Recherche globale admin
+app.get('/api/admin/search', async (req, res) => {
+  try {
+    const q = req.query.q ? String(req.query.q).trim() : '';
+    if (!q) return res.json({ users: [], jobs: [] });
+
+    const [users, jobs] = await Promise.all([
+      prisma.user.findMany({
+        where: {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { email: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        take: 5,
+        select: { id: true, name: true, email: true, role: true },
+      }),
+      prisma.job.findMany({
+        where: {
+          OR: [
+            { title: { contains: q, mode: 'insensitive' } },
+            { company: { contains: q, mode: 'insensitive' } },
+          ],
+        },
+        take: 5,
+        select: { id: true, title: true, company: true, status: true },
+      }),
+    ]);
+
+    res.json({ users, jobs });
+  } catch (error) {
+    console.error('GET /api/admin/search error:', error);
+    res.status(500).json({ error: 'Erreur lors de la recherche.' });
+  }
+});
+
+// GET /api/admin/settings — Parametres de la plateforme
+app.get('/api/admin/settings', (_req, res) => {
+  res.json(platformSettings);
+});
+
+// PUT /api/admin/settings — Mettre a jour les parametres
+app.put('/api/admin/settings', (req, res) => {
+  try {
+    platformSettings = { ...platformSettings, ...req.body };
+    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(platformSettings, null, 2), 'utf8');
+    res.json(platformSettings);
+  } catch (error) {
+    console.error('PUT /api/admin/settings error:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise a jour des parametres.' });
+  }
+});
+
+// GET /api/admin/activity-log — Journal d activite recent
+app.get('/api/admin/activity-log', async (req, res) => {
+  try {
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
+
+    const [recentUsers, recentJobs, recentReports, recentBans] = await Promise.all([
+      prisma.user.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        select: { id: true, name: true, role: true, createdAt: true },
+      }),
+      prisma.job.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        select: { id: true, title: true, company: true, createdAt: true },
+      }),
+      prisma.report.findMany({
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        select: { id: true, reason: true, createdAt: true },
+      }),
+      prisma.user.findMany({
+        where: { isBanned: true, bannedAt: { not: null } },
+        orderBy: { bannedAt: 'desc' },
+        take: limit,
+        select: { id: true, name: true, bannedAt: true },
+      }),
+    ]);
+
+    const events = [];
+
+    recentUsers.forEach((u) => {
+      events.push({
+        type: 'signup',
+        description: `Nouvel utilisateur: ${u.name} (${u.role})`,
+        timestamp: u.createdAt,
+        meta: { userId: u.id, name: u.name, role: u.role },
+      });
+    });
+
+    recentJobs.forEach((j) => {
+      events.push({
+        type: 'job_posted',
+        description: `Nouvelle offre: ${j.title} par ${j.company}`,
+        timestamp: j.createdAt,
+        meta: { jobId: j.id, title: j.title, company: j.company },
+      });
+    });
+
+    recentReports.forEach((r) => {
+      events.push({
+        type: 'report',
+        description: `Signalement #${r.id}: ${r.reason}`,
+        timestamp: r.createdAt,
+        meta: { reportId: r.id, reason: r.reason },
+      });
+    });
+
+    recentBans.forEach((b) => {
+      events.push({
+        type: 'ban',
+        description: `Utilisateur banni: ${b.name}`,
+        timestamp: b.bannedAt,
+        meta: { userId: b.id, name: b.name },
+      });
+    });
+
+    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    res.json({ events: events.slice(0, limit) });
+  } catch (error) {
+    console.error('GET /api/admin/activity-log error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture du journal d activite.' });
+  }
+});
+
 // =============================================
 // ROUTES: File Upload (Cloudinary)
 // =============================================
@@ -1371,7 +1606,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
-    const folder = req.query.folder ? `237jobs/${req.query.folder}` : '237jobs';
+    const folder = req.query.folder ? `bolo237/${req.query.folder}` : 'bolo237';
 
     const result = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream(
@@ -1481,7 +1716,7 @@ app.post('/api/otp/verify', (req, res) => {
 // --- Page d'accueil API ---
 app.get('/', (_req, res) => {
   res.json({
-    name: '237jobs API',
+    name: 'Bolo237 API',
     version: '1.0.0',
     status: 'online',
     documentation: {
@@ -1507,7 +1742,7 @@ app.get('/api/health', (_req, res) => {
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
   console.log(`\n========================================`);
-  console.log(`Backend 237jobs en ligne !`);
+  console.log(`Backend Bolo237 en ligne !`);
   console.log(`Ecoute sur le port : ${PORT}`);
   console.log(`========================================\n`);
 });

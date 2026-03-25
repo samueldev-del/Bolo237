@@ -1,16 +1,19 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 52">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 52">
   <defs>
     <linearGradient id="pillGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#15803d;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#DA7756;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#C4623F;stop-opacity:1" />
     </linearGradient>
   </defs>
-  <!-- Pill vert avec dégradé -->
+  <!-- Pill terracotta avec dégradé -->
   <rect x="2" y="6" width="88" height="40" rx="20" ry="20" fill="url(#pillGrad)"/>
-  <!-- Ombre douce sous le pill -->
-  <rect x="4" y="10" width="84" height="38" rx="19" ry="19" fill="#15803d" opacity="0.15"/>
-  <!-- Nombre 237 en blanc gras -->
-  <text x="46" y="33" font-family="'Inter', 'SF Pro Display', -apple-system, system-ui, Arial, sans-serif" font-size="24" font-weight="800" fill="#ffffff" text-anchor="middle" letter-spacing="-0.5">237</text>
-  <!-- Mot "jobs" en noir -->
-  <text x="100" y="35" font-family="'Inter', 'SF Pro Display', -apple-system, system-ui, Arial, sans-serif" font-size="30" font-weight="800" fill="#0f172a" text-anchor="start" letter-spacing="-1">jobs</text>
+  <rect x="4" y="10" width="84" height="38" rx="19" ry="19" fill="#C4623F" opacity="0.12"/>
+  <!-- Lettre B stylisée en blanc -->
+  <text x="27" y="34" font-family="'Inter', 'SF Pro Display', -apple-system, system-ui, sans-serif" font-size="26" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="-0.5">B</text>
+  <!-- 237 à droite du B -->
+  <text x="56" y="33" font-family="'Inter', 'SF Pro Display', -apple-system, system-ui, sans-serif" font-size="20" font-weight="800" fill="rgba(255,255,255,0.95)" text-anchor="middle" letter-spacing="-0.3">237</text>
+  <!-- Mot "Bolo237" -->
+  <text x="100" y="35" font-family="'Inter', 'SF Pro Display', -apple-system, system-ui, sans-serif" font-size="28" font-weight="800" text-anchor="start" letter-spacing="-0.8">
+    <tspan fill="#1A1915">Bolo</tspan><tspan fill="#DA7756">237</tspan>
+  </text>
 </svg>

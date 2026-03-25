@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "237jobs Admin",
-  description: "Dashboard de moderation et securite 237jobs",
+  title: "Bolo237 Admin",
+  description: "Dashboard de moderation et securite Bolo237",
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",

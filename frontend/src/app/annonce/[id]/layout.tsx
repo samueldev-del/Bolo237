@@ -15,7 +15,7 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     if (!res.ok) throw new Error('Not found');
     const job = await res.json();
 
-    const title = `${job.title} - ${job.company} | 237jobs`;
+    const title = `${job.title} - ${job.company} | Bolo237`;
     const description = job.description?.slice(0, 160) || `Offre d'emploi ${job.title} chez ${job.company} à ${job.location}`;
 
     return {
@@ -25,9 +25,9 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
         title,
         description,
         type: 'article',
-        siteName: '237jobs',
+        siteName: 'Bolo237',
         locale: 'fr_CM',
-        url: `https://237jobs.com/annonce/${id}`,
+        url: `https://www.bolo237.com/annonce/${id}`,
       },
       twitter: {
         card: 'summary_large_image',
@@ -37,8 +37,8 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     };
   } catch {
     return {
-      title: 'Offre d\'emploi | 237jobs',
-      description: 'Consultez cette offre d\'emploi sur 237jobs, la plateforme emploi du Cameroun.',
+      title: 'Offre d\'emploi | Bolo237',
+      description: 'Consultez cette offre d\'emploi sur Bolo237, la plateforme emploi du Cameroun.',
     };
   }
 }

@@ -107,11 +107,11 @@ function SidebarLink({
             : "bg-white/15 text-white shadow-sm"
           : isAlert
             ? "bg-red-500/10 text-red-200 hover:bg-red-500/20"
-            : "text-green-100/80 hover:bg-white/10 hover:text-white"
+            : "text-[#FEEBD6]/80 hover:bg-white/10 hover:text-white"
       }`}
     >
       <span className="flex items-center gap-3">
-        <span className={isActive ? "text-green-300" : "text-green-300/60"}>{item.icon}</span>
+        <span className={isActive ? "text-[#F5C5A3]" : "text-[#F5C5A3]/60"}>{item.icon}</span>
         {item.label}
       </span>
       {item.badge ? (
@@ -143,20 +143,20 @@ export default function AdminShell({
 
       <div className="relative z-50 mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] grid-cols-1 overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgba(22,34,51,0.16)] lg:grid-cols-[310px_1fr]">
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-[310px] max-w-[86vw] transform bg-gradient-to-b from-green-800 to-green-900 text-white transition duration-300 lg:static lg:w-auto lg:max-w-none lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-50 w-[310px] max-w-[86vw] transform bg-gradient-to-b from-[#8B4332] to-[#6B3325] text-white transition duration-300 lg:static lg:w-auto lg:max-w-none lg:translate-x-0 ${
             mobileNavOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex items-center justify-between border-b border-green-700/50 px-6 py-6 lg:justify-start">
-            <div className="inline-flex items-center gap-3 rounded-2xl border border-green-600/40 bg-green-700/40 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-[#A8502F]/50 px-6 py-6 lg:justify-start">
+            <div className="inline-flex items-center gap-3 rounded-2xl border border-[#C4623F]/40 bg-[#A8502F]/40 px-4 py-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-white.svg" alt="237jobs" className="h-7 w-auto" />
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-green-200 border-l border-green-500/50 pl-3">Admin</span>
+              <img src="/logo-white.svg" alt="Bolo237" className="h-7 w-auto" />
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#F5C5A3] border-l border-[#A8502F]/50 pl-3">Admin</span>
             </div>
 
             <button
               aria-label="Fermer la navigation"
-              className="rounded-lg p-2 text-green-200 transition hover:bg-green-700 lg:hidden"
+              className="rounded-lg p-2 text-[#F5C5A3] transition hover:bg-[#A8502F] lg:hidden"
               onClick={() => setMobileNavOpen(false)}
             >
               <X className="h-5 w-5" />
@@ -174,7 +174,7 @@ export default function AdminShell({
             </div>
 
             <div className="space-y-2">
-              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-green-400/70">
+              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#DA7756]/70">
                 Moderation
               </p>
               {moderationItems.map((item) => (
@@ -188,7 +188,7 @@ export default function AdminShell({
             </div>
 
             <div className="space-y-2">
-              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-green-400/70">
+              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#DA7756]/70">
                 Utilisateurs
               </p>
               {userItems.map((item) => (
@@ -202,7 +202,7 @@ export default function AdminShell({
             </div>
 
             <div className="space-y-2">
-              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-green-400/70">
+              <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#DA7756]/70">
                 Alertes
               </p>
               {alertItems.map((item) => (
@@ -216,17 +216,17 @@ export default function AdminShell({
             </div>
           </nav>
 
-          <div className="space-y-2 border-t border-green-700/50 px-4 py-5">
+          <div className="space-y-2 border-t border-[#A8502F]/50 px-4 py-5">
             <Link
               href="/parametres"
               onClick={() => setMobileNavOpen(false)}
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
                 pathname === "/parametres"
                   ? "bg-white/15 text-white"
-                  : "text-green-100/80 hover:bg-white/10 hover:text-white"
+                  : "text-[#FEEBD6]/80 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <Settings className="h-4 w-4 text-green-300/60" />
+              <Settings className="h-4 w-4 text-[#F5C5A3]/60" />
               Parametres
             </Link>
             <Link
@@ -235,10 +235,10 @@ export default function AdminShell({
               className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-medium transition ${
                 pathname === "/deconnexion"
                   ? "bg-white/15 text-white"
-                  : "text-green-100/80 hover:bg-white/10 hover:text-white"
+                  : "text-[#FEEBD6]/80 hover:bg-white/10 hover:text-white"
               }`}
             >
-              <LogOut className="h-4 w-4 text-green-300/60" />
+              <LogOut className="h-4 w-4 text-[#F5C5A3]/60" />
               Deconnexion
             </Link>
           </div>
@@ -249,13 +249,13 @@ export default function AdminShell({
             <div className="mb-3 flex items-center justify-between lg:hidden">
               <button
                 aria-label="Ouvrir la navigation"
-                className="rounded-xl border border-green-200 bg-white p-2 text-green-700"
+                className="rounded-xl border border-[#E8C4B0] bg-white p-2 text-[#DA7756]"
                 onClick={() => setMobileNavOpen(true)}
               >
                 <Menu className="h-5 w-5" />
               </button>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-green-700">
-                237jobs Admin
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#DA7756]">
+                Bolo237 Admin
               </p>
             </div>
 
@@ -265,7 +265,7 @@ export default function AdminShell({
                 <input
                   type="search"
                   placeholder="Rechercher un utilisateur ou une annonce par ID ou nom..."
-                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-green-300 focus:bg-white focus:ring-2 focus:ring-green-100"
+                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#DA7756] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
                 />
               </label>
 
@@ -273,18 +273,18 @@ export default function AdminShell({
                 <button className="relative rounded-xl border border-zinc-200 bg-white p-3 text-zinc-700 transition hover:bg-zinc-50">
                   <Bell className="h-5 w-5" />
                   <span className="absolute right-2 top-2 flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500 opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#DA7756] opacity-75" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#DA7756]" />
                   </span>
                 </button>
 
                 <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-green-600 to-green-800 text-sm font-bold text-white">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#DA7756] to-[#8B4332] text-sm font-bold text-white">
                     SA
                   </div>
                   <div className="leading-tight">
                     <p className="text-sm font-semibold text-zinc-900">Samuel Admin</p>
-                    <p className="text-xs font-medium text-green-600">Super Admin</p>
+                    <p className="text-xs font-medium text-[#DA7756]">Super Admin</p>
                   </div>
                 </div>
               </div>

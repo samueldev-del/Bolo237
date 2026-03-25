@@ -45,14 +45,14 @@ export default function DashboardCandidat() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (raw) {
         const parsed = JSON.parse(raw);
         setUserName(parsed?.name || parsed?.fullName || parsed?.nom || '');
         setUserId(Number(parsed?.id || 0));
 
         // Redirect to role-specific dashboard
-        const role = parsed?.role || localStorage.getItem('237jobs-account-role') || '';
+        const role = parsed?.role || localStorage.getItem('bolo237-account-role') || '';
         if (role === 'ENTREPRISE') {
           router.replace(localizePath('/dashboard-entreprise'));
           return;
@@ -143,7 +143,7 @@ export default function DashboardCandidat() {
       id: 'fr_moderne_cm',
       lang: 'FR',
       name: 'Francais Moderne (CM)',
-      note: 'Structure claire avec accent local 237jobs, ideal tertiaire et entreprises privees.',
+      note: 'Structure claire avec accent local Bolo237, ideal tertiaire et entreprises privees.',
     },
     {
       id: 'en_professional_cm',

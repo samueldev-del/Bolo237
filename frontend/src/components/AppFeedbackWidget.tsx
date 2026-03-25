@@ -59,7 +59,7 @@ export default function AppFeedbackWidget() {
       let userId = 0;
       let authorName = '';
       try {
-        const raw = localStorage.getItem('237jobs-user');
+        const raw = localStorage.getItem('bolo237-user');
         if (raw) {
           const user = JSON.parse(raw);
           userId = Number(user?.id || 0);
@@ -103,7 +103,7 @@ export default function AppFeedbackWidget() {
           <div className="w-full max-w-md rounded-2xl bg-white border border-gray-200 shadow-2xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-extrabold text-gray-900">
-                {isEn ? 'Your feedback on 237jobs' : 'Votre avis sur 237jobs'}
+                {isEn ? 'Your feedback on Bolo237' : 'Votre avis sur Bolo237'}
               </h3>
               <button
                 onClick={() => setOpen(false)}

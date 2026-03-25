@@ -102,7 +102,7 @@ export default function DashboardArtisan() {
   const [userName] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (!raw) return '';
       const u = JSON.parse(raw);
       return u.name || u.fullName || '';
@@ -113,7 +113,7 @@ export default function DashboardArtisan() {
   const [userSpecialty] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (!raw) return '';
       const u = JSON.parse(raw);
       return u.specialty || u.metier || '';
@@ -124,7 +124,7 @@ export default function DashboardArtisan() {
   const [userId] = useState(() => {
     if (typeof window === 'undefined') return 0;
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (!raw) return 0;
       const u = JSON.parse(raw);
       return Number(u.id || 0);
@@ -204,7 +204,7 @@ export default function DashboardArtisan() {
 
   useEffect(() => {
     try {
-      const linked = localStorage.getItem('237jobs-whatsapp-linked') === 'true';
+      const linked = localStorage.getItem('bolo237-whatsapp-linked') === 'true';
       setWhatsAppConnected(linked);
     } catch {
       // ignore localStorage errors
@@ -230,8 +230,8 @@ export default function DashboardArtisan() {
 
   const connectWhatsApp = () => {
     const intro = isEn
-      ? `Hello 237jobs, this is ${userName || 'an artisan'} and I want to connect my WhatsApp account.`
-      : `Bonjour 237jobs, je suis ${userName || 'un artisan'} et je veux connecter mon compte WhatsApp.`;
+      ? `Hello Bolo237, this is ${userName || 'an artisan'} and I want to connect my WhatsApp account.`
+      : `Bonjour Bolo237, je suis ${userName || 'un artisan'} et je veux connecter mon compte WhatsApp.`;
     const rawPhone = phone.replace(/\s+/g, '');
     const hasCmPrefix = rawPhone.startsWith('237');
     const normalizedPhone = rawPhone.startsWith('+')
@@ -246,7 +246,7 @@ export default function DashboardArtisan() {
 
     try {
       window.open(targetUrl, '_blank', 'noopener,noreferrer');
-      localStorage.setItem('237jobs-whatsapp-linked', 'true');
+      localStorage.setItem('bolo237-whatsapp-linked', 'true');
       setWhatsAppConnected(true);
       setWhatsAppMessage(
         isEn
@@ -469,7 +469,7 @@ export default function DashboardArtisan() {
       <nav className="bg-white/80 backdrop-blur-lg border-b border-gray-200/60 sticky top-0 z-50 h-16 flex items-center px-4 md:px-8">
         <div className="w-full max-w-[1400px] mx-auto flex justify-between items-center">
           <Link href={localizePath('/')} className="flex items-center gap-3">
-            <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto" />
+            <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
             <span className="text-xs font-semibold text-gray-400 hidden md:inline border-l border-gray-200 pl-3">
               {isEn ? 'Artisan Dashboard' : 'Espace Artisan'}
             </span>

@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 
-const USER_KEY = '237jobs-user';
+const USER_KEY = 'bolo237-user';
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 type Experience = { poste: string; entreprise: string; dateDebut: string; dateFin: string; description: string };

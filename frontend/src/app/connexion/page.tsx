@@ -10,8 +10,8 @@ import { createUser, loginUser } from '@/lib/api';
 type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
 type Role = SignupRole | 'admin';
 
-const ROLE_STORAGE_KEY = '237jobs-account-role';
-const USER_KEY = '237jobs-user';
+const ROLE_STORAGE_KEY = 'bolo237-account-role';
+const USER_KEY = 'bolo237-user';
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const ROLE_MAP: Record<SignupRole, string> = {
@@ -151,7 +151,7 @@ export default function Connexion() {
           : `${firstName.trim()} ${lastName.trim()}`;
 
       const user = await createUser({
-        email: email.trim() || `${phone.replace(/\s|\+/g, '')}@237jobs.local`,
+        email: email.trim() || `${phone.replace(/\s|\+/g, '')}@bolo237.local`,
         password: password,
         name: fullName,
         role: ROLE_MAP[selectedRole],
@@ -162,7 +162,7 @@ export default function Connexion() {
         const localRole = BACKEND_ROLE_TO_LOCAL[user.role] || 'chercheur';
         window.localStorage.setItem(USER_KEY, JSON.stringify(user));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
-        window.localStorage.setItem('237jobs-phone-verified', 'true');
+        window.localStorage.setItem('bolo237-phone-verified', 'true');
         router.push(getDashboardRoute(localRole));
       }
     } catch (err: unknown) {
@@ -191,7 +191,7 @@ export default function Connexion() {
         const localRole = BACKEND_ROLE_TO_LOCAL[user.role] || 'chercheur';
         window.localStorage.setItem(USER_KEY, JSON.stringify(user));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
-        window.localStorage.setItem('237jobs-phone-verified', 'true');
+        window.localStorage.setItem('bolo237-phone-verified', 'true');
         router.push(getDashboardRoute(localRole));
       }
     } catch (err: unknown) {
@@ -228,14 +228,14 @@ export default function Connexion() {
   };
 
   const currentRole = roleConfig[selectedRole];
-  const borderColor = currentRole.color === 'green' ? 'border-green-500' : currentRole.color === 'blue' ? 'border-blue-500' : 'border-amber-500';
-  const bgColor = currentRole.color === 'green' ? 'bg-green-50' : currentRole.color === 'blue' ? 'bg-blue-50' : 'bg-amber-50';
+  const borderColor = currentRole.color === 'green' ? 'border-[#DA7756]' : currentRole.color === 'blue' ? 'border-blue-500' : 'border-amber-500';
+  const bgColor = currentRole.color === 'green' ? 'bg-[#FFF5EF]' : currentRole.color === 'blue' ? 'bg-blue-50' : 'bg-amber-50';
 
   const heroGradient = selectedRole === 'entreprise'
     ? 'linear-gradient(135deg, rgba(30, 58, 138, 0.85), rgba(17, 24, 39, 0.75))'
     : selectedRole === 'artisan'
       ? 'linear-gradient(135deg, rgba(120, 53, 15, 0.80), rgba(17, 24, 39, 0.75))'
-      : 'linear-gradient(135deg, rgba(2, 44, 34, 0.80), rgba(17, 24, 39, 0.75))';
+      : 'linear-gradient(135deg, rgba(168, 80, 47, 0.85), rgba(17, 24, 39, 0.75))';
 
   const stepLabel = step === 1
     ? (isEn ? 'Step 1/4 — Choose your role' : 'Etape 1/4 — Choisissez votre role')
@@ -256,7 +256,7 @@ export default function Connexion() {
         >
           <div className="absolute inset-0 p-10 lg:p-14 flex flex-col justify-between text-white">
             <Link href={localizePath('/')}>
-              <Image src="/logo-white.svg" alt="237jobs" width={160} height={42} priority className="h-10 w-auto" />
+              <Image src="/logo-white.svg" alt="Bolo237" width={160} height={42} priority className="h-10 w-auto" />
             </Link>
             <div>
               {!isLogin && (
@@ -266,7 +266,7 @@ export default function Connexion() {
                 </div>
               )}
               <h1 className="text-3xl lg:text-4xl font-extrabold leading-tight mb-4">
-                {isLogin ? (isEn ? 'Welcome back to 237jobs.' : 'Bon retour sur 237jobs.') : currentRole.heroTitle}
+                {isLogin ? (isEn ? 'Welcome back to Bolo237.' : 'Bon retour sur Bolo237.') : currentRole.heroTitle}
               </h1>
               <p className="text-white/80 font-medium text-lg">
                 {isLogin
@@ -286,7 +286,7 @@ export default function Connexion() {
           {/* Mobile logo + close */}
           <div className="flex items-center justify-between mb-6">
             <div className="md:hidden">
-              <Image src="/logo.svg" alt="237jobs" width={120} height={32} className="h-8 w-auto" />
+              <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
             </div>
             <Link href={localizePath('/')} className="text-gray-400 hover:text-gray-600 transition ml-auto">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
@@ -323,17 +323,17 @@ export default function Connexion() {
                   <label className="text-sm font-bold text-gray-700 mb-1 block">{isEn ? 'Email' : 'Adresse email'}</label>
                   <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
                     placeholder="nom@example.com"
-                    className="w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition text-[15px]" />
+                    className="w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none transition text-[15px]" />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-sm font-bold text-gray-700">{isEn ? 'Password' : 'Mot de passe'}</label>
-                    <Link href="#" className="text-xs font-bold text-green-700 hover:underline">{isEn ? 'Forgot?' : 'Oublie ?'}</Link>
+                    <Link href="#" className="text-xs font-bold text-[#C4623F] hover:underline">{isEn ? 'Forgot?' : 'Oublie ?'}</Link>
                   </div>
                   <div className="relative">
                     <input type={showLoginPassword ? 'text' : 'password'} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition text-[15px] pr-12" />
+                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none transition text-[15px] pr-12" />
                     <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm font-bold">
                       {showLoginPassword ? '🙈' : '👁️'}
                     </button>
@@ -341,7 +341,7 @@ export default function Connexion() {
                 </div>
               </div>
               <button onClick={handleLogin} disabled={isSubmitting}
-                className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl hover:bg-green-700 transition shadow-md disabled:opacity-60 text-[15px]">
+                className="w-full bg-[#DA7756] text-white font-bold py-3.5 rounded-xl hover:bg-[#C4623F] transition shadow-md disabled:opacity-60 text-[15px]">
                 {isSubmitting ? (isEn ? 'Signing in...' : 'Connexion...') : (isEn ? 'Sign in' : 'Se connecter')}
               </button>
             </div>
@@ -354,7 +354,7 @@ export default function Connexion() {
               {/* Progress bar */}
               <div className="flex items-center gap-1 mb-1">
                 {[1, 2, 3, 4].map((s) => (
-                  <div key={s} className={`h-1.5 flex-1 rounded-full transition-all ${s <= step ? 'bg-green-500' : 'bg-gray-200'}`} />
+                  <div key={s} className={`h-1.5 flex-1 rounded-full transition-all ${s <= step ? 'bg-[#DA7756]' : 'bg-gray-200'}`} />
                 ))}
               </div>
               <p className="text-xs text-gray-400 font-bold">{stepLabel}</p>
@@ -370,8 +370,8 @@ export default function Connexion() {
                     {(Object.keys(roleConfig) as SignupRole[]).map((role) => {
                       const cfg = roleConfig[role];
                       const isActive = selectedRole === role;
-                      const activeBorder = cfg.color === 'green' ? 'border-green-500 bg-green-50' : cfg.color === 'blue' ? 'border-blue-500 bg-blue-50' : 'border-amber-500 bg-amber-50';
-                      const activeRing = cfg.color === 'green' ? 'ring-green-200' : cfg.color === 'blue' ? 'ring-blue-200' : 'ring-amber-200';
+                      const activeBorder = cfg.color === 'green' ? 'border-[#DA7756] bg-[#FFF5EF]' : cfg.color === 'blue' ? 'border-blue-500 bg-blue-50' : 'border-amber-500 bg-amber-50';
+                      const activeRing = cfg.color === 'green' ? 'ring-[#E8C4B0]' : cfg.color === 'blue' ? 'ring-blue-200' : 'ring-amber-200';
                       return (
                         <button key={role} onClick={() => setSelectedRole(role)}
                           className={`w-full border-2 rounded-2xl p-5 text-left transition-all duration-200 flex items-start gap-4 ${isActive ? `${activeBorder} ring-2 ${activeRing}` : 'border-gray-200 hover:border-gray-300 bg-white'}`}>
@@ -380,7 +380,7 @@ export default function Connexion() {
                             <p className="font-bold text-[15px] text-black">{cfg.title}</p>
                             <p className="text-xs text-gray-500 mt-0.5">{cfg.desc}</p>
                           </div>
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 transition ${isActive ? (cfg.color === 'green' ? 'border-green-500 bg-green-500' : cfg.color === 'blue' ? 'border-blue-500 bg-blue-500' : 'border-amber-500 bg-amber-500') : 'border-gray-300'}`}>
+                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center mt-1 transition ${isActive ? (cfg.color === 'green' ? 'border-[#DA7756] bg-[#DA7756]' : cfg.color === 'blue' ? 'border-blue-500 bg-blue-500' : 'border-amber-500 bg-amber-500') : 'border-gray-300'}`}>
                             {isActive && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
                           </div>
                         </button>
@@ -388,7 +388,7 @@ export default function Connexion() {
                     })}
                   </div>
                   <button onClick={() => { setStep(2); setAuthError(''); }}
-                    className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl hover:bg-green-700 transition shadow-md text-[15px]">
+                    className="w-full bg-[#DA7756] text-white font-bold py-3.5 rounded-xl hover:bg-[#C4623F] transition shadow-md text-[15px]">
                     {isEn ? 'Continue' : 'Continuer'} →
                   </button>
                 </>
@@ -417,20 +417,20 @@ export default function Connexion() {
                         <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Last name' : 'Nom'} *</label>
                         <input type="text" value={lastName} onChange={(e) => setLastName(e.target.value)}
                           placeholder={isEn ? 'Last name' : 'Nom'}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-[15px]" />
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]" />
                       </div>
                       <div>
                         <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'First name' : 'Prenom'} *</label>
                         <input type="text" value={firstName} onChange={(e) => setFirstName(e.target.value)}
                           placeholder={isEn ? 'First name' : 'Prenom'}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-[15px]" />
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]" />
                       </div>
                     </div>
                     <div>
                       <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Username' : 'Nom d\'utilisateur'} *</label>
                       <input type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
                         placeholder={isEn ? 'e.g. marie.ngono' : 'ex. marie.ngono'}
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-[15px]" />
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]" />
                     </div>
                     <div>
                       <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Phone number' : 'Numero de telephone'} * 🔒</label>
@@ -440,7 +440,7 @@ export default function Connexion() {
                         </div>
                         <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d\s]/g, ''))}
                           placeholder="6XX XX XX XX"
-                          className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-[15px]" />
+                          className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]" />
                       </div>
                       <p className="text-[10px] text-gray-400 mt-1">{isEn ? 'We will send a verification code via SMS' : 'Nous enverrons un code de verification par SMS'}</p>
                     </div>
@@ -448,7 +448,7 @@ export default function Connexion() {
                       <label className="text-xs font-bold text-gray-600 mb-1 block">Email <span className="text-gray-400">({isEn ? 'optional' : 'optionnel'})</span></label>
                       <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                         placeholder="nom@email.com"
-                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-[15px]" />
+                        className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]" />
                     </div>
                   </div>
 
@@ -459,7 +459,7 @@ export default function Connexion() {
                     setAuthError('');
                     handleSendOtp();
                   }} disabled={isSubmitting}
-                    className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl hover:bg-green-700 transition shadow-md text-[15px] disabled:opacity-60">
+                    className="w-full bg-[#DA7756] text-white font-bold py-3.5 rounded-xl hover:bg-[#C4623F] transition shadow-md text-[15px] disabled:opacity-60">
                     {isSubmitting ? (isEn ? 'Sending code...' : 'Envoi du code...') : (isEn ? 'Send verification code' : 'Envoyer le code de verification')} 📲
                   </button>
                 </>
@@ -479,12 +479,12 @@ export default function Connexion() {
                   </div>
 
                   <div className="text-center py-4">
-                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">📱</div>
+                    <div className="w-16 h-16 bg-[#FEEBD6] rounded-full flex items-center justify-center text-3xl mx-auto mb-4">📱</div>
                     <input
                       type="text" value={otpCode}
                       onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                       placeholder="• • • • • •"
-                      className="text-center text-2xl font-extrabold tracking-[0.5em] w-56 mx-auto px-4 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none"
+                      className="text-center text-2xl font-extrabold tracking-[0.5em] w-56 mx-auto px-4 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none"
                       maxLength={6}
                       autoFocus
                     />
@@ -496,11 +496,11 @@ export default function Connexion() {
                   </div>
 
                   <button onClick={handleVerifyOtp} disabled={isSubmitting}
-                    className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl hover:bg-green-700 transition shadow-md text-[15px] disabled:opacity-60">
+                    className="w-full bg-[#DA7756] text-white font-bold py-3.5 rounded-xl hover:bg-[#C4623F] transition shadow-md text-[15px] disabled:opacity-60">
                     {isSubmitting ? (isEn ? 'Verifying...' : 'Verification...') : (isEn ? 'Verify code' : 'Verifier le code')} ✓
                   </button>
 
-                  <button onClick={handleSendOtp} disabled={isSubmitting} className="text-sm font-bold text-green-700 hover:underline text-center">
+                  <button onClick={handleSendOtp} disabled={isSubmitting} className="text-sm font-bold text-[#C4623F] hover:underline text-center">
                     {isEn ? 'Resend code' : 'Renvoyer le code'}
                   </button>
                 </>
@@ -520,8 +520,8 @@ export default function Connexion() {
                   </div>
 
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center text-white text-xs">✓</span>
-                    <span className="font-bold text-green-700">{isEn ? 'Phone verified' : 'Telephone verifie'}: +237 {phone}</span>
+                    <span className="w-6 h-6 bg-[#DA7756] rounded-full flex items-center justify-center text-white text-xs">✓</span>
+                    <span className="font-bold text-[#C4623F]">{isEn ? 'Phone verified' : 'Telephone verifie'}: +237 {phone}</span>
                   </div>
 
                   <div className="space-y-3">
@@ -586,7 +586,7 @@ export default function Connexion() {
                       <div className="relative">
                         <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
                           placeholder={isEn ? '6 characters minimum' : '6 caracteres minimum'}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none text-[15px] pr-12" />
+                          className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px] pr-12" />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
                           {showPassword ? '🙈' : '👁️'}
                         </button>
@@ -595,7 +595,7 @@ export default function Connexion() {
                   </div>
 
                   <button onClick={handleSignup} disabled={isSubmitting}
-                    className="w-full bg-green-600 text-white font-bold py-3.5 rounded-xl hover:bg-green-700 transition shadow-md text-[15px] disabled:opacity-60">
+                    className="w-full bg-[#DA7756] text-white font-bold py-3.5 rounded-xl hover:bg-[#C4623F] transition shadow-md text-[15px] disabled:opacity-60">
                     {isSubmitting
                       ? (isEn ? 'Creating account...' : 'Creation du compte...')
                       : (isEn ? `Create my ${roleConfig[selectedRole].subtitle.toLowerCase()} account` : `Creer mon compte ${roleConfig[selectedRole].subtitle.toLowerCase()}`)}
@@ -617,7 +617,7 @@ export default function Connexion() {
           <div className="mt-6 pt-4 border-t border-gray-100 text-center">
             <p className="text-sm text-gray-500 font-medium">
               {isLogin ? (isEn ? 'No account yet? ' : 'Pas encore de compte ? ') : (isEn ? 'Already have an account? ' : 'Deja un compte ? ')}
-              <button onClick={() => { setIsLogin(!isLogin); setStep(1); setAuthError(''); }} className="text-green-700 font-bold hover:underline">
+              <button onClick={() => { setIsLogin(!isLogin); setStep(1); setAuthError(''); }} className="text-[#C4623F] font-bold hover:underline">
                 {isLogin ? (isEn ? 'Sign up' : 'S\'inscrire') : (isEn ? 'Sign in' : 'Se connecter')}
               </button>
             </p>

@@ -155,7 +155,7 @@ export default function EmploisFormels() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem('237jobs-user');
+      const raw = localStorage.getItem('bolo237-user');
       if (!raw) return;
       const parsed = JSON.parse(raw);
       setUserId(Number(parsed?.id || 0));

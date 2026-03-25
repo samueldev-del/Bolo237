@@ -4,12 +4,12 @@
   --background: #ffffff;
   --foreground: #171717;
 
-  /* Brand Colors — 237jobs */
-  --brand-primary: #7C3AED;        /* violet-600 */
-  --brand-primary-dark: #6D28D9;   /* violet-700 */
-  --brand-primary-light: #F5F3FF;  /* violet-50 */
-  --brand-green: #16a34a;          /* green-600 */
-  --brand-green-light: #f0fdf4;    /* green-50 */
+  /* Brand Colors — Bolo237 (Terracotta palette) */
+  --brand-primary: #DA7756;        /* terracotta */
+  --brand-primary-dark: #C4623F;   /* deep terracotta */
+  --brand-primary-light: #FFF5EF;  /* warm cream */
+  --brand-terracotta: #DA7756;     /* primary terracotta */
+  --brand-terracotta-light: #FFF5EF; /* warm cream */
 }
 
 @theme inline {

@@ -15,15 +15,15 @@ export default function PressePage() {
 
       <main className="flex-1">
         {/* Hero */}
-        <section className="bg-gradient-to-br from-green-700 to-green-900 text-white py-16 px-4">
+        <section className="bg-gradient-to-br from-[#C4623F] to-[#A8502F] text-white py-16 px-4">
           <div className="max-w-3xl mx-auto text-center">
-            <p className="text-green-200 text-sm font-bold uppercase tracking-wider mb-2">
+            <p className="text-[#FEEBD6] text-sm font-bold uppercase tracking-wider mb-2">
               {isEn ? 'Press Room' : 'Espace Presse'}
             </p>
             <h1 className="text-3xl md:text-4xl font-extrabold mb-4">
-              237jobs
+              Bolo237
             </h1>
-            <p className="text-lg text-green-100 max-w-xl mx-auto">
+            <p className="text-lg text-[#FEEBD6] max-w-xl mx-auto">
               {isEn
                 ? 'The Progressive Web App that digitizes and secures the job and local services market in Cameroon.'
                 : 'La Progressive Web App (PWA) qui digitalise et securise le marche de l\'emploi et des services locaux au Cameroun.'}
@@ -38,8 +38,8 @@ export default function PressePage() {
           </h2>
           <p className="text-gray-700 leading-relaxed">
             {isEn
-              ? 'By combining the power of web matchmaking with the immediacy of WhatsApp, 237jobs eliminates friction between companies, artisans, and talents. Our platform is designed mobile-first for the Cameroonian market, accessible even on low-bandwidth networks.'
-              : 'En combinant la puissance de la mise en relation web avec l\'immediatete de WhatsApp, 237jobs elimine les frictions entre les entreprises, les artisans et les talents. Notre plateforme est concue mobile-first pour le marche camerounais, accessible meme sur les reseaux a faible bande passante.'}
+              ? 'By combining the power of web matchmaking with the immediacy of WhatsApp, Bolo237 eliminates friction between companies, artisans, and talents. Our platform is designed mobile-first for the Cameroonian market, accessible even on low-bandwidth networks.'
+              : 'En combinant la puissance de la mise en relation web avec l\'immediatete de WhatsApp, Bolo237 elimine les frictions entre les entreprises, les artisans et les talents. Notre plateforme est concue mobile-first pour le marche camerounais, accessible meme sur les reseaux a faible bande passante.'}
           </p>
         </section>
 
@@ -52,7 +52,7 @@ export default function PressePage() {
 
             <div className="grid gap-6 md:grid-cols-3">
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-2xl mb-4">
+                <div className="w-12 h-12 bg-[#FEEBD6] rounded-full flex items-center justify-center text-2xl mb-4">
                   🛡️
                 </div>
                 <h3 className="font-bold text-gray-900 mb-2">Identity Shield</h3>
@@ -64,7 +64,7 @@ export default function PressePage() {
               </div>
 
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-2xl mb-4">
+                <div className="w-12 h-12 bg-[#FEEBD6] rounded-full flex items-center justify-center text-2xl mb-4">
                   📱
                 </div>
                 <h3 className="font-bold text-gray-900 mb-2">Mobile-First</h3>
@@ -76,7 +76,7 @@ export default function PressePage() {
               </div>
 
               <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center text-2xl mb-4">
+                <div className="w-12 h-12 bg-[#FEEBD6] rounded-full flex items-center justify-center text-2xl mb-4">
                   💬
                 </div>
                 <h3 className="font-bold text-gray-900 mb-2">
@@ -98,8 +98,8 @@ export default function PressePage() {
             {isEn ? 'Media Resources' : 'Ressources Media'}
           </h2>
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="border border-gray-200 rounded-xl p-5 flex items-center gap-4 hover:border-green-300 transition">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-xl">
+            <div className="border border-gray-200 rounded-xl p-5 flex items-center gap-4 hover:border-[#DA7756] transition">
+              <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl">
                 🖼️
               </div>
               <div>
@@ -109,8 +109,8 @@ export default function PressePage() {
                 <p className="text-xs text-gray-500">SVG, PNG</p>
               </div>
             </div>
-            <div className="border border-gray-200 rounded-xl p-5 flex items-center gap-4 hover:border-green-300 transition">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center text-xl">
+            <div className="border border-gray-200 rounded-xl p-5 flex items-center gap-4 hover:border-[#DA7756] transition">
+              <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl">
                 📸
               </div>
               <div>
@@ -126,7 +126,7 @@ export default function PressePage() {
         </section>
 
         {/* Contact */}
-        <section className="bg-green-50 py-12 px-4">
+        <section className="bg-[#FFF5EF] py-12 px-4">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl font-extrabold text-gray-900 mb-4">
               {isEn ? 'Press Contact' : 'Contact Presse'}
@@ -138,14 +138,14 @@ export default function PressePage() {
             </p>
             <div className="inline-flex flex-col items-center gap-3">
               <a
-                href="mailto:contact@237jobs.com"
-                className="inline-flex items-center gap-2 bg-white border border-green-200 rounded-full px-6 py-3 font-bold text-green-700 hover:bg-green-100 transition text-sm"
+                href="mailto:contact@bolo237.com"
+                className="inline-flex items-center gap-2 bg-white border border-[#E8C4B0] rounded-full px-6 py-3 font-bold text-[#C4623F] hover:bg-[#FEEBD6] transition text-sm"
               >
-                <span>📧</span> contact@237jobs.com
+                <span>📧</span> contact@bolo237.com
               </a>
               <a
                 href="tel:+237600000000"
-                className="inline-flex items-center gap-2 bg-white border border-green-200 rounded-full px-6 py-3 font-bold text-green-700 hover:bg-green-100 transition text-sm"
+                className="inline-flex items-center gap-2 bg-white border border-[#E8C4B0] rounded-full px-6 py-3 font-bold text-[#C4623F] hover:bg-[#FEEBD6] transition text-sm"
               >
                 <span>📱</span> +237 6XX XX XX XX
               </a>

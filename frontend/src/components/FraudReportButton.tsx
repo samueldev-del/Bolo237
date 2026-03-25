@@ -18,7 +18,7 @@ type ReportEntry = {
   createdAt: string;
 };
 
-const REPORTER_KEY = '237jobs-reporter-id';
+const REPORTER_KEY = 'bolo237-reporter-id';
 
 function getOrCreateReporterId() {
   if (typeof window === 'undefined') {
@@ -35,7 +35,7 @@ function getOrCreateReporterId() {
 
 export default function FraudReportButton({ targetType, targetId, compact = false, onAutoMaskedChange }: FraudReportButtonProps) {
   const { t } = useLocale();
-  const storageKey = useMemo(() => `237jobs-reports-${targetType}-${targetId}`, [targetId, targetType]);
+  const storageKey = useMemo(() => `bolo237-reports-${targetType}-${targetId}`, [targetId, targetType]);
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason>('demande-argent');
   const [uniqueReportCount, setUniqueReportCount] = useState(0);

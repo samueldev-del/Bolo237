@@ -5,8 +5,8 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 
-const USER_KEY = '237jobs-user';
-const ROLE_KEY = '237jobs-account-role';
+const USER_KEY = 'bolo237-user';
+const ROLE_KEY = 'bolo237-account-role';
 
 type UserData = { id: number; name?: string; role?: string; email?: string } | null;
 
@@ -37,7 +37,7 @@ function getRoleColor(role: string | null | undefined): string {
   switch (role) {
     case 'entreprise': return 'from-blue-600 to-blue-700';
     case 'artisan': return 'from-orange-500 to-orange-600';
-    default: return 'from-green-600 to-green-700';
+    default: return 'from-[#DA7756] to-[#C4623F]';
   }
 }
 
@@ -45,7 +45,7 @@ function getRoleBadgeColor(role: string | null | undefined): string {
   switch (role) {
     case 'entreprise': return 'bg-blue-600 hover:bg-blue-700';
     case 'artisan': return 'bg-orange-500 hover:bg-orange-600';
-    default: return 'bg-green-600 hover:bg-green-700';
+    default: return 'bg-[#DA7756] hover:bg-[#C4623F]';
   }
 }
 
@@ -86,7 +86,7 @@ export default function Header() {
   const handleLogout = () => {
     window.localStorage.removeItem(USER_KEY);
     window.localStorage.removeItem(ROLE_KEY);
-    window.localStorage.removeItem('237jobs-phone-verified');
+    window.localStorage.removeItem('bolo237-phone-verified');
     setUser(null);
     setIsMenuOpen(false);
     window.location.href = localizePath('/');
@@ -98,7 +98,7 @@ export default function Header() {
 
         {/* LOGO */}
         <Link href={localizePath('/')} className="flex items-center">
-          <Image src="/logo.svg" alt="237jobs" width={140} height={36} priority className="h-8 md:h-9 w-auto" />
+          <Image src="/logo.svg" alt="Bolo237" width={140} height={36} priority className="h-8 md:h-9 w-auto" />
         </Link>
 
         {/* Navigation links are in the burger menu */}
@@ -108,8 +108,8 @@ export default function Header() {
         <div className="flex items-center gap-3">
           {/* Lang switch (desktop) */}
           <div className="hidden md:flex items-center text-xs font-bold gap-1 text-gray-400">
-            <button onClick={() => setLocale('fr')} className={`px-2 py-1 rounded ${locale === 'fr' ? 'text-green-700 bg-green-50' : 'hover:text-black'}`}>FR</button>
-            <button onClick={() => setLocale('en')} className={`px-2 py-1 rounded ${locale === 'en' ? 'text-green-700 bg-green-50' : 'hover:text-black'}`}>EN</button>
+            <button onClick={() => setLocale('fr')} className={`px-2 py-1 rounded ${locale === 'fr' ? 'text-[#C4623F] bg-[#FFF5EF]' : 'hover:text-black'}`}>FR</button>
+            <button onClick={() => setLocale('en')} className={`px-2 py-1 rounded ${locale === 'en' ? 'text-[#C4623F] bg-[#FFF5EF]' : 'hover:text-black'}`}>EN</button>
           </div>
 
           {/* Connexion / Mon compte */}
@@ -126,7 +126,7 @@ export default function Header() {
           ) : (
             <Link
               href={localizePath('/connexion')}
-              className="hidden sm:block border-2 border-green-600 text-green-700 px-5 py-2 rounded-full font-bold text-[13px] hover:bg-green-50 transition"
+              className="hidden sm:block border-2 border-[#DA7756] text-[#C4623F] px-5 py-2 rounded-full font-bold text-[13px] hover:bg-[#FFF5EF] transition"
             >
               {t.header.login}
             </Link>
@@ -144,9 +144,9 @@ export default function Header() {
               </svg>
             ) : (
               <div className="space-y-1.5">
-                <div className="w-5 h-0.5 bg-gray-700 transition group-hover:bg-green-600"></div>
-                <div className="w-5 h-0.5 bg-gray-700 transition group-hover:bg-green-600"></div>
-                <div className="w-3.5 h-0.5 bg-gray-700 transition group-hover:bg-green-600"></div>
+                <div className="w-5 h-0.5 bg-gray-700 transition group-hover:bg-[#DA7756]"></div>
+                <div className="w-5 h-0.5 bg-gray-700 transition group-hover:bg-[#DA7756]"></div>
+                <div className="w-3.5 h-0.5 bg-gray-700 transition group-hover:bg-[#DA7756]"></div>
               </div>
             )}
           </button>
@@ -184,8 +184,8 @@ export default function Header() {
             {/* Lang switch mobile */}
             <div className="md:hidden px-6 pt-4 pb-2">
               <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5 text-xs font-extrabold">
-                <button onClick={() => setLocale('fr')} className={`px-4 py-1.5 rounded-full transition ${locale === 'fr' ? 'bg-green-600 text-white shadow-sm' : 'text-gray-500'}`}>FR</button>
-                <button onClick={() => setLocale('en')} className={`px-4 py-1.5 rounded-full transition ${locale === 'en' ? 'bg-green-600 text-white shadow-sm' : 'text-gray-500'}`}>EN</button>
+                <button onClick={() => setLocale('fr')} className={`px-4 py-1.5 rounded-full transition ${locale === 'fr' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-500'}`}>FR</button>
+                <button onClick={() => setLocale('en')} className={`px-4 py-1.5 rounded-full transition ${locale === 'en' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-500'}`}>EN</button>
               </div>
             </div>
 
@@ -256,7 +256,7 @@ export default function Header() {
                 {isEn ? 'Information' : 'Informations'}
               </p>
               <MenuLink href={localizePath('/recherche')} icon="🔍" label={isEn ? 'Advanced search' : 'Recherche avancée'} desc={isEn ? 'Find with precise filters' : 'Chercher avec des filtres précis'} />
-              <MenuLink href={localizePath('/a-propos')} icon="ℹ️" label={isEn ? 'About 237jobs' : 'À propos de 237jobs'} desc={isEn ? 'The Cameroon job platform' : 'La plateforme emploi du Cameroun'} />
+              <MenuLink href={localizePath('/a-propos')} icon="ℹ️" label={isEn ? 'About Bolo237' : 'À propos de Bolo237'} desc={isEn ? 'The Cameroon job platform' : 'La plateforme emploi du Cameroun'} />
 
               {/* Déconnexion */}
               {user && (
@@ -276,7 +276,7 @@ export default function Header() {
             {/* Footer du menu */}
             <div className="border-t border-gray-100 px-6 py-4 bg-gray-50/50">
               <p className="text-[11px] text-gray-400 text-center font-medium">
-                237jobs — {isEn ? 'Jobs & Services in Cameroon' : 'Emplois & Services au Cameroun'}
+                Bolo237 — {isEn ? 'Jobs & Services in Cameroon' : 'Emplois & Services au Cameroun'}
               </p>
             </div>
           </div>
@@ -288,10 +288,10 @@ export default function Header() {
 
 function MenuLink({ href, icon, label, desc }: { href: string; icon: string; label: string; desc: string }) {
   return (
-    <Link href={href} className="flex items-start gap-3.5 px-6 py-3 hover:bg-green-50 transition group">
+    <Link href={href} className="flex items-start gap-3.5 px-6 py-3 hover:bg-[#FFF5EF] transition group">
       <span className="text-lg mt-0.5 group-hover:scale-110 transition-transform">{icon}</span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-gray-800 group-hover:text-green-700 transition">{label}</p>
+        <p className="text-sm font-semibold text-gray-800 group-hover:text-[#C4623F] transition">{label}</p>
         <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
       </div>
     </Link>

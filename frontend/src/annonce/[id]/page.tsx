@@ -33,7 +33,7 @@ export default function DetailAnnonce({ params }: { params: { id: string } }) {
       
       {/* Barre de navigation */}
       <nav className="p-4 bg-white shadow-sm flex justify-between items-center border-b border-gray-200">
-        <Link href="/" className="text-2xl font-extrabold text-blue-700">237jobs</Link>
+        <Link href="/" className="text-2xl font-extrabold text-blue-700">Bolo237</Link>
         <Link href="/recherche" className="text-gray-600 hover:text-blue-700 font-semibold transition">
           ← Retour aux recherches
         </Link>
@@ -97,7 +97,7 @@ export default function DetailAnnonce({ params }: { params: { id: string } }) {
 
             {/* Infos supplémentaires de sécurité */}
             <div className="mt-6 pt-6 border-t border-gray-100 text-xs text-gray-400 text-center">
-              Signaler cette annonce si elle vous semble frauduleuse. 237jobs ne demandera jamais de paiement pour un entretien.
+              Signaler cette annonce si elle vous semble frauduleuse. Bolo237 ne demandera jamais de paiement pour un entretien.
             </div>
           </div>
         </aside>

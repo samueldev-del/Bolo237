@@ -12,7 +12,7 @@ import {
   type ApiJob, type AppFeedback, type AdminTrendPoint, type VerificationSubmission,
 } from '@/lib/api';
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 type JobStatusFilter = 'ALL' | 'PENDING' | 'ACTIVE' | 'REJECTED';
 type PanelMode = 'dashboard' | 'moderation' | 'users' | 'reviews' | 'trends' | 'feedbacks';

@@ -8,7 +8,7 @@ import { useLocale } from '@/components/LocaleProvider';
 import { getStoredUser, mergeStoredUser } from '@/lib/session';
 
 const USER_KEY = 'bolo237-user';
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 type Experience = { poste: string; entreprise: string; dateDebut: string; dateFin: string; description: string };
 type Formation = { diplome: string; ecole: string; annee: string };

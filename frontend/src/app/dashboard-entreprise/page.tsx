@@ -269,7 +269,7 @@ export default function DashboardEntreprise() {
       mergeStoredUser({ logoUrl: uploaded.url });
     } catch {
       const localPreview = await fileToImageDataUrl(file);
-      setCompanyLogoPreview(localPreview);
+      setCompanyLogoPreview(localPreview || '');
     }
   };
 

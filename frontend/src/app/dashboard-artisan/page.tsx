@@ -198,6 +198,7 @@ export default function DashboardArtisan() {
   const [adDescription, setAdDescription] = useState('');
   const [adLocation, setAdLocation] = useState('');
   const [adSalary, setAdSalary] = useState('');
+  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('not_submitted');
 
   /* service form */
   const [showServiceForm, setShowServiceForm] = useState(false);
@@ -219,8 +220,6 @@ export default function DashboardArtisan() {
   const verificationSteps = [!!profilePhotoPreview];
   const completedSteps = verificationSteps.filter(Boolean).length;
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
-
-  const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('not_submitted');
 
   const loadMyAds = useCallback(async () => {
     if (!userId) return;

@@ -19,6 +19,11 @@ const prisma = new PrismaClient({ adapter });
 
 const app = express();
 
+const uploadsRoot = path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadsRoot)) {
+  fs.mkdirSync(uploadsRoot, { recursive: true });
+}
+
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
@@ -64,11 +69,33 @@ async function sendWhatsAppModerationAlert(messageBody) {
   }
 }
 
+async function sendOtpWithTwilio(phone, code) {
+  if (!twilioClient || !process.env.TWILIO_SMS_FROM) {
+    return false;
+  }
+
+  const normalizedPhone = String(phone).startsWith('+') ? String(phone) : `+${String(phone).replace(/^\+/, '')}`;
+
+  try {
+    await twilioClient.messages.create({
+      from: process.env.TWILIO_SMS_FROM,
+      to: normalizedPhone,
+      body: `Votre code Bolo237 est ${code}. Il expire dans 10 minutes.`,
+    });
+    console.log(`[OTP] SMS sent to ${normalizedPhone}`);
+    return true;
+  } catch (error) {
+    console.error('[OTP] Twilio SMS error:', error?.message || error);
+    return false;
+  }
+}
+
 // --- Middleware ---
 app.use(cors({
   origin: [
     'http://localhost:3000',
     'http://localhost:3001',
+    'https://bolo237.com',
     'https://www.bolo237.com',
     'https://admin.bolo237.com',
     // Vercel preview URLs
@@ -78,21 +105,9 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+app.use('/uploads', express.static(uploadsRoot));
 
-// =============================================
-// In-memory store: Identity verification queue
-// =============================================
-const verificationSubmissions = new Map();
-
-function verificationKey(role, accountKey) {
-  return `${String(role).toLowerCase()}::${String(accountKey).toLowerCase()}`;
-}
-
-function listVerificationItems() {
-  return Array.from(verificationSubmissions.values()).sort((a, b) => {
-    return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
-  });
-}
+// Verification queue is persisted via Prisma VerificationSubmission model
 
 // =============================================
 // In-memory store: Admin platform settings
@@ -232,19 +247,37 @@ app.get('/api/jobs', async (req, res) => {
 // =============================================
 
 // GET /api/verifications — File complete des demandes
-app.get('/api/verifications', (_req, res) => {
-  res.json({ items: listVerificationItems() });
+app.get('/api/verifications', async (_req, res) => {
+  try {
+    const items = await prisma.verificationSubmission.findMany({
+      orderBy: { submittedAt: 'desc' },
+    });
+    res.json({ items });
+  } catch (error) {
+    console.error('GET /api/verifications error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des verifications.' });
+  }
 });
 
 // GET /api/verifications/status?role=artisan&accountKey=abc
-app.get('/api/verifications/status', (req, res) => {
+app.get('/api/verifications/status', async (req, res) => {
   const { role, accountKey } = req.query;
   if (!role || !accountKey) {
     return res.status(400).json({ error: 'Parametres requis: role, accountKey.' });
   }
 
-  const existing = verificationSubmissions.get(verificationKey(role, accountKey));
-  res.json({ status: existing?.status || 'not_submitted' });
+  try {
+    const existing = await prisma.verificationSubmission.findFirst({
+      where: {
+        role: String(role).toLowerCase(),
+        accountKey: String(accountKey).toLowerCase(),
+      },
+    });
+    res.json({ status: existing?.status || 'not_submitted' });
+  } catch (error) {
+    console.error('GET /api/verifications/status error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture du statut.' });
+  }
 });
 
 // POST /api/verifications — Soumettre ou re-soumettre une demande
@@ -258,25 +291,30 @@ app.post('/api/verifications', async (req, res) => {
       });
     }
 
-    const key = verificationKey(role, accountKey);
-    const existing = verificationSubmissions.get(key);
-    const now = new Date().toISOString();
+    const normalizedRole = String(role).toLowerCase();
+    const normalizedKey = String(accountKey).toLowerCase();
 
-    const submission = {
-      id: existing?.id || `verif-${Math.random().toString(36).slice(2, 10)}`,
-      role: String(role),
-      accountKey: String(accountKey).toLowerCase(),
-      displayName: String(displayName),
-      phone: String(phone),
-      status: 'pending',
-      submittedAt: now,
-      reviewedAt: null,
-      reviewedBy: null,
-      notes: null,
-      payload,
-    };
-
-    verificationSubmissions.set(key, submission);
+    const submission = await prisma.verificationSubmission.upsert({
+      where: { role_accountKey: { role: normalizedRole, accountKey: normalizedKey } },
+      create: {
+        role: normalizedRole,
+        accountKey: normalizedKey,
+        displayName: String(displayName),
+        phone: String(phone),
+        status: 'pending',
+        payload,
+      },
+      update: {
+        displayName: String(displayName),
+        phone: String(phone),
+        status: 'pending',
+        submittedAt: new Date(),
+        reviewedAt: null,
+        reviewedBy: null,
+        notes: null,
+        payload,
+      },
+    });
 
     await sendWhatsAppModerationAlert(
       [
@@ -296,7 +334,7 @@ app.post('/api/verifications', async (req, res) => {
 });
 
 // PATCH /api/verifications/:id/review — Decision super admin
-app.patch('/api/verifications/:id/review', (req, res) => {
+app.patch('/api/verifications/:id/review', async (req, res) => {
   const id = String(req.params.id);
   const { status, reviewedBy, notes } = req.body;
 
@@ -304,19 +342,45 @@ app.patch('/api/verifications/:id/review', (req, res) => {
     return res.status(400).json({ error: 'Statut invalide. Valeurs autorisees: approved, rejected.' });
   }
 
-  const item = listVerificationItems().find((entry) => entry.id === id);
-  if (!item) return res.status(404).json({ error: 'Demande de verification non trouvee.' });
+  try {
+    const existing = await prisma.verificationSubmission.findUnique({ where: { id } });
+    if (!existing) return res.status(404).json({ error: 'Demande de verification non trouvee.' });
 
-  const updated = {
-    ...item,
-    status: String(status),
-    reviewedBy: reviewedBy ? String(reviewedBy) : 'super-admin',
-    reviewedAt: new Date().toISOString(),
-    notes: notes ? String(notes) : null,
-  };
+    const updated = await prisma.verificationSubmission.update({
+      where: { id },
+      data: {
+        status: String(status),
+        reviewedBy: reviewedBy ? String(reviewedBy) : 'super-admin',
+        reviewedAt: new Date(),
+        notes: notes ? String(notes) : null,
+      },
+    });
 
-  verificationSubmissions.set(verificationKey(updated.role, updated.accountKey), updated);
-  res.json(updated);
+    const rawPayload = updated.payload || {};
+    const maybeUserId = Number((typeof rawPayload === 'object' ? rawPayload.userId : null) || 0);
+    if (status === 'approved' && Number.isFinite(maybeUserId) && maybeUserId > 0) {
+      const user = await prisma.user.update({
+        where: { id: maybeUserId },
+        data: { isVerified: true },
+        select: { id: true, name: true },
+      }).catch(() => null);
+
+      if (user) {
+        await createNotification({
+          userId: user.id,
+          type: 'account_verified',
+          title: 'Compte certifie',
+          message: 'Votre dossier a ete valide. Votre badge certifie est maintenant actif.',
+          data: { verificationId: updated.id, role: updated.role },
+        }).catch(() => null);
+      }
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error('PATCH /api/verifications/:id/review error:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise a jour de la verification.' });
+  }
 });
 
 // =============================================
@@ -354,26 +418,108 @@ app.post('/api/candidates', async (req, res) => {
       return res.status(400).json({ error: 'Champs requis: nom, titre.' });
     }
 
-    const item = await prisma.candidateProfile.create({
-      data: {
-        userId: userId ? parseInt(String(userId), 10) : null,
-        nom: String(nom),
-        titre: String(titre),
-        localisation: String(localisation || 'Douala'),
-        experience: String(experience),
-        disponibilite: String(disponibilite),
-        etudes: String(etudes),
-        competences: Array.isArray(competences)
-          ? competences.map((s) => String(s)).filter(Boolean).slice(0, 12)
-          : [],
-        disponibleNow: Boolean(disponibleNow),
-      },
-    });
+    const normalizedUserId = userId ? parseInt(String(userId), 10) : null;
+    const data = {
+      userId: normalizedUserId,
+      nom: String(nom),
+      titre: String(titre),
+      localisation: String(localisation || 'Douala'),
+      experience: String(experience),
+      disponibilite: String(disponibilite),
+      etudes: String(etudes),
+      competences: Array.isArray(competences)
+        ? competences.map((s) => String(s)).filter(Boolean).slice(0, 12)
+        : [],
+      disponibleNow: Boolean(disponibleNow),
+    };
 
-    res.status(201).json({ ...item, cvMajJours: 0 });
+    const existing = normalizedUserId
+      ? await prisma.candidateProfile.findFirst({ where: { userId: normalizedUserId } })
+      : null;
+
+    const item = existing
+      ? await prisma.candidateProfile.update({ where: { id: existing.id }, data })
+      : await prisma.candidateProfile.create({ data });
+
+    await sendWhatsAppModerationAlert(
+      [
+        existing ? 'Profil candidat mis a jour' : 'Nouveau profil candidat cree',
+        `ID: ${item.id}`,
+        `Nom: ${item.nom}`,
+        `Titre: ${item.titre}`,
+        `Ville: ${item.localisation}`,
+      ].join('\n')
+    );
+
+    res.status(existing ? 200 : 201).json({ ...item, cvMajJours: calcCvMajJours(item.createdAt) });
   } catch (error) {
     console.error('POST /api/candidates error:', error);
     res.status(500).json({ error: 'Erreur lors de la creation du profil candidat.' });
+  }
+});
+
+app.get('/api/candidates/:id', async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'ID candidat invalide.' });
+
+    const candidate = await prisma.candidateProfile.findUnique({ where: { id } });
+    if (!candidate) return res.status(404).json({ error: 'Profil candidat non trouve.' });
+
+    const [user, userProfile] = await Promise.all([
+      candidate.userId
+        ? prisma.user.findUnique({
+            where: { id: candidate.userId },
+            select: { id: true, name: true, email: true, phone: true, isVerified: true, createdAt: true },
+          })
+        : Promise.resolve(null),
+      candidate.userId
+        ? prisma.userProfile.findUnique({ where: { userId: candidate.userId } })
+        : Promise.resolve(null),
+    ]);
+
+    res.json({
+      id: candidate.id,
+      userId: candidate.userId,
+      nom: candidate.nom,
+      titre: candidate.titre,
+      localisation: candidate.localisation,
+      experience: candidate.experience,
+      disponibilite: candidate.disponibilite,
+      etudes: candidate.etudes,
+      competences: candidate.competences,
+      disponibleNow: candidate.disponibleNow,
+      cvMajJours: calcCvMajJours(candidate.createdAt),
+      createdAt: candidate.createdAt,
+      user: user
+        ? {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phone: user.phone,
+            isVerified: user.isVerified,
+            createdAt: user.createdAt,
+          }
+        : null,
+      profile: userProfile
+        ? {
+            fullName: userProfile.fullName,
+            title: userProfile.title,
+            location: userProfile.location,
+            phone: userProfile.phone,
+            email: userProfile.email,
+            profile: userProfile.profile,
+            experience: userProfile.experience,
+            education: userProfile.education,
+            skillsText: userProfile.skillsText,
+            languagesText: userProfile.languagesText,
+            updatedAt: userProfile.updatedAt,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error('GET /api/candidates/:id error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture du profil candidat.' });
   }
 });
 
@@ -523,12 +669,31 @@ app.post('/api/jobs/:id/apply', async (req, res) => {
       return res.status(400).json({ error: 'candidateId invalide.' });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { id: normalizedCandidateId },
-      select: { id: true, name: true, email: true },
-    });
+    const [user, userProfile] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: normalizedCandidateId },
+        select: { id: true, name: true, email: true, phone: true, isVerified: true },
+      }),
+      prisma.userProfile.findUnique({ where: { userId: normalizedCandidateId } }),
+    ]);
 
-    const candidateLabel = String(candidateName || user?.name || user?.email || `Candidat #${normalizedCandidateId}`);
+    if (!user) {
+      return res.status(404).json({ error: 'Candidat introuvable.' });
+    }
+
+    const profileReady = Boolean(
+      userProfile?.fullName &&
+      userProfile?.title &&
+      userProfile?.phone &&
+      userProfile?.email &&
+      (userProfile?.skillsText || userProfile?.experience || userProfile?.education)
+    );
+
+    if (!profileReady) {
+      return res.status(400).json({ error: 'Le dossier candidat est incomplet. Completez le profil avant de postuler.' });
+    }
+
+    const candidateLabel = String(candidateName || user.name || user.email || `Candidat #${normalizedCandidateId}`);
 
     // Notify the enterprise (job author)
     const notif = await createNotification({
@@ -1606,17 +1771,34 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
 
-    const folder = req.query.folder ? `bolo237/${req.query.folder}` : 'bolo237';
+    const safeFolder = String(req.query.folder || 'general').replace(/[^a-zA-Z0-9/_-]/g, '') || 'general';
 
-    const result = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        { folder, resource_type: 'auto' },
-        (error, result) => error ? reject(error) : resolve(result)
-      );
-      stream.end(req.file.buffer);
-    });
+    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+      const folder = `bolo237/${safeFolder}`;
 
-    res.json({ url: result.secure_url, publicId: result.public_id });
+      const result = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder, resource_type: 'auto' },
+          (error, uploadResult) => error ? reject(error) : resolve(uploadResult)
+        );
+        stream.end(req.file.buffer);
+      });
+
+      return res.json({ url: result.secure_url, publicId: result.public_id });
+    }
+
+    const extension = path.extname(req.file.originalname || '') || '';
+    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extension}`;
+    const targetDir = path.join(uploadsRoot, safeFolder);
+    fs.mkdirSync(targetDir, { recursive: true });
+
+    const fullPath = path.join(targetDir, fileName);
+    fs.writeFileSync(fullPath, req.file.buffer);
+
+    const relativePath = `${safeFolder}/${fileName}`.replace(/\\/g, '/');
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+
+    res.json({ url: `${baseUrl}/uploads/${relativePath}`, publicId: relativePath });
   } catch (error) {
     console.error('Upload error:', error);
     res.status(500).json({ error: 'Upload failed' });
@@ -1632,7 +1814,7 @@ const otpStore = new Map(); // phone -> { code, expiresAt }
 const MASTER_OTP = process.env.MASTER_OTP || '0000';
 
 // POST /api/otp/send — Envoyer un code OTP
-app.post('/api/otp/send', (req, res) => {
+app.post('/api/otp/send', async (req, res) => {
   try {
     const { phone } = req.body;
 
@@ -1652,12 +1834,12 @@ app.post('/api/otp/send', (req, res) => {
 
     otpStore.set(cleanPhone, { code, expiresAt });
 
-    // En production, ici on enverrait le SMS via Twilio/Africa's Talking/etc.
-    // Pour le dev/test, on affiche le code dans les logs serveur
+    const smsSent = await sendOtpWithTwilio(phone, code);
+
     console.log(`[OTP] Code pour ${cleanPhone}: ${code} (ou utilisez le code maitre: ${MASTER_OTP})`);
 
     res.json({
-      message: 'Code OTP envoye avec succes.',
+      message: smsSent ? 'Code OTP envoye avec succes.' : 'Code OTP genere avec succes.',
       // En dev, on renvoie le code pour faciliter les tests
       ...(process.env.NODE_ENV !== 'production' && { demoCode: code }),
       expiresIn: '10 minutes',

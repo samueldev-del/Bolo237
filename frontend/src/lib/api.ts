@@ -72,6 +72,31 @@ export type CandidateProfile = {
   createdAt: string;
 };
 
+export type CandidateProfileDetail = CandidateProfile & {
+  userId?: number | null;
+  user: {
+    id: number;
+    name: string | null;
+    email: string;
+    phone: string | null;
+    isVerified: boolean;
+    createdAt: string;
+  } | null;
+  profile: {
+    fullName: string;
+    title: string;
+    location: string;
+    phone: string;
+    email: string;
+    profile: string;
+    experience: string;
+    education: string;
+    skillsText: string;
+    languagesText: string;
+    updatedAt: string;
+  } | null;
+};
+
 export type UserProfile = {
   userId: number;
   fullName: string;
@@ -404,6 +429,10 @@ export async function reviewVerificationSubmission(input: {
 export async function fetchCandidateProfiles(): Promise<CandidateProfile[]> {
   const res = await apiFetch<{ candidates: CandidateProfile[] }>('/api/candidates');
   return res.candidates;
+}
+
+export async function fetchCandidateProfileDetail(id: number): Promise<CandidateProfileDetail> {
+  return apiFetch<CandidateProfileDetail>(`/api/candidates/${id}`);
 }
 
 export async function createCandidateProfile(data: {

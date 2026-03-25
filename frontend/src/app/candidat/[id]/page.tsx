@@ -3,8 +3,9 @@
 import { use, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/components/LocaleProvider';
-import { fetchUserReviews, type UserReview } from '@/lib/api';
+import { fetchCandidateProfileDetail, fetchUserReviews, type UserReview } from '@/lib/api';
 import RatingModal from '@/components/RatingModal';
+import { useApi } from '@/lib/useApi';
 
 type CandidatParams = {
   params: Promise<{
@@ -30,6 +31,11 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
   const canViewContact = isLoggedIn && (userRole === 'entreprise' || userRole === 'artisan');
 
   const candidatId = Number.parseInt(id, 10);
+  const { data: candidate, loading } = useApi(
+    () => (Number.isFinite(candidatId) && candidatId > 0 ? fetchCandidateProfileDetail(candidatId) : Promise.reject(new Error('Invalid candidate id'))),
+    null,
+    [candidatId]
+  );
   const [reviews, setReviews] = useState<UserReview[]>([]);
   const [reviewAvg, setReviewAvg] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
@@ -63,52 +69,72 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
     }
   };
 
-  const profil = {
-    id,
-    nom: 'Alain Tchoumi',
-    titre: 'Developpeur Web Fullstack (React / Node.js)',
-    localisation: 'Douala, Akwa',
-    experienceTotale: '3 ans',
-    disponibilite: 'Immediatement',
-    bio: 'Passionne par les applications web performantes, je conçois et deploye des solutions robustes en environnement agile. J aime transformer un besoin metier en produit concret, stable et utile.',
-    telephone: '+237 6XX XX XX XX',
-    email: 'alain.tchoumi@email.com',
-    competences: ['React', 'Node.js', 'TypeScript', 'PostgreSQL', 'Docker', 'Git'],
-    langues: ['Francais (Courant)', 'Anglais (Professionnel)'],
-    experiences: [
-      {
-        poste: 'Developpeur Frontend',
-        entreprise: 'TechCamer Solutions',
-        date: 'Janv 2023 - Aujourd hui',
-        description: 'Developpement des interfaces metier, integration API REST et optimisation des performances front.',
-      },
-      {
-        poste: 'Developpeur Web',
-        entreprise: 'Digital Start',
-        date: 'Juin 2021 - Dec 2022',
-        description: 'Creation de plateformes vitrines et e-commerce, maintenance corrective et evolutive.',
-      },
-    ],
-    formations: [
-      {
-        diplome: 'Master Informatique',
-        ecole: 'Universite de Douala',
-        date: '2019 - 2021',
-      },
-      {
-        diplome: 'Licence Informatique de Gestion',
-        ecole: 'Universite de Douala',
-        date: '2016 - 2019',
-      },
-    ],
-  };
+  const profileBlocks = candidate?.profile;
+  const profil = candidate
+    ? {
+        id: candidate.id,
+        nom: candidate.nom,
+        titre: candidate.titre,
+        localisation: candidate.localisation,
+        experienceTotale: candidate.experience,
+        disponibilite: candidate.disponibilite,
+        bio: profileBlocks?.profile || (isEn ? 'Candidate profile coming soon.' : 'Resume candidat bientot disponible.'),
+        telephone: profileBlocks?.phone || candidate.user?.phone || (isEn ? 'Not shared yet' : 'Non partage pour le moment'),
+        email: profileBlocks?.email || candidate.user?.email || '-',
+        competences: candidate.competences || [],
+        langues: (profileBlocks?.languagesText || '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter(Boolean),
+        experiences: (profileBlocks?.experience || '')
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line, index) => ({
+            poste: line,
+            entreprise: '',
+            date: '',
+            description: line,
+            key: `exp-${index}`,
+          })),
+        formations: (profileBlocks?.education || '')
+          .split('\n')
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line, index) => ({ diplome: line, ecole: '', date: '', key: `edu-${index}` })),
+        isVerified: Boolean(candidate.user?.isVerified),
+      }
+    : null;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f5f7f8] flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-4 border-green-600 border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!profil) {
+    return (
+      <div className="min-h-screen bg-[#f5f7f8] flex items-center justify-center px-4">
+        <div className="max-w-md text-center bg-white rounded-3xl border border-gray-200 p-8">
+          <h1 className="text-2xl font-extrabold text-black mb-3">{isEn ? 'Candidate not found' : 'Candidat introuvable'}</h1>
+          <p className="text-sm text-gray-500 mb-5">{isEn ? 'This candidate profile is unavailable.' : 'Ce profil candidat est indisponible.'}</p>
+          <Link href={localizePath('/cvtheque')} className="inline-flex items-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-extrabold text-white hover:bg-green-700 transition">
+            <span aria-hidden="true">←</span>
+            {isEn ? 'Back to CV database' : 'Retour a la CVtheque'}
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-black pb-10">
       <nav className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <Link href="/cvtheque" className="text-sm font-bold text-gray-600 hover:text-green-700">
-            Retour a la CVtheque
+          <Link href={localizePath('/cvtheque')} className="text-sm font-bold text-gray-600 hover:text-green-700">
+            ← {isEn ? 'Back to CV database' : 'Retour a la CVtheque'}
           </Link>
           <p className="text-xs text-gray-400 font-bold">ID #{profil.id}</p>
         </div>
@@ -125,6 +151,11 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
                 <span className="inline-flex mt-3 px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100 text-xs font-extrabold uppercase">
                   {profil.disponibilite}
                 </span>
+                {profil.isVerified && (
+                  <span className="inline-flex mt-3 ml-2 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-extrabold uppercase">
+                    ✓ {isEn ? 'Certified' : 'Certifie'}
+                  </span>
+                )}
               </div>
 
               {canViewContact ? (
@@ -147,12 +178,14 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
           <article className="bg-white border border-gray-200 rounded-2xl p-6">
             <h2 className="text-xl font-extrabold mb-4">Parcours professionnel</h2>
             <div className="space-y-5">
-              {profil.experiences.map((exp) => (
-                <div key={exp.poste} className="relative pl-6 border-l-2 border-gray-200">
+              {profil.experiences.length === 0 ? (
+                <p className="text-sm text-gray-500">{isEn ? 'No experience details shared yet.' : 'Aucune experience detaillee partagee pour le moment.'}</p>
+              ) : profil.experiences.map((exp) => (
+                <div key={exp.key} className="relative pl-6 border-l-2 border-gray-200">
                   <div className="absolute w-3 h-3 bg-green-600 rounded-full -left-[7px] top-1"></div>
                   <h3 className="font-extrabold text-black">{exp.poste}</h3>
-                  <p className="text-sm font-bold text-gray-700">{exp.entreprise}</p>
-                  <p className="text-xs text-gray-500 mb-2">{exp.date}</p>
+                  {exp.entreprise ? <p className="text-sm font-bold text-gray-700">{exp.entreprise}</p> : null}
+                  {exp.date ? <p className="text-xs text-gray-500 mb-2">{exp.date}</p> : null}
                   <p className="text-sm text-gray-700">{exp.description}</p>
                 </div>
               ))}
@@ -162,11 +195,13 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
           <article className="bg-white border border-gray-200 rounded-2xl p-6">
             <h2 className="text-xl font-extrabold mb-4">Formation</h2>
             <div className="space-y-4">
-              {profil.formations.map((form) => (
-                <div key={form.diplome} className="border-b border-gray-100 pb-3 last:border-b-0">
+              {profil.formations.length === 0 ? (
+                <p className="text-sm text-gray-500">{isEn ? 'No education details shared yet.' : 'Aucune formation detaillee partagee pour le moment.'}</p>
+              ) : profil.formations.map((form) => (
+                <div key={form.key} className="border-b border-gray-100 pb-3 last:border-b-0">
                   <p className="font-extrabold">{form.diplome}</p>
-                  <p className="text-sm text-gray-700">{form.ecole}</p>
-                  <p className="text-xs text-gray-500">{form.date}</p>
+                  {form.ecole ? <p className="text-sm text-gray-700">{form.ecole}</p> : null}
+                  {form.date ? <p className="text-xs text-gray-500">{form.date}</p> : null}
                 </div>
               ))}
             </div>
@@ -175,7 +210,7 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
           <article className="bg-white border border-gray-200 rounded-2xl p-6">
             <h2 className="text-xl font-extrabold mb-4">Langues</h2>
             <div className="flex flex-wrap gap-2">
-              {profil.langues.map((langue) => (
+              {(profil.langues.length > 0 ? profil.langues : [isEn ? 'Not specified yet' : 'Non precise pour le moment']).map((langue) => (
                 <span key={langue} className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-sm font-bold">
                   {langue}
                 </span>

@@ -268,6 +268,15 @@ export default function CvthequePage() {
     <div className="min-h-screen bg-[#f5f7f8] text-black pb-10">
       <div className="bg-white border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 py-6">
+          <Link
+            href={localizePath('/dashboard-entreprise')}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-green-700 transition mb-3"
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            {isEn ? 'Back to dashboard' : 'Retour au tableau de bord'}
+          </Link>
           <h1 className="text-2xl md:text-3xl font-extrabold mb-4">{isEn ? 'Recruiter CV Database' : 'CVtheque RH'}</h1>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <input

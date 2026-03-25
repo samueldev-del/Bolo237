@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { createCandidateProfile, fetchUserSavedJobs, fetchUserApplications, upsertUserProfile, type ApiJob, type UserApplication } from '@/lib/api';
+import { createCandidateProfile, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, uploadFile, upsertUserProfile, type ApiJob, type UserApplication } from '@/lib/api';
+import { getStoredUser, mergeStoredUser } from '@/lib/session';
 
 export default function DashboardCandidat() {
   const { locale, localizePath } = useLocale();
@@ -29,7 +30,10 @@ export default function DashboardCandidat() {
   const [openAccordion, setOpenAccordion] = useState<'infos' | 'resume' | 'exp' | 'edu' | 'skills'>('infos');
   const [isSavingCv, setIsSavingCv] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [cvActionMessage, setCvActionMessage] = useState('');
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
   const [cvData, setCvData] = useState({
     fullName: '',
     title: '',
@@ -50,6 +54,7 @@ export default function DashboardCandidat() {
         const parsed = JSON.parse(raw);
         setUserName(parsed?.name || parsed?.fullName || parsed?.nom || '');
         setUserId(Number(parsed?.id || 0));
+        setProfilePhotoUrl(String(parsed?.photoUrl || ''));
 
         // Redirect to role-specific dashboard
         const role = parsed?.role || localStorage.getItem('bolo237-account-role') || '';
@@ -92,6 +97,37 @@ export default function DashboardCandidat() {
       }
     };
     loadApplications();
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    const loadProfile = async () => {
+      try {
+        const profile = await fetchUserProfile(userId);
+        setCvData({
+          fullName: profile.fullName || '',
+          title: profile.title || '',
+          location: profile.location || '',
+          phone: profile.phone || '',
+          email: profile.email || '',
+          profile: profile.profile || '',
+          experience: profile.experience || '',
+          education: profile.education || '',
+          skillsText: profile.skillsText || '',
+          languagesText: profile.languagesText || '',
+        });
+        setSkills(
+          (profile.skillsText || '')
+            .split(',')
+            .map((item) => item.trim())
+            .filter(Boolean)
+        );
+      } catch {
+        // ignore missing profile until first save
+      }
+    };
+
+    loadProfile();
   }, [userId]);
 
   // Vide — sera rempli par les vraies offres sauvegardees
@@ -186,7 +222,7 @@ export default function DashboardCandidat() {
   const builderText = {
     FR: {
       requiredNameTitle: 'Renseignez au minimum le nom et le titre avant de sauvegarder.',
-      saveSuccess: 'CV enregistre et applique au profil. Il est aussi disponible dans la CVtheque.',
+      saveSuccess: 'Dossier candidat enregistre et applique au profil. Il est aussi visible dans la CVtheque.',
       saveError: 'Erreur de sauvegarde. Verifiez votre connexion puis reessayez.',
       pdfBrowserOnly: 'PDF disponible uniquement dans le navigateur.',
       pdfMissing: 'jsPDF introuvable dans le bundle navigateur.',
@@ -220,14 +256,14 @@ export default function DashboardCandidat() {
       mobilePreview: 'Apercu du CV',
       close: 'Fermer',
       saving: 'Enregistrement...',
-      saveApply: 'Enregistrer & Appliquer a mon profil',
+      saveApply: 'Enregistrer mon dossier candidat',
       generating: 'Generation...',
       downloadPdf: 'Telecharger en PDF',
       continueEditor: 'Continuer vers l editeur',
     },
     EN: {
       requiredNameTitle: 'Please enter at least full name and job title before saving.',
-      saveSuccess: 'CV saved and applied to your profile. It is now visible in the CVtheque.',
+      saveSuccess: 'Candidate file saved and applied to your profile. It is now visible in the CV database.',
       saveError: 'Save failed. Please check your connection and try again.',
       pdfBrowserOnly: 'PDF is available only in browser mode.',
       pdfMissing: 'jsPDF not found in browser bundle.',
@@ -261,7 +297,7 @@ export default function DashboardCandidat() {
       mobilePreview: 'CV Preview',
       close: 'Close',
       saving: 'Saving...',
-      saveApply: 'Save & Apply to my profile',
+      saveApply: 'Save my candidate file',
       generating: 'Generating...',
       downloadPdf: 'Download PDF',
       continueEditor: 'Continue to editor',
@@ -295,6 +331,44 @@ export default function DashboardCandidat() {
 
   const updateCvData = (key: keyof typeof cvData, value: string) => {
     setCvData((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const completionChecks = [
+    Boolean(cvData.fullName.trim()),
+    Boolean(cvData.title.trim()),
+    Boolean(cvData.location.trim()),
+    Boolean(cvData.phone.trim()),
+    Boolean(cvData.email.trim()),
+    Boolean(cvData.profile.trim()),
+    Boolean(cvData.experience.trim()),
+    Boolean(cvData.education.trim()),
+    Boolean(cvData.skillsText.trim()),
+    Boolean(cvData.languagesText.trim()),
+    Boolean(profilePhotoUrl),
+  ];
+  const completionPercent = Math.round((completionChecks.filter(Boolean).length / completionChecks.length) * 100);
+  const recommendationItems = [
+    !profilePhotoUrl && (isEn ? 'Add a clear profile photo to reassure recruiters.' : 'Ajoutez une photo nette pour rassurer les recruteurs.'),
+    !cvData.profile.trim() && (isEn ? 'Write a 3-line summary focused on your strongest value.' : 'Ajoutez un resume en 3 lignes oriente resultats.'),
+    !cvData.experience.trim() && (isEn ? 'Describe one concrete mission with tools and outcomes.' : 'Decrivez au moins une mission concrete avec outils et resultats.'),
+    !cvData.skillsText.trim() && (isEn ? 'List 6 to 8 practical skills recruiters search for.' : 'Listez 6 a 8 competences pratiques recherchees.'),
+  ].filter(Boolean) as string[];
+
+  const handlePhotoUpload = async (file: File | null) => {
+    if (!file) return;
+    setIsUploadingPhoto(true);
+    setCvActionMessage('');
+    try {
+      const uploaded = await uploadFile(file, 'candidate-photos');
+      setProfilePhotoUrl(uploaded.url);
+      mergeStoredUser({ photoUrl: uploaded.url });
+      setCvActionMessage(isEn ? 'Photo uploaded successfully.' : 'Photo telechargee avec succes.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Upload failed';
+      setCvActionMessage((isEn ? 'Photo upload failed: ' : 'Echec du telechargement photo: ') + message);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   const handleSaveAndApply = async () => {
@@ -337,6 +411,31 @@ export default function DashboardCandidat() {
           languagesText: cvData.languagesText,
         });
       }
+
+      const storedUser = getStoredUser();
+      const phoneVerified = typeof window !== 'undefined' && window.localStorage.getItem('bolo237-phone-verified') === 'true';
+      const profileComplete = Boolean(
+        cvData.fullName.trim() &&
+        cvData.title.trim() &&
+        cvData.location.trim() &&
+        cvData.phone.trim() &&
+        cvData.email.trim() &&
+        (cvData.profile.trim() || cvData.experience.trim() || cvData.education.trim()) &&
+        cvData.skillsText.trim()
+      );
+
+      mergeStoredUser({
+        ...(storedUser || {}),
+        name: cvData.fullName,
+        title: cvData.title,
+        phone: cvData.phone,
+        skills: cvData.skillsText,
+        photoUrl: profilePhotoUrl,
+        cvUploaded: true,
+        phoneVerified,
+        profileComplete,
+      });
+      setUserName(cvData.fullName);
 
       setCvActionMessage(t.saveSuccess);
     } catch {
@@ -430,14 +529,26 @@ export default function DashboardCandidat() {
   };
 
   const renderCvPreview = () => (
-    <div className={`bg-white rounded-lg border ${previewTheme} w-full max-w-[740px] aspect-[1/1.414] mx-auto overflow-hidden`}>
-      <div className={`px-6 py-4 ${previewHeader}`}>
-        <h3 className="text-xl font-extrabold tracking-tight">{cvData.fullName || t.fullNameFallback}</h3>
-        <p className="text-sm font-semibold mt-1">{cvData.title || t.profileTitleFallback}</p>
-        <p className="text-xs opacity-90 mt-2">{cvData.location} • {cvData.phone} • {cvData.email}</p>
+    <div className={`bg-white rounded-[24px] border ${previewTheme} w-full max-w-[740px] aspect-[1/1.414] mx-auto overflow-hidden shadow-[0_24px_80px_rgba(15,23,42,0.12)]`}>
+      <div className={`px-6 py-5 ${previewHeader}`}>
+        <div className="flex items-start gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-white/80 border border-white/40 overflow-hidden flex items-center justify-center text-lg font-extrabold text-slate-700 shrink-0">
+            {profilePhotoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={profilePhotoUrl} alt={cvData.fullName || 'Candidate'} className="w-full h-full object-cover" />
+            ) : (
+              <span>{(cvData.fullName || 'C').slice(0, 1).toUpperCase()}</span>
+            )}
+          </div>
+          <div>
+            <h3 className="text-xl font-extrabold tracking-tight">{cvData.fullName || t.fullNameFallback}</h3>
+            <p className="text-sm font-semibold mt-1">{cvData.title || t.profileTitleFallback}</p>
+            <p className="text-xs opacity-90 mt-2">{cvData.location} • {cvData.phone} • {cvData.email}</p>
+          </div>
+        </div>
       </div>
 
-      <div className="p-6 space-y-4 text-[12.5px] leading-5 text-gray-800">
+      <div className="p-6 space-y-4 text-[12.5px] leading-5 text-gray-800 bg-gradient-to-b from-white via-white to-emerald-50/40">
         <section>
           <h4 className="text-[11px] uppercase tracking-wider font-extrabold text-gray-500 mb-1">{sectionLabel.profile}</h4>
           <p>{cvData.profile || t.profileFallback}</p>
@@ -475,6 +586,19 @@ export default function DashboardCandidat() {
       <Header />
 
       <main className="max-w-[1200px] mx-auto w-full px-3 sm:px-4 lg:px-6 py-6 sm:py-8 md:py-10 space-y-5 sm:space-y-6 md:space-y-8 grow">
+
+        <div className="flex items-center justify-between gap-3">
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-extrabold text-gray-700 hover:border-green-300 hover:text-green-700 transition"
+          >
+            <span aria-hidden="true">←</span>
+            {isEn ? 'Back' : 'Retour'}
+          </button>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-gray-500 border border-gray-200">
+            {completionPercent}% {isEn ? 'complete' : 'complet'}
+          </span>
+        </div>
 
         {/* ════════════ WELCOME BANNER ════════════ */}
         <section className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 p-5 sm:p-7 md:p-8 text-white shadow-lg shadow-green-600/20">
@@ -514,21 +638,27 @@ export default function DashboardCandidat() {
                 <span role="img" aria-label="chart">&#128200;</span>
                 {isEn ? 'Profile completion' : 'Profil complete'}
               </h2>
-              <span className="text-sm font-bold text-green-700 bg-green-50 px-2.5 py-0.5 rounded-full">0%</span>
+              <span className="text-sm font-bold text-green-700 bg-green-50 px-2.5 py-0.5 rounded-full">{completionPercent}%</span>
             </div>
             <div className="w-full h-3 rounded-full bg-gray-100 overflow-hidden">
               <div
-                className="h-full w-[0%] rounded-full bg-gradient-to-r from-green-500 via-emerald-500 to-teal-400 transition-all duration-700 ease-out"
+                className="h-full rounded-full bg-gradient-to-r from-green-500 via-emerald-500 to-teal-400 transition-all duration-700 ease-out"
+                style={{ width: `${completionPercent}%` }}
               />
             </div>
             <div className="flex flex-wrap gap-2 mt-4">
-              <button className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-green-50 text-green-700 border border-green-100 hover:bg-green-100 transition">
+              <button
+                onClick={() => photoInputRef.current?.click()}
+                className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-green-50 text-green-700 border border-green-100 hover:bg-green-100 transition"
+              >
                 <span className="mr-1.5" role="img" aria-label="camera">&#128247;</span>
-                {isEn ? 'Add a photo to reach 85%' : 'Ajoutez une photo pour atteindre 85%'}
+                {profilePhotoUrl
+                  ? (isEn ? 'Update profile photo' : 'Mettre a jour la photo profil')
+                  : (isEn ? 'Add a photo to reach 85%' : 'Ajoutez une photo pour atteindre 85%')}
               </button>
               <button className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 transition">
                 <span className="mr-1.5" role="img" aria-label="pencil">&#9997;&#65039;</span>
-                {isEn ? 'Complete your skills' : 'Completez vos competences'}
+                {recommendationItems[0] || (isEn ? 'Complete your skills' : 'Completez vos competences')}
               </button>
             </div>
           </div>
@@ -559,7 +689,7 @@ export default function DashboardCandidat() {
               </div>
               <div>
                 <p className="text-xs uppercase text-amber-600/80 font-extrabold tracking-wide">{isEn ? 'Saved jobs' : 'Annonces sauvegardees'}</p>
-                <p className="text-2xl sm:text-3xl font-extrabold text-amber-900 mt-0.5">0</p>
+                <p className="text-2xl sm:text-3xl font-extrabold text-amber-900 mt-0.5">{savedJobs.length}</p>
               </div>
             </div>
           </div>
@@ -606,14 +736,14 @@ export default function DashboardCandidat() {
               className="rounded-2xl p-5 sm:p-6 text-left bg-gradient-to-br from-green-600 to-emerald-500 text-white hover:brightness-105 transition shadow-lg shadow-green-600/20"
             >
               <p className="text-xs uppercase tracking-widest font-extrabold opacity-90">{isEn ? 'New module' : 'Nouveau module'}</p>
-              <h3 className="text-xl sm:text-2xl font-extrabold mt-2">&#10024; {isEn ? 'Build my CV online' : 'Creer mon CV en ligne'}</h3>
+              <h3 className="text-xl sm:text-2xl font-extrabold mt-2">&#10024; {isEn ? 'Build my candidate file' : 'Construire mon dossier candidat'}</h3>
               <p className="text-xs sm:text-sm mt-2 text-white/90">{isEn ? 'Visual assistant with live preview and PDF export' : 'Assistant visuel avec previsualisation en direct et export PDF'}</p>
             </button>
           </div>
 
           {/* ── CV Builder ── */}
           {cvBuilderOpen && (
-            <div className="border border-gray-200 rounded-2xl bg-[#f6f7f9] overflow-hidden">
+            <div className="border border-gray-200 rounded-2xl bg-gradient-to-br from-slate-50 via-white to-emerald-50 overflow-hidden shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
               {cvBuilderStep === 1 && (
                 <div className="p-4 sm:p-5 md:p-6 space-y-6">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -701,9 +831,23 @@ export default function DashboardCandidat() {
                   </div>
 
                   {/* Split-screen editor */}
-                  <div className="md:grid md:grid-cols-5 min-h-[640px]">
+                  <div className="md:grid md:grid-cols-5 min-h-[700px]">
                     {/* Form side */}
-                    <div className="md:col-span-2 bg-white border-r border-gray-200 p-3 sm:p-4 md:p-5 space-y-3 pb-24 md:pb-24">
+                    <div className="md:col-span-2 bg-white/95 border-r border-gray-200 p-3 sm:p-4 md:p-5 space-y-3 pb-24 md:pb-24">
+                      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-3">
+                        <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-emerald-700 mb-2">
+                          {isEn ? 'Quick recommendations' : 'Recommandations rapides'}
+                        </p>
+                        <div className="space-y-2 text-xs text-emerald-900 font-medium">
+                          {(recommendationItems.length > 0 ? recommendationItems : [isEn ? 'Your file looks complete. Refine your wording before saving.' : 'Votre dossier est presque pret. Soignez maintenant les formulations.']).slice(0, 3).map((item) => (
+                            <p key={item} className="flex items-start gap-2">
+                              <span className="mt-0.5">•</span>
+                              <span>{item}</span>
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+
                       {[
                         { key: 'infos', title: t.accordionInfos, icon: '\u{1F464}' },
                         { key: 'resume', title: t.accordionResume, icon: '\u{1F4DD}' },
@@ -732,7 +876,29 @@ export default function DashboardCandidat() {
                                 <input value={cvData.location} onChange={(e) => updateCvData('location', e.target.value)} className={inputCls} placeholder={t.placeholderLocation} />
                                 <input value={cvData.phone} onChange={(e) => updateCvData('phone', e.target.value)} className={inputCls} placeholder={t.placeholderPhone} />
                                 <input value={cvData.email} onChange={(e) => updateCvData('email', e.target.value)} className={inputCls} placeholder={t.placeholderEmail} />
-                                <button className="w-full border border-dashed border-gray-300 rounded-xl px-3 py-2.5 text-xs font-bold text-gray-500 hover:bg-gray-50 hover:border-gray-400 transition">&#128247; {t.addPhoto}</button>
+                                <input
+                                  ref={photoInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={(e) => handlePhotoUpload(e.target.files?.[0] || null)}
+                                />
+                                <button
+                                  onClick={() => photoInputRef.current?.click()}
+                                  className="w-full border border-dashed border-emerald-300 rounded-xl px-3 py-3 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-400 transition"
+                                >
+                                  &#128247; {isUploadingPhoto ? (isEn ? 'Uploading photo...' : 'Telechargement photo...') : t.addPhoto}
+                                </button>
+                                {profilePhotoUrl && (
+                                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-2 flex items-center gap-3">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={profilePhotoUrl} alt={cvData.fullName || 'Candidate'} className="w-14 h-14 rounded-xl object-cover border border-gray-200" />
+                                    <div>
+                                      <p className="text-xs font-extrabold text-gray-800">{isEn ? 'Photo ready' : 'Photo prete'}</p>
+                                      <p className="text-[11px] text-gray-500">{isEn ? 'This visual will appear in your CV preview.' : 'Ce visuel apparaitra dans l apercu du CV.'}</p>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
 
@@ -766,7 +932,16 @@ export default function DashboardCandidat() {
                     </div>
 
                     {/* Preview side (desktop) */}
-                    <div className="hidden md:block md:col-span-3 bg-[#eceff3] p-6">
+                    <div className="hidden md:block md:col-span-3 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.14),_transparent_35%),linear-gradient(180deg,#eef4f4_0%,#dde7ea_100%)] p-6">
+                      <div className="mb-4 rounded-2xl border border-white/70 bg-white/75 backdrop-blur px-4 py-3 flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-gray-500">{isEn ? 'Live preview' : 'Apercu en direct'}</p>
+                          <p className="text-sm font-semibold text-gray-700">{isEn ? 'Recruiters see this version first. Keep it direct and credible.' : 'Les recruteurs voient cette version en premier. Soyez direct et credible.'}</p>
+                        </div>
+                        <div className="rounded-full bg-emerald-50 border border-emerald-100 px-3 py-1 text-xs font-extrabold text-emerald-700">
+                          {completionPercent}%
+                        </div>
+                      </div>
                       {renderCvPreview()}
                     </div>
                   </div>

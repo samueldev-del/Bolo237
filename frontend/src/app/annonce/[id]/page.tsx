@@ -1,10 +1,10 @@
 "use client";
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
-import { applyToJob, fetchJob, type ApiJob } from '@/lib/api';
+import { applyToJob, fetchJob, fetchUserProfile, type ApiJob } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 
 type JobParams = {
@@ -38,6 +38,18 @@ function formatDate(dateStr: string): string {
   });
 }
 
+type UserProfile = {
+  id: number;
+  name: string;
+  title: string;
+  skills: string;
+  cvUploaded: boolean;
+  phoneVerified: boolean;
+  profileComplete: boolean;
+  isVerified: boolean;
+  missingItems: string[];
+};
+
 export default function OffreEmploiPage({ params }: JobParams) {
   const { id } = use(params);
   const numericId = parseInt(id, 10);
@@ -46,6 +58,9 @@ export default function OffreEmploiPage({ params }: JobParams) {
   const [maskedByReports, setMaskedByReports] = useState(false);
   const [applyMessage, setApplyMessage] = useState('');
   const [isApplying, setIsApplying] = useState(false);
+  const [showApplicationReview, setShowApplicationReview] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isLoadingReview, setIsLoadingReview] = useState(false);
 
   // Fetch le détail de l'offre depuis le backend
   const { data: apiJob, loading } = useApi(
@@ -53,6 +68,57 @@ export default function OffreEmploiPage({ params }: JobParams) {
     null,
     [numericId]
   );
+
+  // Load user profile from localStorage when review panel opens
+  useEffect(() => {
+    if (showApplicationReview) {
+      const loadReviewProfile = async () => {
+        setIsLoadingReview(true);
+        try {
+          const raw = localStorage.getItem('bolo237-user');
+          if (!raw) return;
+
+          const user = JSON.parse(raw);
+          const candidateId = Number(user.id || 0);
+          if (!candidateId) return;
+
+          const profile = await fetchUserProfile(candidateId).catch(() => null);
+          const phoneVerified = localStorage.getItem('bolo237-phone-verified') === 'true' || Boolean(user.phone);
+          const fullName = String(profile?.fullName || user.name || user.fullName || '').trim();
+          const title = String(profile?.title || user.title || user.jobTitle || '').trim();
+          const skills = String(profile?.skillsText || user.skills || '').trim();
+          const hasNarrative = Boolean(profile?.profile || profile?.experience || profile?.education);
+          const profileComplete = Boolean(fullName && title && profile?.phone && profile?.email && (skills || hasNarrative));
+          const missingItems = [
+            !fullName && (locale === 'fr' ? 'Nom complet' : 'Full name'),
+            !title && (locale === 'fr' ? 'Titre du profil' : 'Profile title'),
+            !profile?.phone && (locale === 'fr' ? 'Telephone' : 'Phone number'),
+            !profile?.email && (locale === 'fr' ? 'Email' : 'Email'),
+            !skills && !hasNarrative && (locale === 'fr' ? 'Resume, experience ou competences' : 'Summary, experience or skills'),
+            !phoneVerified && (locale === 'fr' ? 'Verification telephone' : 'Phone verification'),
+          ].filter(Boolean) as string[];
+
+          setUserProfile({
+            id: candidateId,
+            name: fullName,
+            title,
+            skills,
+            cvUploaded: Boolean(profileComplete),
+            phoneVerified,
+            profileComplete,
+            isVerified: Boolean(user.isVerified),
+            missingItems,
+          });
+        } catch {
+          // ignore parse errors
+        } finally {
+          setIsLoadingReview(false);
+        }
+      };
+
+      loadReviewProfile();
+    }
+  }, [showApplicationReview, locale]);
 
   // Construire les données d'affichage (API ou fallback mock)
   const annonce = apiJob
@@ -86,20 +152,18 @@ export default function OffreEmploiPage({ params }: JobParams) {
         entrepriseResume: annonce.entrepriseResume,
       };
 
-  const handleApply = async () => {
+  const handleApplyClick = () => {
     if (!apiJob) {
       setApplyMessage(locale === 'fr' ? 'Annonce indisponible.' : 'Job not available.');
       return;
     }
 
     let candidateId = 0;
-    let candidateName = '';
     try {
       const raw = localStorage.getItem('bolo237-user');
       if (raw) {
         const user = JSON.parse(raw);
         candidateId = Number(user.id || 0);
-        candidateName = String(user.name || user.fullName || user.email || '').trim();
       }
     } catch {
       // ignore parse errors
@@ -110,15 +174,32 @@ export default function OffreEmploiPage({ params }: JobParams) {
       return;
     }
 
+    setApplyMessage('');
+    setShowApplicationReview(true);
+  };
+
+  const handleConfirmApply = async () => {
+    if (!apiJob || !userProfile) return;
+
+    if (userProfile.missingItems.length > 0) {
+      setApplyMessage(
+        locale === 'fr'
+          ? `Dossier incomplet: ${userProfile.missingItems.join(', ')}.`
+          : `Incomplete application file: ${userProfile.missingItems.join(', ')}.`
+      );
+      return;
+    }
+
     setIsApplying(true);
     setApplyMessage('');
 
     try {
       await applyToJob({
         jobId: apiJob.id,
-        candidateId,
-        candidateName,
+        candidateId: userProfile.id,
+        candidateName: userProfile.name,
       });
+      setShowApplicationReview(false);
       setApplyMessage(
         locale === 'fr'
           ? 'Candidature envoyee. L entreprise a ete notifiee.'
@@ -136,7 +217,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
     return (
       <div className="min-h-screen bg-[#f5f7f8] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-8 h-8 border-4 border-[#C4623F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">{locale === 'fr' ? 'Chargement...' : 'Loading...'}</p>
         </div>
       </div>
@@ -150,9 +231,10 @@ export default function OffreEmploiPage({ params }: JobParams) {
           <Link href={localizePath('/')}>
             <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
           </Link>
-          <Link href={localizePath('/recherche')} className="text-sm font-bold text-gray-600 hover:text-green-700">
-            {locale === 'fr' ? 'Retour aux offres' : 'Back to listings'}
-          </Link>
+          <button onClick={() => window.history.back()} className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-600 hover:text-[#C4623F] transition">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+            {locale === 'fr' ? 'Retour' : 'Back'}
+          </button>
         </div>
       </nav>
 
@@ -160,7 +242,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
         <div className="max-w-6xl mx-auto px-4 py-8 md:py-10">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
             <div className="flex items-start gap-4">
-              <div className="w-14 h-14 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center font-extrabold text-green-700">
+              <div className="w-14 h-14 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center font-extrabold text-[#C4623F]">
                 {annonce.logo}
               </div>
 
@@ -169,7 +251,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
                 <p className="text-gray-600 font-bold mt-2">{display.entreprise}</p>
                 <button
                   onClick={() => setTranslated((s) => !s)}
-                  className="mt-3 inline-flex text-xs font-extrabold text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-full hover:bg-green-100 transition"
+                  className="mt-3 inline-flex text-xs font-extrabold text-[#C4623F] bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-full hover:bg-orange-100 transition"
                 >
                   ✨ {locale === 'fr' ? (translated ? 'Voir la version originale' : t.home.translateAd) : (translated ? 'Show original version' : t.home.translateAd)}
                 </button>
@@ -178,15 +260,15 @@ export default function OffreEmploiPage({ params }: JobParams) {
                   <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700">{annonce.contrat}</span>
                   <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700">{annonce.lieu}</span>
                   <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">{annonce.mode}</span>
-                  <span className="px-3 py-1 rounded-full bg-green-50 text-green-700 border border-green-100">{annonce.salaire}</span>
+                  <span className="px-3 py-1 rounded-full bg-orange-50 text-[#C4623F] border border-orange-100">{annonce.salaire}</span>
                 </div>
               </div>
             </div>
 
             <button
-              onClick={handleApply}
+              onClick={handleApplyClick}
               disabled={maskedByReports || isApplying}
-              className="hidden md:inline-flex bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
+              className="hidden md:inline-flex bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
             >
               {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
             </button>
@@ -217,9 +299,9 @@ export default function OffreEmploiPage({ params }: JobParams) {
 
           <div className="hidden md:flex justify-end">
             <button
-              onClick={handleApply}
+              onClick={handleApplyClick}
               disabled={maskedByReports || isApplying}
-              className="bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
+              className="bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
             >
               {isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
             </button>
@@ -255,15 +337,179 @@ export default function OffreEmploiPage({ params }: JobParams) {
         </aside>
       </main>
 
+      {/* Mobile fixed apply button */}
       <div className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-50">
         <button
-          onClick={handleApply}
+          onClick={handleApplyClick}
           disabled={maskedByReports || isApplying}
-          className="w-full bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-green-700 text-white font-extrabold py-3 rounded-xl transition"
+          className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
         >
           {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.applyNow}
         </button>
       </div>
+
+      {/* Application Review Modal */}
+      {showApplicationReview && (
+        <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="p-6 md:p-8">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-extrabold text-black">
+                  {locale === 'fr' ? 'Verifiez votre dossier de candidature' : 'Review your application'}
+                </h2>
+                <button
+                  onClick={() => setShowApplicationReview(false)}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              </div>
+
+              {/* Applying to */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-6">
+                <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">
+                  {locale === 'fr' ? 'Poste' : 'Position'}
+                </p>
+                <p className="font-extrabold text-black">{display.titre}</p>
+                <p className="text-sm text-gray-600">{display.entreprise}</p>
+              </div>
+
+              {/* User profile summary */}
+              <div className="mb-6">
+                <h3 className="text-sm font-extrabold text-gray-500 uppercase tracking-wide mb-3">
+                  {locale === 'fr' ? 'Votre profil' : 'Your profile'}
+                </h3>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-[#C4623F] flex items-center justify-center text-white font-bold text-sm">
+                      {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : '?'}
+                    </div>
+                    <div>
+                      <p className="font-bold text-black">{userProfile?.name || (locale === 'fr' ? 'Nom non renseigne' : 'Name not set')}</p>
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                        <p className="text-sm text-gray-500">{userProfile?.title || (locale === 'fr' ? 'Titre non renseigne' : 'Title not set')}</p>
+                        {userProfile?.isVerified && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-extrabold text-emerald-700">
+                            ✓ {locale === 'fr' ? 'Certifie' : 'Certified'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  {userProfile?.skills && (
+                    <div className="mt-2">
+                      <p className="text-xs font-bold text-gray-500 mb-1">{locale === 'fr' ? 'Competences' : 'Skills'}</p>
+                      <p className="text-sm text-gray-700">{userProfile.skills}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Checklist */}
+              <div className="mb-6">
+                <h3 className="text-sm font-extrabold text-gray-500 uppercase tracking-wide mb-3">
+                  {locale === 'fr' ? 'Checklist' : 'Checklist'}
+                </h3>
+                {isLoadingReview && (
+                  <p className="text-xs font-semibold text-gray-500 mb-3">
+                    {locale === 'fr' ? 'Verification du dossier en cours...' : 'Checking your application file...'}
+                  </p>
+                )}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${userProfile?.profileComplete ? 'bg-[#C4623F]' : 'bg-gray-200'}`}>
+                      {userProfile?.profileComplete ? (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                      ) : (
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      )}
+                    </div>
+                    <span className={`text-sm font-semibold ${userProfile?.profileComplete ? 'text-black' : 'text-gray-400'}`}>
+                      {locale === 'fr' ? 'Profil complet' : 'Profile complete'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${userProfile?.cvUploaded ? 'bg-[#C4623F]' : 'bg-gray-200'}`}>
+                      {userProfile?.cvUploaded ? (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                      ) : (
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      )}
+                    </div>
+                    <span className={`text-sm font-semibold ${userProfile?.cvUploaded ? 'text-black' : 'text-gray-400'}`}>
+                      {locale === 'fr' ? 'CV telecharge' : 'CV uploaded'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full flex items-center justify-center ${userProfile?.phoneVerified ? 'bg-[#C4623F]' : 'bg-gray-200'}`}>
+                      {userProfile?.phoneVerified ? (
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/></svg>
+                      ) : (
+                        <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                      )}
+                    </div>
+                    <span className={`text-sm font-semibold ${userProfile?.phoneVerified ? 'text-black' : 'text-gray-400'}`}>
+                      {locale === 'fr' ? 'Telephone verifie' : 'Phone verified'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {userProfile && userProfile.missingItems.length > 0 && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6">
+                  <p className="text-sm font-extrabold text-amber-800 mb-2">
+                    {locale === 'fr' ? 'Elements a completer avant envoi' : 'Complete these items before submitting'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {userProfile.missingItems.map((item) => (
+                      <span key={item} className="rounded-full border border-amber-200 bg-white px-2.5 py-1 text-xs font-bold text-amber-700">
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Complete profile link */}
+              <Link
+                href={localizePath('/profil')}
+                className="inline-flex items-center gap-1.5 text-sm font-bold text-[#C4623F] hover:underline mb-6"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                {locale === 'fr' ? 'Completer mon profil' : 'Complete my profile'}
+              </Link>
+
+              {/* Action buttons */}
+              <div className="flex flex-col gap-3 mt-2">
+                <button
+                  onClick={handleConfirmApply}
+                  disabled={isApplying || isLoadingReview || Boolean(userProfile?.missingItems.length)}
+                  className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
+                >
+                  {isApplying
+                    ? (locale === 'fr' ? 'Envoi en cours...' : 'Sending...')
+                    : (locale === 'fr' ? 'Confirmer et envoyer' : 'Confirm and send')
+                  }
+                </button>
+                <button
+                  onClick={() => setShowApplicationReview(false)}
+                  className="w-full text-gray-600 font-bold py-2 rounded-xl hover:bg-gray-50 transition"
+                >
+                  {locale === 'fr' ? 'Annuler' : 'Cancel'}
+                </button>
+              </div>
+
+              {/* Apply error inside modal */}
+              {applyMessage && (
+                <div className={`rounded-xl p-3 text-sm font-semibold mt-4 ${applyMessage.toLowerCase().includes('echec') || applyMessage.toLowerCase().includes('failed') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
+                  {applyMessage}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

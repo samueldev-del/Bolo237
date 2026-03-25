@@ -221,8 +221,17 @@ export default function EmploisFormels() {
       <Header />
 
       {/* ── Barre de recherche principale ─────────────────────── */}
-      <div style={{ background: 'white', borderBottom: '1px solid #E2E8F0', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>
-        <div className="max-w-6xl mx-auto" style={{ padding: '20px 24px' }}>
+      <div style={{ background: 'white', borderBottom: '1px solid #E2E8F0', boxShadow: '0 1px 6px rgba(0,0,0,0.04)' }}>        <div className="max-w-6xl mx-auto" style={{ padding: '8px 24px 0' }}>
+          <Link
+            href={localizePath('/')}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-purple-700 transition"
+          >
+            <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Retour a l&apos;accueil
+          </Link>
+        </div>        <div className="max-w-6xl mx-auto" style={{ padding: '20px 24px' }}>
           <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
             {/* Champ poste */}
             <div style={{ flex: 2, minWidth: '220px', position: 'relative' }}>

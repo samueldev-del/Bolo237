@@ -427,6 +427,7 @@ export default function DashboardArtisan() {
       displayName: userName || 'Artisan',
       phone: internationalPhone,
       payload: {
+        userId,
         idType,
         hasProfilePhoto: !!profilePhotoFile,
         profilePhotoName: profilePhotoFile?.name ?? null,

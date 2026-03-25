@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
+import { getStoredUser, mergeStoredUser } from '@/lib/session';
 
 const USER_KEY = 'bolo237-user';
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -77,6 +78,7 @@ export default function ProfilCV() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
+  const [isCertified, setIsCertified] = useState(false);
   const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
   const cleanedLocalPhone = phone.replace(/\D/g, '');
   const internationalPhone = cleanedLocalPhone ? `${selectedCountry.dialCode}${cleanedLocalPhone}` : '';
@@ -88,6 +90,7 @@ export default function ProfilCV() {
       if (raw) {
         const u = JSON.parse(raw);
         setUserId(u.id);
+        setIsCertified(Boolean(u.isVerified));
         if (u.name) setFullName(u.name);
         if (u.email) setEmail(u.email);
       }
@@ -154,6 +157,16 @@ export default function ProfilCV() {
           languagesText: languages.join(', '),
         }),
       });
+      const storedUser = getStoredUser();
+      mergeStoredUser({
+        ...(storedUser || {}),
+        name: fullName,
+        title,
+        phone: internationalPhone,
+        skills: skills.join(', '),
+        cvUploaded: true,
+        profileComplete: Boolean(fullName && title && city && internationalPhone && email && (bio || skills.length > 0 || experiences.some((e) => e.poste))),
+      });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch { /* */ }
@@ -173,6 +186,22 @@ export default function ProfilCV() {
       <Header />
 
       <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-8">
+        <div className="flex items-center justify-between gap-3 mb-6">
+          <button
+            onClick={() => window.history.back()}
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-extrabold text-gray-700 hover:border-green-300 hover:text-green-700 transition"
+          >
+            <span aria-hidden="true">←</span>
+            {isEn ? 'Back' : 'Retour'}
+          </button>
+          {isCertified && (
+            <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-extrabold text-emerald-700">
+              <span aria-hidden="true">✓</span>
+              {isEn ? 'Certified profile' : 'Profil certifie'}
+            </span>
+          )}
+        </div>
+
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-2">

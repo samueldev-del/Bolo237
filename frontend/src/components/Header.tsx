@@ -8,7 +8,7 @@ import { useLocale } from '@/components/LocaleProvider';
 const USER_KEY = 'bolo237-user';
 const ROLE_KEY = 'bolo237-account-role';
 
-type UserData = { id: number; name?: string; role?: string; email?: string } | null;
+type UserData = { id: number; name?: string; role?: string; email?: string; isVerified?: boolean } | null;
 
 function getUserFromStorage(): UserData {
   if (typeof window === 'undefined') return null;
@@ -122,6 +122,7 @@ export default function Header() {
                 {getRoleIcon(localRole)}
               </span>
               <span className="max-w-[120px] truncate">{(user.name || '').split(' ')[0] || (isEn ? 'Dashboard' : 'Mon espace')}</span>
+              {user.isVerified && <span className="text-[11px]">✓</span>}
             </Link>
           ) : (
             <Link
@@ -175,7 +176,10 @@ export default function Header() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-sm truncate">{user.name || (isEn ? 'My account' : 'Mon compte')}</p>
-                    <p className="text-white/70 text-xs">{getRoleLabel(localRole, isEn)}</p>
+                    <p className="text-white/70 text-xs flex items-center gap-1.5">
+                      <span>{getRoleLabel(localRole, isEn)}</span>
+                      {user.isVerified && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-extrabold">✓ {isEn ? 'Certified' : 'Certifie'}</span>}
+                    </p>
                   </div>
                 </div>
               </div>

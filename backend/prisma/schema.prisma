@@ -131,3 +131,20 @@ model SavedJob {
   @@unique([userId, jobId])
   @@index([userId])
 }
+
+model VerificationSubmission {
+  id          String    @id @default(cuid())
+  role        String
+  accountKey  String
+  displayName String
+  phone       String
+  status      String    @default("pending")
+  submittedAt DateTime  @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String?
+  notes       String?
+  payload     Json
+
+  @@unique([role, accountKey])
+  @@index([status, submittedAt])
+}

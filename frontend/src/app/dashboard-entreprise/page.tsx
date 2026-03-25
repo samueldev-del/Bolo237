@@ -252,6 +252,7 @@ export default function DashboardEntreprise() {
       displayName: companyName || userName || 'Entreprise',
       phone: internationalPhone,
       payload: {
+        userId,
         niu,
         rccm,
         hasLogo: !!companyLogoFile,

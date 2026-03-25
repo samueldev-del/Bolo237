@@ -1,20 +1,87 @@
-const DEFAULT_REMOTE_API = 'https://api-bolo237.onrender.com';
+const LEGACY_REMOTE_API = 'https://api-bolo237.onrender.com';
 
-function resolveApiBase() {
-  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (fromEnv) return fromEnv.replace(/\/$/, '');
+let cachedApiBase: string | null = null;
+let resolvingApiBase: Promise<string> | null = null;
+
+function normalizeBase(base: string) {
+  return String(base || '').trim().replace(/\/$/, '');
+}
+
+function uniqueBases(bases: string[]) {
+  return [...new Set(bases.map(normalizeBase).filter(Boolean))];
+}
+
+function getApiBaseCandidates() {
+  const fromEnv = normalizeBase(process.env.NEXT_PUBLIC_API_URL || '');
+  const candidates: string[] = [];
+
+  if (fromEnv) candidates.push(fromEnv);
 
   if (typeof window !== 'undefined') {
+    const origin = normalizeBase(window.location.origin);
     const host = window.location.hostname;
+
+    if (origin) candidates.push(origin);
+
     if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://localhost:5000';
+      candidates.push('http://localhost:5000');
+      candidates.push('http://localhost:5060');
+      candidates.push('http://127.0.0.1:5000');
+      candidates.push('http://127.0.0.1:5060');
     }
   }
 
-  return DEFAULT_REMOTE_API;
+  candidates.push(LEGACY_REMOTE_API);
+  return uniqueBases(candidates);
 }
 
-const API_BASE = resolveApiBase();
+async function probeApiBase(base: string) {
+  try {
+    const res = await fetch(`${base}/api/jobs?limit=1`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    // 2xx/4xx usually means the HTTP server answered and routing is valid.
+    if (res.status < 500) return true;
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+async function resolveApiBase() {
+  if (cachedApiBase) return cachedApiBase;
+  if (resolvingApiBase) return resolvingApiBase;
+
+  resolvingApiBase = (async () => {
+    const candidates = getApiBaseCandidates();
+
+    // Outside browser, probing is not reliable. Prefer env then legacy fallback.
+    if (typeof window === 'undefined') {
+      const resolved = candidates[0] || LEGACY_REMOTE_API;
+      cachedApiBase = resolved;
+      resolvingApiBase = null;
+      return resolved;
+    }
+
+    for (const base of candidates) {
+      const ok = await probeApiBase(base);
+      if (ok) {
+        cachedApiBase = base;
+        resolvingApiBase = null;
+        return base;
+      }
+    }
+
+    const fallback = candidates[0] || LEGACY_REMOTE_API;
+    cachedApiBase = fallback;
+    resolvingApiBase = null;
+    return fallback;
+  })();
+
+  return resolvingApiBase;
+}
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -137,7 +204,9 @@ export type ActivityEvent = {
 // ── Fetch helper ─────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const apiBase = await resolveApiBase();
+
+  const res = await fetch(`${apiBase}${path}`, {
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     ...options,
@@ -145,7 +214,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Erreur API ${res.status}`);
+    throw new Error(body.error || `Erreur API ${res.status} (${apiBase})`);
   }
 
   return res.json();

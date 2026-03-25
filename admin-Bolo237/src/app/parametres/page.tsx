@@ -60,7 +60,7 @@ function Toast({ message, type }: { message: string; type: "success" | "error" }
 }
 
 export default function ParametresPage() {
-  const [settings, setSettings] = useState<PlatformSettings | null>(null);
+  const [, setSettings] = useState<PlatformSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);

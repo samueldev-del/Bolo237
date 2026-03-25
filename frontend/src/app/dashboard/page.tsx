@@ -15,6 +15,7 @@ export default function DashboardCandidat() {
   const isEn = locale === 'en';
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState<number>(0);
+  const [isVerified, setIsVerified] = useState(false);
   const [savedJobs, setSavedJobs] = useState<ApiJob[]>([]);
   const [candidatures, setCandidatures] = useState<UserApplication[]>([]);
   const [profileVisible, setProfileVisible] = useState(true);
@@ -55,6 +56,7 @@ export default function DashboardCandidat() {
         setUserName(parsed?.name || parsed?.fullName || parsed?.nom || '');
         setUserId(Number(parsed?.id || 0));
         setProfilePhotoUrl(String(parsed?.photoUrl || ''));
+        setIsVerified(Boolean(parsed?.isVerified));
 
         // Redirect to role-specific dashboard
         const role = parsed?.role || localStorage.getItem('bolo237-account-role') || '';
@@ -610,9 +612,15 @@ export default function DashboardCandidat() {
                 {isEn ? 'Welcome back' : 'Bienvenue'}
                 {userName ? ',' : '!'}
               </p>
-              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mt-1 tracking-tight">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold mt-1 tracking-tight flex items-center gap-2 flex-wrap">
                 {userName ? `${userName} ` : ''}{isEn ? '' : ''}
-                <span className="inline-block ml-1" role="img" aria-label="wave">&#128075;</span>
+                <span className="inline-block" role="img" aria-label="wave">&#128075;</span>
+                {isVerified && (
+                  <span className="inline-flex items-center gap-1 bg-white/20 px-2.5 py-1 rounded-full text-xs font-bold" title={isEn ? 'Verified account' : 'Compte certifie'}>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                    {isEn ? 'Certified' : 'Certifie'}
+                  </span>
+                )}
               </h1>
               <p className="text-sm text-white/70 mt-2 max-w-md">
                 {isEn
@@ -622,7 +630,7 @@ export default function DashboardCandidat() {
             </div>
             <Link
               href={localizePath('/profil')}
-              className="bg-white text-green-700 px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-green-50 transition shadow-sm w-fit whitespace-nowrap"
+              className="bg-white text-[#C4623F] px-5 py-2.5 rounded-xl font-bold text-sm hover:bg-[#FFF5EF] transition shadow-sm w-fit whitespace-nowrap"
             >
               {isEn ? 'Edit my profile' : 'Modifier mon profil'}
             </Link>

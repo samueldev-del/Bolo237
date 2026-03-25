@@ -73,6 +73,14 @@ export default function Recherche() {
     <div className="min-h-screen bg-gray-50 font-sans pb-12">
       <Header />
 
+      {/* Back button */}
+      <div className="max-w-7xl mx-auto px-4 pt-4">
+        <Link href={localizePath('/emplois')} className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-[#C4623F] transition">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+          {isEn ? 'Back to jobs' : 'Retour aux offres'}
+        </Link>
+      </div>
+
       {/* 1. BARRE DE RECHERCHE SUPÉRIEURE (Style Stepstone avec nos couleurs) */}
       <div className="bg-blue-50 py-8 border-b border-blue-100">
         <div className="max-w-7xl mx-auto px-4">

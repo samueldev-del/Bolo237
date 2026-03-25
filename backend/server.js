@@ -70,7 +70,7 @@ async function sendWhatsAppModerationAlert(messageBody) {
 }
 
 async function sendOtpWithTwilio(phone, code) {
-  if (!twilioClient || !process.env.TWILIO_SMS_FROM) {
+  if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
     return false;
   }
 
@@ -78,9 +78,9 @@ async function sendOtpWithTwilio(phone, code) {
 
   try {
     await twilioClient.messages.create({
-      from: process.env.TWILIO_SMS_FROM,
+      from: process.env.TWILIO_PHONE_NUMBER,
       to: normalizedPhone,
-      body: `Votre code Bolo237 est ${code}. Il expire dans 10 minutes.`,
+      body: `Votre code Bolo237 est ${code}. Il expire dans 5 minutes.`,
     });
     console.log(`[OTP] SMS sent to ${normalizedPhone}`);
     return true;
@@ -356,23 +356,38 @@ app.patch('/api/verifications/:id/review', async (req, res) => {
       },
     });
 
-    const rawPayload = updated.payload || {};
-    const maybeUserId = Number((typeof rawPayload === 'object' ? rawPayload.userId : null) || 0);
-    if (status === 'approved' && Number.isFinite(maybeUserId) && maybeUserId > 0) {
-      const user = await prisma.user.update({
-        where: { id: maybeUserId },
-        data: { isVerified: true },
-        select: { id: true, name: true },
-      }).catch(() => null);
+    if (String(status) === 'approved') {
+      // Try to find the user by payload.userId or by accountKey (email)
+      const rawPayload = updated.payload || {};
+      const maybeUserId = Number((typeof rawPayload === 'object' ? rawPayload.userId : null) || 0);
+      let userToVerify = null;
 
-      if (user) {
+      if (Number.isFinite(maybeUserId) && maybeUserId > 0) {
+        userToVerify = await prisma.user.findUnique({ where: { id: maybeUserId } }).catch(() => null);
+      }
+
+      // Fallback: find by accountKey (email)
+      if (!userToVerify && updated.accountKey) {
+        userToVerify = await prisma.user.findUnique({ where: { email: updated.accountKey } }).catch(() => null);
+      }
+
+      if (userToVerify) {
+        await prisma.user.update({
+          where: { id: userToVerify.id },
+          data: { isVerified: true },
+        }).catch(() => null);
+
         await createNotification({
-          userId: user.id,
+          userId: userToVerify.id,
           type: 'account_verified',
           title: 'Compte certifie',
-          message: 'Votre dossier a ete valide. Votre badge certifie est maintenant actif.',
+          message: 'Felicitations ! Votre identite a ete verifiee. Vous avez maintenant le badge certifie sur votre profil.',
           data: { verificationId: updated.id, role: updated.role },
         }).catch(() => null);
+
+        await sendWhatsAppModerationAlert(
+          `✅ Identite verifiee\nUser: ${userToVerify.name || userToVerify.email}\nRole: ${updated.role}`
+        ).catch(() => null);
       }
     }
 
@@ -1810,89 +1825,62 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 // =============================================
 
 // Stockage en memoire des codes OTP (en prod : Redis ou DB)
-const otpStore = new Map(); // phone -> { code, expiresAt }
-const MASTER_OTP = process.env.MASTER_OTP || '0000';
+const otpStore = new Map(); // phone -> { code, expires }
 
-// POST /api/otp/send — Envoyer un code OTP
+// Route pour ENVOYER le code SMS
 app.post('/api/otp/send', async (req, res) => {
+  const { phone } = req.body;
+  if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis" });
+
+  // 1. Générer un vrai code à 6 chiffres
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // 2. Sauvegarder en mémoire (expire dans 5 minutes)
+  otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
+
   try {
-    const { phone } = req.body;
-
-    if (!phone || typeof phone !== 'string') {
-      return res.status(400).json({ error: 'Numero de telephone requis.' });
+    // 3. Envoyer le vrai SMS via Twilio
+    if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+      await twilioClient.messages.create({
+        body: `Bienvenue sur Bolo237 ! Votre code de vérification est : ${otp}`,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        to: phone
+      });
+      console.log(`✅ SMS envoyé avec succès à ${phone}`);
+    } else {
+      console.warn(`⚠️ Twilio non configuré pour les SMS. Code généré en local : ${otp}`);
     }
-
-    // Nettoyer le numero (garder uniquement les chiffres)
-    const cleanPhone = phone.replace(/\D/g, '');
-    if (cleanPhone.length < 9) {
-      return res.status(400).json({ error: 'Numero de telephone invalide.' });
-    }
-
-    // Generer un code 6 chiffres
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes
-
-    otpStore.set(cleanPhone, { code, expiresAt });
-
-    const smsSent = await sendOtpWithTwilio(phone, code);
-
-    console.log(`[OTP] Code pour ${cleanPhone}: ${code} (ou utilisez le code maitre: ${MASTER_OTP})`);
-
-    res.json({
-      message: smsSent ? 'Code OTP envoye avec succes.' : 'Code OTP genere avec succes.',
-      // En dev, on renvoie le code pour faciliter les tests
-      ...(process.env.NODE_ENV !== 'production' && { demoCode: code }),
-      expiresIn: '10 minutes',
-    });
+    
+    res.json({ success: true, message: "Code envoyé par SMS" });
   } catch (error) {
-    console.error('POST /api/otp/send error:', error);
-    res.status(500).json({ error: "Erreur lors de l'envoi du code OTP." });
+    console.error("❌ Erreur lors de l'envoi du SMS Twilio:", error);
+    res.status(500).json({ error: "Erreur lors de l'envoi du SMS. Veuillez réessayer." });
   }
 });
 
-// POST /api/otp/verify — Verifier un code OTP
-app.post('/api/otp/verify', (req, res) => {
-  try {
-    const { phone, code } = req.body;
-
-    if (!phone || !code) {
-      return res.status(400).json({ error: 'Telephone et code requis.' });
-    }
-
-    const cleanPhone = phone.replace(/\D/g, '');
-    const userCode = String(code).trim();
-
-    // ★ Code maitre : toujours accepte (pour les tests)
-    if (userCode === MASTER_OTP) {
-      console.log(`[OTP] Code maitre utilise pour ${cleanPhone}`);
-      otpStore.delete(cleanPhone); // Nettoyer si un vrai code existait
-      return res.json({ verified: true, message: 'Telephone verifie avec succes.' });
-    }
-
-    // Verifier le vrai code
-    const stored = otpStore.get(cleanPhone);
-
-    if (!stored) {
-      return res.status(400).json({ verified: false, error: 'Aucun code envoye pour ce numero. Renvoyez un code.' });
-    }
-
-    if (Date.now() > stored.expiresAt) {
-      otpStore.delete(cleanPhone);
-      return res.status(400).json({ verified: false, error: 'Code expire. Renvoyez un nouveau code.' });
-    }
-
-    if (stored.code !== userCode) {
-      return res.status(400).json({ verified: false, error: 'Code incorrect.' });
-    }
-
-    // Code correct !
-    otpStore.delete(cleanPhone);
-    console.log(`[OTP] Telephone ${cleanPhone} verifie avec succes.`);
-    res.json({ verified: true, message: 'Telephone verifie avec succes.' });
-  } catch (error) {
-    console.error('POST /api/otp/verify error:', error);
-    res.status(500).json({ error: 'Erreur lors de la verification.' });
+// Route pour VÉRIFIER le code SMS
+app.post('/api/otp/verify', async (req, res) => {
+  const { phone, code } = req.body;
+  
+  // Le Master Code (0000 ou 000000) pour qu'Apple/Google puissent tester l'app plus tard
+  const masterCode = process.env.MASTER_OTP || "000000";
+  if (code === masterCode) {
+    return res.json({ success: true, message: "Code Master accepté" });
   }
+
+  const record = otpStore.get(phone);
+  if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro" });
+  if (Date.now() > record.expires) {
+    otpStore.delete(phone);
+    return res.status(400).json({ error: "Le code a expiré (5 minutes max)" });
+  }
+  if (record.code !== code) {
+    return res.status(400).json({ error: "Code incorrect" });
+  }
+
+  // Si c'est bon, on supprime le code pour la sécurité
+  otpStore.delete(phone);
+  res.json({ success: true, message: "Téléphone vérifié avec succès" });
 });
 
 // --- Page d'accueil API ---

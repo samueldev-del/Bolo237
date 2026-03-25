@@ -17,6 +17,10 @@ export default function PressePage() {
         {/* Hero */}
         <section className="bg-gradient-to-br from-[#C4623F] to-[#A8502F] text-white py-16 px-4">
           <div className="max-w-3xl mx-auto text-center">
+            <Link href={localizePath('/')} className="inline-flex items-center gap-1.5 text-sm font-bold text-white/80 hover:text-white transition mb-6">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+              {isEn ? 'Back to home' : 'Retour a l\'accueil'}
+            </Link>
             <p className="text-[#FEEBD6] text-sm font-bold uppercase tracking-wider mb-2">
               {isEn ? 'Press Room' : 'Espace Presse'}
             </p>
@@ -211,6 +215,107 @@ export default function PressePage() {
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
                   >
                     <span>📧</span> {isEn ? 'Request by email' : 'Demander par email'}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Founder Bio */}
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  👤
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'Founder Biography' : 'Biographie du Fondateur'}
+                  </p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    {isEn
+                      ? 'Short and long biography of the founder available for editorial use in articles, podcasts, and interviews.'
+                      : 'Biographie courte et longue du fondateur disponible pour usage editorial dans vos articles, podcasts et interviews.'}
+                  </p>
+                  <a
+                    href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Founder%20Bio"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                  >
+                    <span>📧</span> {isEn ? 'Request biography' : 'Demander la biographie'}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Product Factsheet */}
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  📋
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'Product Factsheet' : 'Fiche Produit'}
+                  </p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    {isEn
+                      ? 'One-page summary of Bolo237: features, market positioning, technology stack, and competitive advantages.'
+                      : 'Resume d\'une page de Bolo237 : fonctionnalites, positionnement marche, stack technologique et avantages concurrentiels.'}
+                  </p>
+                  <a
+                    href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Factsheet"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                  >
+                    <span>📧</span> {isEn ? 'Request factsheet' : 'Demander la fiche'}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Video / Demo Reel */}
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  🎬
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'Video / Demo Reel' : 'Video / Demo Reel'}
+                  </p>
+                  <p className="text-xs text-gray-500 mb-2">MP4 — 1080p</p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    {isEn
+                      ? 'Short promotional video and product demo showcasing the main user flows of the Bolo237 platform.'
+                      : 'Video promotionnelle courte et demo produit presentant les parcours utilisateurs principaux de la plateforme Bolo237.'}
+                  </p>
+                  <a
+                    href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Video"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                  >
+                    <span>📧</span> {isEn ? 'Request video assets' : 'Demander les videos'}
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Social Media Kit */}
+            <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
+                  📱
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900 text-sm mb-1">
+                    {isEn ? 'Social Media Kit' : 'Kit Reseaux Sociaux'}
+                  </p>
+                  <p className="text-xs text-gray-600 mb-3">
+                    {isEn
+                      ? 'Pre-formatted banners, profile images and post templates optimized for LinkedIn, Twitter/X, Facebook and Instagram.'
+                      : 'Bannieres, images de profil et modeles de publications pre-formates et optimises pour LinkedIn, Twitter/X, Facebook et Instagram.'}
+                  </p>
+                  <a
+                    href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Social%20Media%20Kit"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                  >
+                    <span>📧</span> {isEn ? 'Request social kit' : 'Demander le kit social'}
                   </a>
                 </div>
               </div>

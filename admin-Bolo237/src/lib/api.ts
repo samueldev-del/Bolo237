@@ -385,6 +385,18 @@ export async function fetchAdminEmails(): Promise<AdminEmail[]> {
   return [];
 }
 
+export function replyToAdminEmail(data: {
+  ticketId: number;
+  replyMessage: string;
+  customerEmail: string;
+  subject: string;
+}): Promise<{ success: boolean; message: string }> {
+  return apiFetch('/api/admin/emails/reply', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
 // ── Banned Users ────────────────────────────────────────────────
 
 export async function fetchBannedUsers(filters: { search?: string; page?: number; limit?: number } = {}): Promise<{ users: User[]; pagination: Pagination }> {

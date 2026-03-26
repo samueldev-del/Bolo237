@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import { Loader2, Inbox, MessageSquare } from "lucide-react";
 import AdminShell from "@/components/admin/admin-shell";
-import { fetchAdminEmails } from "@/lib/api";
+import { fetchAdminEmails, replyToAdminEmail } from "@/lib/api";
 
 export default function AdminInbox() {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [replyingId, setReplyingId] = useState(null);
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     fetchAdminEmails()
@@ -20,6 +22,37 @@ export default function AdminInbox() {
       .finally(() => setLoading(false));
   }, []);
 
+  async function handleReply(email) {
+    const replyMessage = window.prompt(
+      `Reponse a envoyer a ${email.senderEmail}:`
+    );
+
+    if (!replyMessage || !replyMessage.trim()) return;
+
+    setReplyingId(email.id);
+    setNotice("");
+
+    try {
+      const result = await replyToAdminEmail({
+        ticketId: email.id,
+        replyMessage: replyMessage.trim(),
+        customerEmail: email.senderEmail,
+        subject: email.subject || "Sans sujet",
+      });
+
+      setEmails((prev) =>
+        prev.map((item) =>
+          item.id === email.id ? { ...item, status: "READ" } : item
+        )
+      );
+      setNotice(result.message || "Reponse envoyee.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Envoi impossible.");
+    } finally {
+      setReplyingId(null);
+    }
+  }
+
   return (
     <AdminShell
       title="Boite de Reception"
@@ -31,6 +64,12 @@ export default function AdminInbox() {
         </div>
       ) : (
         <div className="space-y-4">
+          {notice ? (
+            <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-700">
+              {notice}
+            </div>
+          ) : null}
+
           {emails.length === 0 ? (
             <div className="rounded-2xl border border-zinc-200 bg-white p-10 text-center">
               <Inbox className="mx-auto mb-3 h-10 w-10 text-zinc-300" />
@@ -74,9 +113,13 @@ export default function AdminInbox() {
                 </p>
 
                 <div className="mt-4 flex justify-end">
-                  <button className="inline-flex items-center gap-2 rounded-xl bg-[#8B4332] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7A3A2B]">
+                  <button
+                    onClick={() => handleReply(email)}
+                    disabled={replyingId === email.id}
+                    className="inline-flex items-center gap-2 rounded-xl bg-[#8B4332] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7A3A2B] disabled:cursor-not-allowed disabled:opacity-70"
+                  >
                     <MessageSquare className="h-4 w-4" />
-                    Repondre
+                    {replyingId === email.id ? "Envoi..." : "Repondre"}
                   </button>
                 </div>
               </div>

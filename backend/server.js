@@ -2199,7 +2199,7 @@ app.post('/api/admin/emails', async (req, res) => {
     // 3. Le petit bonus CEO : Alerte WhatsApp immédiate !
     await sendWhatsAppModerationAlert(
       `📧 Nouvel Email Pro !\nDe: ${senderEmail}\nSujet: ${subject}`
-    ).catch(() => null);
+    ).catch((err) => console.error("Erreur Twilio WhatsApp :", err.message));
 
     // 4. On répond à n8n que tout s'est bien passé
     res.status(201).json({ success: true, ticket });

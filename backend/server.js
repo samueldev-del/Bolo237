@@ -112,8 +112,20 @@ const allowedOrigins = new Set([
   'http://localhost:3001',
   'https://www.bolo237.com',
   'https://admin.bolo237.com',
+  'https://admin-237jobs.vercel.app',
   ...envOrigins,
 ]);
+
+function isAllowedOrigin(origin) {
+  if (allowedOrigins.has(origin)) return true;
+
+  // Allow 237jobs Vercel deployments (production + preview) for admin/frontend.
+  if (/^https:\/\/[a-z0-9-]*237jobs[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
+    return true;
+  }
+
+  return false;
+}
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -122,8 +134,8 @@ app.use(helmet({
 app.use(cors({
   origin(origin, callback) {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.has(origin)) return callback(null, true);
-    return callback(new Error('CORS policy blocked this origin'));
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    return callback(null, false);
   },
   credentials: true,
 }));

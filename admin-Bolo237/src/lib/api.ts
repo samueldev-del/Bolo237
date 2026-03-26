@@ -206,6 +206,15 @@ export type ActivityEvent = {
   meta?: Record<string, unknown>;
 };
 
+export type AdminEmail = {
+  id: number;
+  senderEmail: string;
+  subject: string;
+  body: string;
+  status: string;
+  createdAt: string;
+};
+
 // ── Fetch helper ─────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
@@ -364,6 +373,16 @@ export function fetchAppFeedbacks(
 
 export function fetchAdminReviews(): Promise<{ reviews: UserReview[]; alerts: ReviewAlert[] }> {
   return apiFetch('/api/admin/reviews');
+}
+
+// ── Admin Inbox ─────────────────────────────────────────────────
+
+export async function fetchAdminEmails(): Promise<AdminEmail[]> {
+  const response = await apiFetch<AdminEmail[] | { items?: AdminEmail[]; emails?: AdminEmail[] }>('/api/admin/emails');
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response.items)) return response.items;
+  if (Array.isArray(response.emails)) return response.emails;
+  return [];
 }
 
 // ── Banned Users ────────────────────────────────────────────────

@@ -1,72 +1,89 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from "react";
+import { Loader2, Inbox, MessageSquare } from "lucide-react";
+import AdminShell from "@/components/admin/admin-shell";
+import { fetchAdminEmails } from "@/lib/api";
 
 export default function AdminInbox() {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Le radar tourne : on va chercher les emails sur ton API Render
-    fetch('https://api-237jobs.onrender.com/api/admin/emails')
-      .then((res) => res.json())
+    fetchAdminEmails()
       .then((data) => {
         setEmails(data);
-        setLoading(false);
       })
       .catch((err) => {
-        console.error("Erreur de connexion au radar :", err);
-        setLoading(false);
-      });
+        console.error("Erreur de connexion a la boite de reception:", err);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  if (loading) {
-    return <div className="p-6 text-center">🔄 Chargement des correspondances...</div>;
-  }
-
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-6">📥 Centre de Commandement - Emails</h2>
-
-      <div className="space-y-4">
-        {emails.length === 0 ? (
-          <p className="text-gray-500 italic">La boîte de réception est vide pour le moment.</p>
-        ) : (
-          emails.map((email) => (
-            <div key={email.id} className="border p-4 rounded-lg shadow-sm bg-white">
-
-              {/* En-tête de l'email */}
-              <div className="flex justify-between items-center border-b pb-2 mb-2">
-                <div>
-                  <span className="font-bold text-blue-600">
-                    {email.senderEmail}
-                  </span>
-                </div>
-                <div className="text-sm text-gray-500 text-right">
-                  {new Date(email.createdAt).toLocaleString('fr-FR')}
-                  <br />
-                  <span className={`inline-block mt-1 px-2 py-1 text-xs font-semibold rounded-full ${email.status === 'UNREAD' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                    {email.status === 'UNREAD' ? 'Non Lu' : email.status}
-                  </span>
-                </div>
-              </div>
-
-              {/* Sujet et Corps du message */}
-              <h3 className="text-lg font-bold mb-2">{email.subject}</h3>
-              <p className="text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded">
-                {email.body}
+    <AdminShell
+      title="Boite de Reception"
+      description="Tous les emails recus via la plateforme."
+    >
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {emails.length === 0 ? (
+            <div className="rounded-2xl border border-zinc-200 bg-white p-10 text-center">
+              <Inbox className="mx-auto mb-3 h-10 w-10 text-zinc-300" />
+              <p className="text-sm text-zinc-500">
+                La boite de reception est vide pour le moment.
               </p>
-
-              {/* Bouton d'action futur */}
-              <div className="mt-4 flex justify-end">
-                <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors">
-                  Répondre
-                </button>
-              </div>
             </div>
-          ))
-        )}
-      </div>
-    </div>
+          ) : (
+            emails.map((email) => (
+              <div
+                key={email.id}
+                className="rounded-2xl border border-zinc-200 bg-white p-5"
+              >
+                <div className="mb-3 flex items-start justify-between gap-4 border-b border-zinc-100 pb-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-zinc-800">
+                      {email.senderEmail}
+                    </p>
+                    <p className="mt-1 text-lg font-bold text-zinc-900">
+                      {email.subject || "(Sans sujet)"}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs text-zinc-500">
+                      {new Date(email.createdAt).toLocaleString("fr-FR")}
+                    </p>
+                    <span
+                      className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold ${
+                        email.status === "UNREAD"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-green-100 text-green-700"
+                      }`}
+                    >
+                      {email.status === "UNREAD" ? "Non lu" : email.status}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="whitespace-pre-wrap rounded-xl bg-zinc-50 p-3 text-sm leading-relaxed text-zinc-700">
+                  {email.body}
+                </p>
+
+                <div className="mt-4 flex justify-end">
+                  <button className="inline-flex items-center gap-2 rounded-xl bg-[#8B4332] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7A3A2B]">
+                    <MessageSquare className="h-4 w-4" />
+                    Repondre
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </AdminShell>
   );
 }

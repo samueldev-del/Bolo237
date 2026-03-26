@@ -82,6 +82,11 @@ const alertItems: NavItem[] = [
     label: "Feedbacks App",
     icon: <MessageSquare className="h-4 w-4" />,
   },
+  {
+    href: "/inbox",
+    label: "Boîte de Réception",
+    icon: <MessageSquare className="h-4 w-4" />,
+  },
 ];
 
 function SidebarLink({

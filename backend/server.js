@@ -2172,6 +2172,44 @@ app.post('/api/auth/reset-password', async (req, res) => {
   }
 });
 
+// =============================================
+// ROUTES: Boîte de Réception (Emails via n8n)
+// =============================================
+
+app.post('/api/admin/emails', async (req, res) => {
+  try {
+    const { senderEmail, senderName, subject, body } = req.body;
+
+    // 1. Vérification basique
+    if (!senderEmail || !subject) {
+      return res.status(400).json({ error: 'Email expéditeur et sujet requis.' });
+    }
+
+    // 2. Sauvegarde dans la base de données (Neon)
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        senderEmail: String(senderEmail),
+        senderName: senderName ? String(senderName) : null,
+        subject: String(subject),
+        body: String(body),
+        status: 'UNREAD'
+      }
+    });
+
+    // 3. Le petit bonus CEO : Alerte WhatsApp immédiate !
+    await sendWhatsAppModerationAlert(
+      `📧 Nouvel Email Pro !\nDe: ${senderEmail}\nSujet: ${subject}`
+    ).catch(() => null);
+
+    // 4. On répond à n8n que tout s'est bien passé
+    res.status(201).json({ success: true, ticket });
+    
+  } catch (error) {
+    console.error('POST /api/admin/emails error:', error);
+    res.status(500).json({ error: 'Erreur lors de la sauvegarde de l\'email.' });
+  }
+});
+
 // --- Page d'accueil API ---
 app.get('/', (_req, res) => {
   res.json({

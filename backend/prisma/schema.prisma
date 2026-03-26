@@ -149,3 +149,14 @@ model VerificationSubmission {
   @@unique([role, accountKey])
   @@index([status, submittedAt])
 }
+
+model SupportTicket {
+  id          Int      @id @default(autoincrement())
+  senderEmail String   // L'adresse de celui qui t'ecrit
+  senderName  String?  // Son nom (s'il est detecte)
+  subject     String   // L'objet du mail
+  body        String   // Le contenu du message
+  status      String   @default("UNREAD") // Statuts : UNREAD, READ, REPLIED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

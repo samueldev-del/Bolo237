@@ -8,6 +8,7 @@ import { fetchAdminEmails, replyToAdminEmail } from "@/lib/api";
 export default function AdminInbox() {
   const [emails, setEmails] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [expandedSenders, setExpandedSenders] = useState({});
   const [replyingId, setReplyingId] = useState(null);
   const [notice, setNotice] = useState("");
   const [selectedEmail, setSelectedEmail] = useState(null);
@@ -34,6 +35,21 @@ export default function AdminInbox() {
     if (replyingId) return;
     setSelectedEmail(null);
     setReplyMessage("");
+  }
+
+  const groupedEmails = emails.reduce((group, email) => {
+    if (!group[email.senderEmail]) {
+      group[email.senderEmail] = [];
+    }
+    group[email.senderEmail].push(email);
+    return group;
+  }, {});
+
+  function toggleSender(sender) {
+    setExpandedSenders((prev) => ({
+      ...prev,
+      [sender]: !prev[sender],
+    }));
   }
 
   async function sendReply() {
@@ -81,7 +97,7 @@ export default function AdminInbox() {
             </div>
           ) : null}
 
-          {emails.length === 0 ? (
+          {Object.keys(groupedEmails).length === 0 ? (
             <div className="rounded-2xl border border-zinc-200 bg-white p-10 text-center">
               <Inbox className="mx-auto mb-3 h-10 w-10 text-zinc-300" />
               <p className="text-sm text-zinc-500">
@@ -89,52 +105,84 @@ export default function AdminInbox() {
               </p>
             </div>
           ) : (
-            emails.map((email) => (
+            Object.entries(groupedEmails).map(([sender, senderEmails]) => {
+              const hasUnread = senderEmails.some((email) => email.status === "UNREAD");
+              const isExpanded = expandedSenders[sender];
+
+              return (
               <div
-                key={email.id}
-                className="rounded-2xl border border-zinc-200 bg-white p-5"
+                key={sender}
+                className="overflow-hidden rounded-2xl border border-zinc-200 bg-white"
               >
-                <div className="mb-3 flex items-start justify-between gap-4 border-b border-zinc-100 pb-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-zinc-800">
-                      {email.senderEmail}
-                    </p>
-                    <p className="mt-1 text-lg font-bold text-zinc-900">
-                      {email.subject || "(Sans sujet)"}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-xs text-zinc-500">
-                      {new Date(email.createdAt).toLocaleString("fr-FR")}
-                    </p>
+                <div
+                  onClick={() => toggleSender(sender)}
+                  className={`cursor-pointer p-4 transition-colors hover:bg-zinc-50 ${
+                    hasUnread
+                      ? "border-l-4 border-blue-600 bg-blue-50"
+                      : "bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <span
+                        className={`text-sm font-bold ${
+                          hasUnread ? "text-blue-800" : "text-zinc-700"
+                        }`}
+                      >
+                        {sender}
+                      </span>
+                      <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-medium text-zinc-700">
+                        {senderEmails.length} message{senderEmails.length > 1 ? "s" : ""}
+                      </span>
+                      {hasUnread ? (
+                        <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
+                      ) : null}
+                    </div>
                     <span
-                      className={`mt-2 inline-block rounded-full px-2 py-1 text-xs font-semibold ${
-                        email.status === "UNREAD"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-green-100 text-green-700"
-                      }`}
+                      className="text-xs font-medium text-zinc-400"
                     >
-                      {email.status === "UNREAD" ? "Non lu" : email.status}
+                      {isExpanded ? "▲ Cacher" : "▼ Voir"}
                     </span>
                   </div>
                 </div>
 
-                <p className="whitespace-pre-wrap rounded-xl bg-zinc-50 p-3 text-sm leading-relaxed text-zinc-700">
-                  {email.body}
-                </p>
+                {isExpanded ? (
+                  <div className="space-y-4 border-t border-zinc-200 bg-zinc-50 p-4">
+                    {senderEmails.map((email) => (
+                      <div
+                        key={email.id}
+                        className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <h3 className="text-sm font-bold text-zinc-800">
+                            {email.subject || "(Sans sujet)"}
+                          </h3>
+                          <span className="text-xs text-zinc-500">
+                            {new Date(email.createdAt).toLocaleString("fr-FR")}
+                          </span>
+                        </div>
 
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={() => openReplyModal(email)}
-                    disabled={replyingId === email.id}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#8B4332] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#7A3A2B] disabled:cursor-not-allowed disabled:opacity-70"
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    {replyingId === email.id ? "Envoi..." : "Repondre"}
-                  </button>
-                </div>
+                        <p className="whitespace-pre-wrap text-sm text-zinc-700">
+                          {email.body}
+                        </p>
+
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            onClick={() => openReplyModal(email)}
+                            disabled={replyingId === email.id}
+                            className="inline-flex items-center gap-2 text-sm font-semibold text-[#8B4332] transition hover:text-[#7A3A2B] disabled:cursor-not-allowed disabled:opacity-70"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                            {replyingId === email.id ? "Envoi..." : "Repondre"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

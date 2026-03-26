@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const twilio = require('twilio');
+const nodemailer = require('nodemailer');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
@@ -38,6 +39,17 @@ if (!fs.existsSync(uploadsRoot)) {
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
   : null;
+
+// Configuration du transporteur Hostinger
+const transporter = nodemailer.createTransport({
+  host: process.env.EMAIL_HOST,
+  port: Number(process.env.EMAIL_PORT || 465),
+  secure: true, // true pour le port 465
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 // Log Twilio status at startup
 if (twilioClient) {
@@ -2221,6 +2233,36 @@ app.get('/api/admin/emails', async (req, res) => {
   } catch (error) {
     console.error('GET /api/admin/emails error:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des emails.' });
+  }
+});
+
+// ROUTE: Repondre a un ticket
+app.post('/api/admin/emails/reply', async (req, res) => {
+  const { ticketId, replyMessage, customerEmail, subject } = req.body;
+
+  if (!ticketId || !replyMessage || !customerEmail || !subject) {
+    return res.status(400).json({ error: 'ticketId, replyMessage, customerEmail et subject sont requis.' });
+  }
+
+  try {
+    // 1. Envoyer l'email reel via Hostinger
+    await transporter.sendMail({
+      from: `"Support Bolo237" <${process.env.EMAIL_USER}>`,
+      to: customerEmail,
+      subject: `Re: ${subject}`,
+      text: replyMessage,
+    });
+
+    // 2. Mettre a jour le statut du ticket
+    await prisma.supportTicket.update({
+      where: { id: Number(ticketId) },
+      data: { status: 'READ' },
+    });
+
+    res.status(200).json({ success: true, message: 'Reponse envoyee !' });
+  } catch (error) {
+    console.error('Erreur envoi reponse:', error);
+    res.status(500).json({ error: 'Impossible d\'envoyer la reponse.' });
   }
 });
 

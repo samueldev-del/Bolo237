@@ -2210,6 +2210,20 @@ app.post('/api/admin/emails', async (req, res) => {
   }
 });
 
+app.get('/api/admin/emails', async (req, res) => {
+  try {
+    // On récupère tous les emails, du plus récent au plus ancien
+    const tickets = await prisma.supportTicket.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+    
+    res.status(200).json(tickets);
+  } catch (error) {
+    console.error('GET /api/admin/emails error:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des emails.' });
+  }
+});
+
 // --- Page d'accueil API ---
 app.get('/', (_req, res) => {
   res.json({

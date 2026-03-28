@@ -9,6 +9,41 @@ export default function PressePage() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
 
+  const downloadAsPng = async (svgPath: string, filename: string, width = 800) => {
+    try {
+      const res = await fetch(svgPath);
+      const svgText = await res.text();
+      const blob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+      img.onload = () => {
+        const ratio = img.naturalHeight / img.naturalWidth;
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = Math.round(width * ratio);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((pngBlob) => {
+          if (!pngBlob) return;
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(pngBlob);
+          a.download = filename;
+          a.click();
+          URL.revokeObjectURL(a.href);
+        }, 'image/png');
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    } catch {
+      // Fallback: download SVG directly
+      const a = document.createElement('a');
+      a.href = svgPath;
+      a.download = filename.replace('.png', '.svg');
+      a.click();
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
       <Header />
@@ -118,34 +153,31 @@ export default function PressePage() {
                   <p className="font-bold text-gray-900 text-sm mb-1">
                     {isEn ? 'HD Logo Pack' : 'Pack Logo Haute Definition'}
                   </p>
-                  <p className="text-xs text-gray-500 mb-2">SVG</p>
+                  <p className="text-xs text-gray-500 mb-2">PNG — {isEn ? 'High resolution' : 'Haute resolution'}</p>
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Official versions in light and dark variants for print and web.'
                       : 'Versions officielles claires et sombres pour le print et le web.'}
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <a
-                      href="/logo.svg"
-                      download="bolo237-logo.svg"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                    <button
+                      onClick={() => downloadAsPng('/logo.svg', 'bolo237-logo.png', 1200)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition cursor-pointer"
                     >
                       <span>⬇</span> {isEn ? 'Logo (Color)' : 'Logo (Couleur)'}
-                    </a>
-                    <a
-                      href="/logo-white.svg"
-                      download="bolo237-logo-white.svg"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                    </button>
+                    <button
+                      onClick={() => downloadAsPng('/logo-white.svg', 'bolo237-logo-white.png', 1200)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition cursor-pointer"
                     >
                       <span>⬇</span> {isEn ? 'Logo (White)' : 'Logo (Blanc)'}
-                    </a>
-                    <a
-                      href="/logo-icon.svg"
-                      download="bolo237-icon.svg"
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
+                    </button>
+                    <button
+                      onClick={() => downloadAsPng('/logo-icon.svg', 'bolo237-icon.png', 800)}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition cursor-pointer"
                     >
                       <span>⬇</span> {isEn ? 'Icon Only' : 'Icone seule'}
-                    </a>
+                    </button>
                   </div>
                 </div>
               </div>

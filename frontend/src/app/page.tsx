@@ -657,59 +657,17 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[
-              {
-                name: 'Marie K.',
-                location: 'Douala',
-                role: isEn ? 'Candidate' : 'Candidate',
-                stars: 5,
-                quote: isEn
-                  ? 'Thanks to Bolo237, I found my accounting position in less than a week. The platform is simple and the listings are verified.'
-                  : "Grâce à Bolo237, j'ai trouvé mon poste de comptable en moins d'une semaine. La plateforme est simple et les offres sont vérifiées.",
-                avatar: '👩🏽‍💼',
-              },
-              {
-                name: 'Jean-Paul M.',
-                location: 'Yaoundé',
-                role: isEn ? 'Employer' : 'Recruteur',
-                stars: 5,
-                quote: isEn
-                  ? 'We recruited 3 qualified developers through Bolo237. The verification process reassured us about profile quality.'
-                  : 'Nous avons recruté 3 développeurs qualifiés via Bolo237. Le processus de vérification nous a rassurés sur la qualité des profils.',
-                avatar: '👨🏽‍💻',
-              },
-              {
-                name: 'Amadou B.',
-                location: 'Bafoussam',
-                role: isEn ? 'Artisan plumber' : 'Artisan plombier',
-                stars: 5,
-                quote: isEn
-                  ? 'Since signing up on Bolo237, I regularly receive client requests in my area. My revenue has doubled.'
-                  : "Depuis mon inscription sur Bolo237, je reçois régulièrement des demandes de clients dans ma zone. Mon chiffre d'affaires a doublé.",
-                avatar: '👨🏽‍🔧',
-              },
-            ].map((testimonial) => (
-              <div key={testimonial.name} className="bg-white rounded-2xl p-8 border border-[#FEEBD6] shadow-sm hover:shadow-xl hover:shadow-[#FEEBD6]/30 transition-all duration-300">
-                <div className="flex items-center gap-1 mb-4">
-                  {Array.from({ length: testimonial.stars }).map((_, i) => (
-                    <span key={i} className="text-amber-400 text-lg">★</span>
-                  ))}
-                </div>
-                <p className="text-gray-700 text-sm leading-relaxed font-medium mb-6 italic">
-                  &ldquo;{testimonial.quote}&rdquo;
-                </p>
-                <div className="flex items-center gap-3 pt-4 border-t border-gray-100">
-                  <div className="w-12 h-12 bg-[#FEEBD6] rounded-full flex items-center justify-center text-2xl">
-                    {testimonial.avatar}
-                  </div>
-                  <div>
-                    <p className="font-bold text-black text-sm">{testimonial.name}</p>
-                    <p className="text-xs text-gray-400 font-medium">{testimonial.role} — {testimonial.location}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-20 h-20 bg-[#FEEBD6] rounded-full flex items-center justify-center text-4xl mb-6">💬</div>
+            <p className="text-gray-500 font-medium text-center max-w-md">
+              {isEn
+                ? 'Testimonials from our first users will appear here soon. Be the first to share your experience!'
+                : 'Les temoignages de nos premiers utilisateurs apparaitront ici bientot. Soyez le premier a partager votre experience !'}
+            </p>
+            <Link href={localizePath('/connexion')} className="mt-6 inline-flex items-center gap-2 bg-[#DA7756] text-white px-6 py-3 rounded-full font-bold text-sm hover:bg-[#C4623F] transition">
+              {isEn ? 'Create my account' : 'Creer mon compte'}
+              <span>→</span>
+            </Link>
           </div>
         </div>
       </section>

@@ -215,8 +215,9 @@ export default function Connexion() {
   };
 
   const currentRole = roleConfig[selectedRole];
-  const borderColor = currentRole.color === 'green' ? 'border-[#DA7756]' : currentRole.color === 'blue' ? 'border-blue-500' : 'border-amber-500';
-  const bgColor = currentRole.color === 'green' ? 'bg-[#FFF5EF]' : currentRole.color === 'blue' ? 'bg-blue-50' : 'bg-amber-50';
+  // Couleurs qui correspondent aux dashboards : candidat=terracotta, entreprise=blue, artisan=amber
+  const borderColor = selectedRole === 'chercheur' ? 'border-[#DA7756]' : selectedRole === 'entreprise' ? 'border-blue-500' : 'border-amber-500';
+  const bgColor = selectedRole === 'chercheur' ? 'bg-[#FFF5EF]' : selectedRole === 'entreprise' ? 'bg-blue-50' : 'bg-amber-50';
 
   const heroGradient = selectedRole === 'entreprise'
     ? 'linear-gradient(135deg, rgba(30, 58, 138, 0.85), rgba(17, 24, 39, 0.75))'
@@ -597,7 +598,11 @@ export default function Connexion() {
               <button
                 onClick={handleSignup}
                 disabled={isSubmitting}
-                className="w-full bg-[#DA7756] text-white font-bold py-3.5 rounded-xl hover:bg-[#C4623F] transition shadow-md text-[15px] disabled:opacity-60"
+                className={`w-full text-white font-bold py-3.5 rounded-xl transition shadow-md text-[15px] disabled:opacity-60 ${
+                  selectedRole === 'entreprise' ? 'bg-blue-600 hover:bg-blue-700' :
+                  selectedRole === 'artisan' ? 'bg-amber-500 hover:bg-amber-600' :
+                  'bg-[#DA7756] hover:bg-[#C4623F]'
+                }`}
               >
                 {isSubmitting
                   ? (isEn ? 'Creating account...' : 'Creation du compte...')

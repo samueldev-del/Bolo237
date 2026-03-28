@@ -126,10 +126,16 @@ export default function Connexion() {
       setAuthError(isEn ? 'Passwords do not match.' : 'Les mots de passe ne correspondent pas.');
       return;
     }
+    if (selectedRole === 'entreprise' && !companyName.trim()) {
+      setAuthError(isEn ? 'Company name is required.' : 'Le nom de l\'entreprise est obligatoire.');
+      return;
+    }
     setAuthError('');
     setIsSubmitting(true);
     try {
-      const fullName = `${firstName.trim()} ${lastName.trim()} (@${username.trim()})`;
+      const fullName = selectedRole === 'entreprise'
+        ? `${companyName.trim()} — ${firstName.trim()} ${lastName.trim()} (@${username.trim()})`
+        : `${firstName.trim()} ${lastName.trim()} (@${username.trim()})`;
 
       const user = await createUser({
         email: email.trim() || undefined,
@@ -533,6 +539,19 @@ export default function Connexion() {
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
                 />
               </div>
+
+              {selectedRole === 'entreprise' && (
+                <div>
+                  <label className="text-xs font-bold text-blue-600 mb-1 block">{isEn ? 'Company name' : 'Nom de l\'entreprise'} *</label>
+                  <input
+                    type="text"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder={isEn ? 'e.g. TechCamer Solutions' : 'ex. TechCamer Solutions'}
+                    className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-[15px] bg-blue-50/30"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Phone number' : 'Numero de telephone'} *</label>

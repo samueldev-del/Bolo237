@@ -15,6 +15,7 @@ import {
   markAllNotificationsAsRead,
   fetchVerificationStatus,
   createVerificationSubmission,
+  ApiError,
   type ApiNotification,
   type VerificationStatus,
 } from '@/lib/api';
@@ -102,17 +103,22 @@ export default function DashboardEntreprise() {
       try {
         const sessionUser = await fetchSessionUser();
         if (Number(sessionUser.id) !== Number(userId)) {
-          throw new Error('Session mismatch');
+          await logoutUser().catch(() => undefined);
+          clearStoredSession();
+          window.location.href = localizePath('/');
         }
-      } catch {
-        await logoutUser().catch(() => undefined);
-        clearStoredSession();
-        window.location.href = localizePath('/');
+      } catch (err) {
+        const status = err instanceof ApiError ? err.status : 0;
+        if (status === 401 || status === 403) {
+          await logoutUser().catch(() => undefined);
+          clearStoredSession();
+          window.location.href = localizePath('/');
+        }
       }
     };
 
     ensureActiveUser();
-  }, [userId, localizePath]);
+  }, [userId]);
 
   useEffect(() => {
     const loadVerificationStatus = async () => {

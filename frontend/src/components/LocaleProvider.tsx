@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo } from 'react';
+import { createContext, useCallback, useContext, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { DEFAULT_LOCALE, dictionary, getLocaleFromPath, Locale, stripLocalePrefix, withLocale } from '@/lib/i18n';
 
@@ -26,17 +26,16 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
     router.push(nextPath);
   };
 
-  const localizePath = (path: string) => {
-    const currentLocale = locale || DEFAULT_LOCALE;
-    return withLocale(path, currentLocale);
-  };
+  const localizePath = useCallback((path: string) => {
+    return withLocale(path, locale || DEFAULT_LOCALE);
+  }, [locale]);
 
-  const value: LocaleContextValue = {
+  const value = useMemo<LocaleContextValue>(() => ({
     locale,
     setLocale,
     t: dictionary[locale],
     localizePath,
-  };
+  }), [locale, setLocale, localizePath]);
 
   return <LocaleContext.Provider value={value}>{children}</LocaleContext.Provider>;
 }

@@ -152,6 +152,14 @@ export type AdminTrendPoint = {
 
 // ── Helpers ──────────────────────────────────────────────────────
 
+class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+  }
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     credentials: 'include',
@@ -161,11 +169,13 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `API error ${res.status}`);
+    throw new ApiError(body.error || `API error ${res.status}`, res.status);
   }
 
   return res.json();
 }
+
+export { ApiError };
 
 // ── Jobs ─────────────────────────────────────────────────────────
 

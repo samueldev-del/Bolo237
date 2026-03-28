@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, type ApiJob, type UserApplication } from '@/lib/api';
+import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, ApiError, type ApiJob, type UserApplication } from '@/lib/api';
 import { clearStoredSession, getStoredUser, mergeStoredUser } from '@/lib/session';
 
 export default function DashboardCandidat() {
@@ -138,17 +138,24 @@ export default function DashboardCandidat() {
       try {
         const sessionUser = await fetchSessionUser();
         if (Number(sessionUser.id) !== Number(userId)) {
-          throw new Error('Session mismatch');
+          await logoutUser().catch(() => undefined);
+          clearStoredSession();
+          window.location.href = localizePath('/');
         }
-      } catch {
-        await logoutUser().catch(() => undefined);
-        clearStoredSession();
-        window.location.href = localizePath('/');
+      } catch (err) {
+        // Only force-logout on definitive auth failures (401/403).
+        // Ignore transient network errors or server errors (5xx).
+        const status = err instanceof ApiError ? err.status : 0;
+        if (status === 401 || status === 403) {
+          await logoutUser().catch(() => undefined);
+          clearStoredSession();
+          window.location.href = localizePath('/');
+        }
       }
     };
 
     ensureActiveUser();
-  }, [userId, localizePath]);
+  }, [userId]);
 
   // Vide — sera rempli par les vraies offres sauvegardees
   const emploisSauvegardes: { id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[] = savedJobs.map((job) => {

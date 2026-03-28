@@ -489,7 +489,11 @@ export default function Connexion() {
                         key={role}
                         type="button"
                         onClick={() => setSelectedRole(role)}
-                        className={`rounded-xl border px-2 py-2 text-xs font-bold transition ${active ? 'border-[#DA7756] bg-[#FFF5EF] text-[#8B4332]' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
+                        className={`rounded-xl border px-2 py-2 text-xs font-bold transition ${active
+                          ? role === 'entreprise' ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : role === 'artisan' ? 'border-amber-500 bg-amber-50 text-amber-700'
+                          : 'border-[#DA7756] bg-[#FFF5EF] text-[#8B4332]'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'}`}
                       >
                         <span className="mr-1">{cfg.icon}</span>{cfg.subtitle}
                       </button>

@@ -28,7 +28,6 @@ const app = express();
 app.set('trust proxy', 1);
 const SESSION_COOKIE_NAME = 'bolo237_session';
 const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET || process.env.MASTER_OTP || 'change-me-in-production';
-const activeSessionTokens = new Map(); // jti -> expiresAtMs
 const revokedSessionTokens = new Map(); // token -> expiresAtMs
 
 const uploadsRoot = path.join(__dirname, 'uploads');
@@ -184,10 +183,6 @@ function createSessionToken(user) {
     { expiresIn: '7d' }
   );
 
-  const decoded = jwt.decode(token);
-  const expMs = decoded?.exp ? Number(decoded.exp) * 1000 : Date.now() + (7 * 24 * 60 * 60 * 1000);
-  activeSessionTokens.set(jti, expMs);
-
   return token;
 }
 
@@ -206,15 +201,6 @@ function readSessionToken(req) {
 
   try {
     const payload = jwt.verify(raw, SESSION_JWT_SECRET);
-    const jti = String(payload?.jti || '');
-    if (!jti) return null;
-
-    const activeUntil = activeSessionTokens.get(jti);
-    if (!activeUntil || activeUntil <= now) {
-      if (activeUntil && activeUntil <= now) activeSessionTokens.delete(jti);
-      return null;
-    }
-
     return payload;
   } catch {
     return null;
@@ -1499,9 +1485,6 @@ app.post('/api/auth/logout', (_req, res) => {
   if (raw) {
     try {
       const decoded = jwt.decode(raw);
-      if (decoded?.jti) {
-        activeSessionTokens.delete(String(decoded.jti));
-      }
       const expMs = decoded?.exp ? Number(decoded.exp) * 1000 : Date.now() + (7 * 24 * 60 * 60 * 1000);
       revokedSessionTokens.set(raw, expMs);
     } catch {

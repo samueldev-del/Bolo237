@@ -166,10 +166,19 @@ app.use('/uploads', express.static(uploadsRoot));
 
 function getSessionCookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
+  const configuredSameSite = String(process.env.SESSION_COOKIE_SAMESITE || '').trim().toLowerCase();
+  const sameSite = configuredSameSite === 'strict' || configuredSameSite === 'lax' || configuredSameSite === 'none'
+    ? configuredSameSite
+    : (isProd ? 'none' : 'lax');
+
+  // Browsers require `Secure` when SameSite=None.
+  const forceSecure = String(process.env.SESSION_COOKIE_SECURE || '').trim().toLowerCase() === 'true';
+  const secure = forceSecure || isProd || sameSite === 'none';
+
   return {
     httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
+    secure,
+    sameSite,
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   };

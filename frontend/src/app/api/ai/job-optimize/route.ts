@@ -40,7 +40,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const preferredModel = process.env.GEMINI_MODEL?.trim();
+    const modelCandidates = [
+      preferredModel,
+      'gemini-2.5-flash',
+      'gemini-2.5-flash-lite',
+      'gemini-2.0-flash',
+      'gemini-1.5-flash',
+    ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i);
 
     const systemInstruction = body.language === 'EN'
       ? 'You optimize job and service listings. Return ONLY valid JSON. Keep factual information and improve clarity and trust. No hallucinations.'
@@ -76,38 +83,59 @@ export async function POST(request: Request) {
       },
     };
 
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [{ text: systemInstruction }],
-        },
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: JSON.stringify(prompt) }],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.35,
-          topP: 0.9,
-          responseMimeType: 'application/json',
-        },
-      }),
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      const details = await res.text().catch(() => 'Gemini request failed');
-      throw new Error(`Gemini error: ${details.slice(0, 250)}`);
-    }
-
-    const data = (await res.json()) as {
+    let data: {
       candidates?: Array<{
         content?: { parts?: Array<{ text?: string }> };
       }>;
-    };
+    } | null = null;
+
+    let lastError = 'Gemini request failed';
+
+    for (const model of modelCandidates) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [{ text: systemInstruction }],
+          },
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: JSON.stringify(prompt) }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.35,
+            topP: 0.9,
+            responseMimeType: 'application/json',
+          },
+        }),
+        cache: 'no-store',
+      });
+
+      if (res.ok) {
+        data = (await res.json()) as {
+          candidates?: Array<{
+            content?: { parts?: Array<{ text?: string }> };
+          }>;
+        };
+        break;
+      }
+
+      const details = await res.text().catch(() => 'Gemini request failed');
+      lastError = details.slice(0, 250);
+      const isNotFound = res.status === 404 || /not found|no longer available/i.test(details);
+      if (!isNotFound) {
+        throw new Error(`Gemini error: ${lastError}`);
+      }
+    }
+
+    if (!data) {
+      throw new Error(`Gemini error: ${lastError}`);
+    }
 
     const text = data.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n') || '';
     if (!text.trim()) throw new Error('Gemini empty response');

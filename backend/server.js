@@ -164,6 +164,7 @@ app.use('/api', apiGlobalLimiter);
 app.use(cookieParser());
 app.use(express.json());
 app.use('/uploads', express.static(uploadsRoot));
+app.use('/api/admin', requireAdminSession);
 
 function getSessionCookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -214,6 +215,35 @@ function readSessionToken(req) {
     return payload;
   } catch {
     return null;
+  }
+}
+
+async function requireAdminSession(req, res, next) {
+  try {
+    const payload = readSessionToken(req);
+    if (!payload?.userId) {
+      return res.status(401).json({ error: 'Session admin requise.' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: Number(payload.userId) },
+      select: { id: true, role: true, isBanned: true },
+    });
+
+    if (!user || user.isBanned) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const role = String(user.role || '').toUpperCase();
+    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
+      return res.status(403).json({ error: 'Acces admin requis.' });
+    }
+
+    req.adminUserId = user.id;
+    return next();
+  } catch (error) {
+    console.error('requireAdminSession error:', error);
+    return res.status(500).json({ error: 'Erreur de verification admin.' });
   }
 }
 
@@ -357,7 +387,7 @@ app.get('/api/jobs', async (req, res) => {
 // =============================================
 
 // GET /api/verifications — File complete des demandes
-app.get('/api/verifications', async (_req, res) => {
+app.get('/api/verifications', requireAdminSession, async (_req, res) => {
   try {
     const items = await prisma.verificationSubmission.findMany({
       orderBy: { submittedAt: 'desc' },
@@ -444,7 +474,7 @@ app.post('/api/verifications', async (req, res) => {
 });
 
 // PATCH /api/verifications/:id/review — Decision super admin
-app.patch('/api/verifications/:id/review', async (req, res) => {
+app.patch('/api/verifications/:id/review', requireAdminSession, async (req, res) => {
   const id = String(req.params.id);
   const { status, reviewedBy, notes } = req.body;
 
@@ -957,7 +987,7 @@ app.delete('/api/jobs/:id', async (req, res) => {
 // =============================================
 
 // GET /api/users — Liste des utilisateurs
-app.get('/api/users', async (req, res) => {
+app.get('/api/users', requireAdminSession, async (req, res) => {
   try {
     const { role, page = '1', limit = '20' } = req.query;
 
@@ -990,7 +1020,7 @@ app.get('/api/users', async (req, res) => {
 });
 
 // GET /api/users/:id — Détail d'un utilisateur
-app.get('/api/users/:id', async (req, res) => {
+app.get('/api/users/:id', requireAdminSession, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
@@ -1067,7 +1097,7 @@ app.post('/api/users', async (req, res) => {
 });
 
 // PUT /api/users/:id — Modifier un utilisateur (role, verification, etc.)
-app.put('/api/users/:id', async (req, res) => {
+app.put('/api/users/:id', requireAdminSession, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
@@ -1113,7 +1143,7 @@ app.put('/api/users/:id', async (req, res) => {
 });
 
 // PUT /api/users/:id/ban — Bannir ou débannir un utilisateur
-app.put('/api/users/:id/ban', async (req, res) => {
+app.put('/api/users/:id/ban', requireAdminSession, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
@@ -1140,7 +1170,7 @@ app.put('/api/users/:id/ban', async (req, res) => {
 });
 
 // DELETE /api/users/:id — Supprimer un utilisateur et ses annonces
-app.delete('/api/users/:id', async (req, res) => {
+app.delete('/api/users/:id', requireAdminSession, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
@@ -1510,7 +1540,7 @@ app.post('/api/auth/logout', (_req, res) => {
 // =============================================
 
 // GET /api/reports — Liste des signalements
-app.get('/api/reports', async (req, res) => {
+app.get('/api/reports', requireAdminSession, async (req, res) => {
   try {
     const { status } = req.query;
     const where = {};
@@ -1554,7 +1584,7 @@ app.post('/api/reports', async (req, res) => {
 });
 
 // PUT /api/reports/:id — Modifier le statut d'un signalement
-app.put('/api/reports/:id', async (req, res) => {
+app.put('/api/reports/:id', requireAdminSession, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });

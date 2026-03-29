@@ -5,6 +5,8 @@ const BASE_URL = 'https://www.bolo237.com';
 const paths = [
   '/',
   '/a-propos',
+  '/questions-frequentes',
+  '/comment-decrocher-premier-contrat',
   '/conditions',
   '/connexion',
   '/dashboard',

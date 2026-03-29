@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { createUser, loginUser } from '@/lib/api';
+import { markRecentAuthSuccess } from '@/lib/session';
 
 type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
 type Role = SignupRole | 'admin';
@@ -156,6 +157,7 @@ export default function Connexion() {
         window.localStorage.setItem(USER_KEY, JSON.stringify(loggedUser));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
         window.localStorage.setItem('bolo237-phone-verified', 'true');
+        markRecentAuthSuccess();
         // Full page reload so the session cookie is properly sent on
         // the very first request the dashboard makes to /api/auth/me.
         // router.push (SPA nav) could trigger the dashboard's session
@@ -189,6 +191,7 @@ export default function Connexion() {
         window.localStorage.setItem(USER_KEY, JSON.stringify(user));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
         window.localStorage.setItem('bolo237-phone-verified', 'true');
+        markRecentAuthSuccess();
         // Full page reload — same reason as signup above.
         window.location.href = getDashboardRoute(localRole);
         return; // stop here, page is reloading

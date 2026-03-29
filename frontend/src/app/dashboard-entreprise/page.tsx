@@ -23,7 +23,7 @@ import {
   type VerificationStatus,
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
-import { clearStoredSession, mergeStoredUser } from '@/lib/session';
+import { clearStoredSession, hasRecentAuthSuccess, mergeStoredUser } from '@/lib/session';
 
 /* ────────────────────────────────────────────
    Types
@@ -127,27 +127,32 @@ export default function DashboardEntreprise() {
   useEffect(() => {
     const ensureActiveUser = async () => {
       if (!userId) return;
-      await new Promise((r) => setTimeout(r, 500));
-      try {
-        const sessionUser = await fetchSessionUser();
-        if (Number(sessionUser.id) !== Number(userId)) {
-          await logoutUser().catch(() => undefined);
-          clearStoredSession();
-          window.location.href = localizePath('/');
+      const recentAuth = hasRecentAuthSuccess();
+      const maxAttempts = recentAuth ? 4 : 2;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 700 * attempt));
+        } else {
+          await new Promise((r) => setTimeout(r, 500));
         }
-      } catch (err) {
-        const status = err instanceof ApiError ? err.status : 0;
-        if (status === 401 || status === 403) {
-          await new Promise((r) => setTimeout(r, 1000));
-          try {
-            const retry = await fetchSessionUser();
-            if (Number(retry.id) === Number(userId)) return;
-          } catch { /* still failing */ }
-          await logoutUser().catch(() => undefined);
-          clearStoredSession();
-          window.location.href = localizePath('/');
+
+        try {
+          const sessionUser = await fetchSessionUser();
+          if (Number(sessionUser.id) === Number(userId)) {
+            mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+            return;
+          }
+          continue;
+        } catch (err) {
+          const status = err instanceof ApiError ? err.status : 0;
+          if (status !== 401 && status !== 403) return;
         }
       }
+
+      await logoutUser().catch(() => undefined);
+      clearStoredSession();
+      window.location.href = localizePath('/');
     };
 
     ensureActiveUser();

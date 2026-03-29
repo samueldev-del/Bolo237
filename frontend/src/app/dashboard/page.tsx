@@ -7,7 +7,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, ApiError, type ApiJob, type UserApplication } from '@/lib/api';
-import { clearStoredSession, getStoredUser, mergeStoredUser } from '@/lib/session';
+import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser } from '@/lib/session';
 
 type CvFormData = {
   fullName: string;
@@ -150,37 +150,33 @@ export default function DashboardCandidat() {
   useEffect(() => {
     const ensureActiveUser = async () => {
       if (!userId) return;
-      // Small delay to let the browser fully commit the session cookie
-      // after a fresh login/signup redirect.
-      await new Promise((r) => setTimeout(r, 500));
-      try {
-        const sessionUser = await fetchSessionUser();
-        if (Number(sessionUser.id) !== Number(userId)) {
-          await logoutUser().catch(() => undefined);
-          clearStoredSession();
-          window.location.href = localizePath('/');
+      const recentAuth = hasRecentAuthSuccess();
+      const maxAttempts = recentAuth ? 4 : 2;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((r) => setTimeout(r, 700 * attempt));
         } else {
-          // Merge fresh server data (isVerified, photoUrl, etc.) into
-          // localStorage so the UI stays in sync.
-          mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+          await new Promise((r) => setTimeout(r, 500));
         }
-      } catch (err) {
-        // Only force-logout on definitive auth failures (401/403).
-        // Ignore transient network errors or server errors (5xx).
-        const status = err instanceof ApiError ? err.status : 0;
-        if (status === 401 || status === 403) {
-          // Retry once before giving up — the cookie may not have been
-          // committed to the jar yet on the very first load.
-          await new Promise((r) => setTimeout(r, 1000));
-          try {
-            const retry = await fetchSessionUser();
-            if (Number(retry.id) === Number(userId)) return; // OK now
-          } catch { /* still failing, proceed with logout */ }
-          await logoutUser().catch(() => undefined);
-          clearStoredSession();
-          window.location.href = localizePath('/');
+
+        try {
+          const sessionUser = await fetchSessionUser();
+          if (Number(sessionUser.id) === Number(userId)) {
+            mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+            return;
+          }
+          continue;
+        } catch (err) {
+          const status = err instanceof ApiError ? err.status : 0;
+          // Keep user on page for transient backend/network issues.
+          if (status !== 401 && status !== 403) return;
         }
       }
+
+      await logoutUser().catch(() => undefined);
+      clearStoredSession();
+      window.location.href = localizePath('/');
     };
 
     ensureActiveUser();

@@ -21,6 +21,14 @@ import {
 import { fileToImageDataUrl } from '@/lib/filePreview';
 import { clearStoredSession, mergeStoredUser } from '@/lib/session';
 
+type AdDraft = {
+  title: string;
+  description: string;
+  location: string;
+  contract?: string;
+  salary?: string;
+};
+
 /* ------------------------------------------------------------------ */
 /*  Animated circular progress (SVG, no deps)                         */
 /* ------------------------------------------------------------------ */
@@ -168,6 +176,8 @@ export default function DashboardArtisan() {
   const [adDescription, setAdDescription] = useState('');
   const [adLocation, setAdLocation] = useState('');
   const [adSalary, setAdSalary] = useState('');
+  const [isOptimizingAd, setIsOptimizingAd] = useState(false);
+  const [adAiDraft, setAdAiDraft] = useState<AdDraft | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<VerificationStatus>('not_submitted');
 
   /* service form */
@@ -362,6 +372,67 @@ export default function DashboardArtisan() {
     } finally {
       setIsPublishing(false);
     }
+  };
+
+  const optimizeAdWithAi = async () => {
+    if (!adTitle.trim() || !adDescription.trim()) {
+      setVerificationMessage(
+        isEn
+          ? 'Please add a title and description before optimization.'
+          : 'Ajoutez un titre et une description avant optimisation.'
+      );
+      return;
+    }
+
+    setIsOptimizingAd(true);
+    setVerificationMessage(isEn ? 'AI is optimizing your ad...' : 'L IA optimise votre annonce...');
+
+    try {
+      const response = await fetch('/api/ai/job-optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: isEn ? 'EN' : 'FR',
+          role: 'artisan',
+          specialty: userSpecialty,
+          companyName: userName,
+          jobData: {
+            title: adTitle,
+            description: adDescription,
+            location: adLocation,
+            salary: adSalary,
+          },
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+        optimized?: AdDraft;
+      };
+
+      if (!response.ok || !payload.success || !payload.optimized) {
+        throw new Error(payload.message || 'AI optimization failed');
+      }
+
+      setAdAiDraft(payload.optimized);
+      setVerificationMessage(isEn ? 'AI draft ready. Review before apply.' : 'Brouillon IA pret. Relisez avant application.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVerificationMessage(isEn ? `AI optimization failed: ${message}` : `Echec optimisation IA: ${message}`);
+    } finally {
+      setIsOptimizingAd(false);
+    }
+  };
+
+  const applyAiAdDraft = () => {
+    if (!adAiDraft) return;
+    setAdTitle(adAiDraft.title || '');
+    setAdDescription(adAiDraft.description || '');
+    setAdLocation(adAiDraft.location || '');
+    setAdSalary(adAiDraft.salary || '');
+    setAdAiDraft(null);
+    setVerificationMessage(isEn ? 'AI draft applied. You can still edit.' : 'Brouillon IA applique. Vous pouvez encore modifier.');
   };
 
   /* portfolio file handler */
@@ -1025,6 +1096,50 @@ export default function DashboardArtisan() {
                       placeholder={isEn ? 'Budget / salary (optional)' : 'Budget / salaire (optionnel)'}
                       className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 transition"
                     />
+                  </div>
+                  <div className="space-y-2">
+                    <button
+                      onClick={optimizeAdWithAi}
+                      disabled={isOptimizingAd}
+                      className="bg-purple-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-purple-700 transition disabled:opacity-60"
+                    >
+                      {isOptimizingAd
+                        ? (isEn ? 'AI is optimizing...' : 'Optimisation IA...')
+                        : `✨ ${isEn ? 'Optimize with AI' : 'Optimiser avec l IA'}`}
+                    </button>
+
+                    {isOptimizingAd && (
+                      <div className="rounded-xl border border-purple-100 bg-purple-50 p-3 animate-pulse">
+                        <p className="text-xs font-bold text-purple-700">
+                          {isEn ? 'AI analyzes your ad and improves wording...' : 'L IA analyse votre annonce et ameliore la formulation...'}
+                        </p>
+                      </div>
+                    )}
+
+                    {adAiDraft && (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                        <p className="text-xs font-bold uppercase tracking-wide text-gray-600">
+                          {isEn ? 'AI draft (editable)' : 'Brouillon IA (modifiable)'}
+                        </p>
+                        <input
+                          value={adAiDraft.title}
+                          onChange={(e) => setAdAiDraft((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                        />
+                        <textarea
+                          value={adAiDraft.description}
+                          onChange={(e) => setAdAiDraft((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
+                          rows={3}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"
+                        />
+                        <button
+                          onClick={applyAiAdDraft}
+                          className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 transition"
+                        >
+                          {isEn ? 'Apply this version' : 'Appliquer cette version'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <button

@@ -23,11 +23,17 @@ Create or update your environment file with:
 ```bash
 NEXT_PUBLIC_API_URL=http://localhost:5001
 GEMINI_API_KEY=your_server_side_gemini_key
+PDF_SERVICE_URL=https://your-render-puppeteer-service/render-pdf
 ```
 
 Security note:
 - Never call Gemini directly from client-side code.
 - `GEMINI_API_KEY` must stay server-side only (used by `src/app/api/ai/cv-optimize/route.ts`).
+
+Server routes added for AI/PDF architecture:
+- `src/app/api/ai/cv-optimize/route.ts`
+- `src/app/api/ai/job-optimize/route.ts`
+- `src/app/api/cv-pdf/route.ts` (prepared for Puppeteer service via `PDF_SERVICE_URL`)
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

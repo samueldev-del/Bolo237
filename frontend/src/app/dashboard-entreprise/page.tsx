@@ -33,6 +33,14 @@ type JobEntry = {
   date: string;
 };
 
+type JobDraft = {
+  title: string;
+  description: string;
+  location: string;
+  contract: string;
+  salary: string;
+};
+
 type SidebarSection = 'dashboard' | 'post' | 'listings' | 'applications' | 'interviews' | 'cvtheque' | 'profile' | 'billing';
 
 /* ────────────────────────────────────────────
@@ -68,6 +76,8 @@ export default function DashboardEntreprise() {
   const [jobContract, setJobContract] = useState('CDI');
   const [jobLocation, setJobLocation] = useState('');
   const [jobSalary, setJobSalary] = useState('');
+  const [isOptimizingJob, setIsOptimizingJob] = useState(false);
+  const [jobAiDraft, setJobAiDraft] = useState<JobDraft | null>(null);
 
   // Published jobs
   const [publishMessage, setPublishMessage] = useState('');
@@ -229,6 +239,69 @@ export default function DashboardEntreprise() {
 
   // Publishing state
   const [isPublishing, setIsPublishing] = useState(false);
+
+  const optimizeJobWithAi = async () => {
+    if (!jobTitle.trim() || !jobDescription.trim()) {
+      setPublishMessage(isEn ? 'Fill in title and description first.' : 'Renseignez d abord le titre et la description.');
+      setPublishMessageType('error');
+      return;
+    }
+
+    setIsOptimizingJob(true);
+    setPublishMessage(isEn ? 'AI is optimizing your listing...' : 'L IA optimise votre annonce...');
+    setPublishMessageType('info');
+
+    try {
+      const response = await fetch('/api/ai/job-optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: isEn ? 'EN' : 'FR',
+          role: 'company',
+          companyName: companyName || userName,
+          jobData: {
+            title: jobTitle,
+            description: jobDescription,
+            location: jobLocation,
+            contract: jobContract,
+            salary: jobSalary,
+          },
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+        optimized?: JobDraft;
+      };
+
+      if (!response.ok || !payload.success || !payload.optimized) {
+        throw new Error(payload.message || 'AI optimization failed');
+      }
+
+      setJobAiDraft(payload.optimized);
+      setPublishMessage(isEn ? 'AI draft ready. Review before applying.' : 'Brouillon IA pret. Relisez avant application.');
+      setPublishMessageType('success');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setPublishMessage(isEn ? `AI optimization failed: ${message}` : `Echec optimisation IA: ${message}`);
+      setPublishMessageType('error');
+    } finally {
+      setIsOptimizingJob(false);
+    }
+  };
+
+  const applyAiJobDraft = () => {
+    if (!jobAiDraft) return;
+    setJobTitle(jobAiDraft.title);
+    setJobDescription(jobAiDraft.description);
+    setJobLocation(jobAiDraft.location);
+    setJobContract(jobAiDraft.contract || 'CDI');
+    setJobSalary(jobAiDraft.salary || '');
+    setJobAiDraft(null);
+    setPublishMessage(isEn ? 'AI draft applied. You can edit before publishing.' : 'Brouillon IA applique. Vous pouvez encore modifier.');
+    setPublishMessageType('success');
+  };
 
   /* ── Publish Job ── */
   const publishJob = async () => {
@@ -1004,6 +1077,50 @@ export default function DashboardEntreprise() {
                           placeholder={isEn ? 'Describe the responsibilities, requirements, and qualifications...' : 'Decrivez les responsabilites, exigences et qualifications...'}
                           className="w-full h-40 sm:h-48 p-4 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-gray-50/50 resize-none text-sm"
                         />
+                      </div>
+
+                      <div className="space-y-3">
+                        <button
+                          onClick={optimizeJobWithAi}
+                          disabled={isOptimizingJob}
+                          className="w-full sm:w-auto bg-purple-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-purple-700 transition disabled:opacity-60"
+                        >
+                          {isOptimizingJob
+                            ? (isEn ? 'AI is optimizing...' : 'Optimisation IA...')
+                            : `✨ ${isEn ? 'Optimize with AI' : 'Optimiser avec l IA'}`}
+                        </button>
+
+                        {isOptimizingJob && (
+                          <div className="rounded-xl border border-purple-100 bg-purple-50 p-3 animate-pulse">
+                            <p className="text-xs font-bold text-purple-700">
+                              {isEn ? 'AI analyzes your listing and improves clarity...' : 'L IA analyse votre annonce et ameliore la clarte...'}
+                            </p>
+                          </div>
+                        )}
+
+                        {jobAiDraft && (
+                          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                            <p className="text-xs font-bold uppercase tracking-wide text-gray-600">
+                              {isEn ? 'AI draft (editable)' : 'Brouillon IA (modifiable)'}
+                            </p>
+                            <input
+                              value={jobAiDraft.title}
+                              onChange={(e) => setJobAiDraft((prev) => (prev ? { ...prev, title: e.target.value } : prev))}
+                              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm"
+                            />
+                            <textarea
+                              value={jobAiDraft.description}
+                              onChange={(e) => setJobAiDraft((prev) => (prev ? { ...prev, description: e.target.value } : prev))}
+                              className="w-full h-28 p-2.5 border border-gray-200 rounded-lg text-sm resize-none"
+                            />
+                            <button
+                              onClick={applyAiJobDraft}
+                              className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-purple-700 transition"
+                            >
+                              {isEn ? 'Apply this version' : 'Appliquer cette version'}
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Anti-fraud notice */}

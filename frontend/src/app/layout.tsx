@@ -11,6 +11,14 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://www.bolo237.com"),
   title: "Bolo237 - Emplois et Services au Cameroun",
   description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
+  applicationName: "Bolo237",
+  keywords: [
+    "Bolo237",
+    "emploi Cameroun",
+    "offres d'emploi Douala",
+    "recrutement Cameroun",
+    "artisans Cameroun",
+  ],
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
@@ -30,6 +38,20 @@ export const metadata: Metadata = {
       "x-default": "/fr",
     },
   },
+  openGraph: {
+    type: "website",
+    title: "Bolo237 - Emplois et Services au Cameroun",
+    description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
+    url: "https://www.bolo237.com/fr",
+    siteName: "Bolo237",
+    locale: "fr_CM",
+    alternateLocale: ["en_US"],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Bolo237 - Emplois et Services au Cameroun",
+    description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
+  },
 };
 
 export const viewport: Viewport = {
@@ -40,6 +62,30 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const cookieStore = await cookies();
   const localeCookie = cookieStore.get("NEXT_LOCALE")?.value;
   const lang = localeCookie === "en" ? "en" : "fr";
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Bolo237",
+    url: "https://www.bolo237.com",
+    inLanguage: ["fr", "en"],
+    potentialAction: {
+      "@type": "SearchAction",
+      target: "https://www.bolo237.com/fr/recherche?search={search_term_string}",
+      "query-input": "required name=search_term_string",
+    },
+  };
+
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Bolo237",
+    url: "https://www.bolo237.com",
+    logo: "https://www.bolo237.com/icon.svg",
+    sameAs: [
+      "https://www.bolo237.com/fr",
+      "https://www.bolo237.com/en",
+    ],
+  };
 
   return (
     <html lang={lang}>
@@ -47,6 +93,16 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <script
+          id="schema-website"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        />
+        <script
+          id="schema-organization"
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html: `

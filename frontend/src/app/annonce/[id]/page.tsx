@@ -154,6 +154,63 @@ export default function OffreEmploiPage({ params }: JobParams) {
         entrepriseResume: annonce.entrepriseResume,
       };
 
+  const canonicalJobUrl = `https://www.bolo237.com/${locale}/annonce/${id}`;
+  const jobPostingSchema = apiJob
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'JobPosting',
+        title: apiJob.title,
+        description: apiJob.description,
+        datePosted: apiJob.createdAt,
+        employmentType: 'FULL_TIME',
+        hiringOrganization: {
+          '@type': 'Organization',
+          name: apiJob.company,
+          sameAs: 'https://www.bolo237.com',
+          logo: 'https://www.bolo237.com/icon.svg',
+        },
+        jobLocation: {
+          '@type': 'Place',
+          address: {
+            '@type': 'PostalAddress',
+            addressLocality: apiJob.location,
+            addressCountry: 'CM',
+          },
+        },
+        applicantLocationRequirements: {
+          '@type': 'Country',
+          name: 'Cameroon',
+        },
+        directApply: true,
+        url: canonicalJobUrl,
+      }
+    : null;
+
+  const breadcrumbSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      {
+        '@type': 'ListItem',
+        position: 1,
+        name: locale === 'fr' ? 'Accueil' : 'Home',
+        item: `https://www.bolo237.com/${locale}`,
+      },
+      {
+        '@type': 'ListItem',
+        position: 2,
+        name: locale === 'fr' ? 'Offres d emploi' : 'Jobs',
+        item: `https://www.bolo237.com/${locale}/emplois`,
+      },
+      {
+        '@type': 'ListItem',
+        position: 3,
+        name: annonce.titre,
+        item: canonicalJobUrl,
+      },
+    ],
+  };
+
   const handleApplyClick = () => {
     if (!apiJob) {
       setApplyMessage(locale === 'fr' ? 'Annonce indisponible.' : 'Job not available.');
@@ -228,6 +285,16 @@ export default function OffreEmploiPage({ params }: JobParams) {
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-black pb-24 md:pb-10">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      {jobPostingSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingSchema) }}
+        />
+      )}
       <nav className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href={localizePath('/')}>

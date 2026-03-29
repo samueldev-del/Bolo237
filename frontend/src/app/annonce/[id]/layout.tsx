@@ -21,13 +21,21 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     return {
       title,
       description,
+      alternates: {
+        canonical: `https://www.bolo237.com/fr/annonce/${id}`,
+        languages: {
+          fr: `https://www.bolo237.com/fr/annonce/${id}`,
+          en: `https://www.bolo237.com/en/annonce/${id}`,
+          'x-default': `https://www.bolo237.com/fr/annonce/${id}`,
+        },
+      },
       openGraph: {
         title,
         description,
         type: 'article',
         siteName: 'Bolo237',
         locale: 'fr_CM',
-        url: `https://www.bolo237.com/annonce/${id}`,
+        url: `https://www.bolo237.com/fr/annonce/${id}`,
       },
       twitter: {
         card: 'summary_large_image',

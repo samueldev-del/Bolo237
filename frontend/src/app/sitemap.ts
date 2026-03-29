@@ -4,6 +4,8 @@ const BASE_URL = 'https://www.bolo237.com';
 
 const paths = [
   '/',
+  '/a-propos',
+  '/conditions',
   '/connexion',
   '/dashboard',
   '/dashboard-artisan',

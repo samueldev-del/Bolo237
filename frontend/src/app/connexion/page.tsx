@@ -156,7 +156,11 @@ export default function Connexion() {
         window.localStorage.setItem(USER_KEY, JSON.stringify(loggedUser));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
         window.localStorage.setItem('bolo237-phone-verified', 'true');
-        router.push(getDashboardRoute(localRole));
+        // Full page reload so the session cookie is properly sent on
+        // the very first request the dashboard makes to /api/auth/me.
+        // router.push (SPA nav) could trigger the dashboard's session
+        // check before the browser has fully committed the cookie.
+        window.location.href = getDashboardRoute(localRole);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : (isEn ? 'Account creation failed.' : 'Echec de la creation du compte.');
@@ -185,7 +189,9 @@ export default function Connexion() {
         window.localStorage.setItem(USER_KEY, JSON.stringify(user));
         window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
         window.localStorage.setItem('bolo237-phone-verified', 'true');
-        router.push(getDashboardRoute(localRole));
+        // Full page reload — same reason as signup above.
+        window.location.href = getDashboardRoute(localRole);
+        return; // stop here, page is reloading
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : (isEn ? 'Login failed.' : 'Echec de la connexion.');

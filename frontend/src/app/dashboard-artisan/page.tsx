@@ -228,6 +228,7 @@ export default function DashboardArtisan() {
   useEffect(() => {
     const ensureActiveUser = async () => {
       if (!userId) return;
+      await new Promise((r) => setTimeout(r, 500));
       try {
         const sessionUser = await fetchSessionUser();
         if (Number(sessionUser.id) !== Number(userId)) {
@@ -238,6 +239,11 @@ export default function DashboardArtisan() {
       } catch (err) {
         const status = err instanceof ApiError ? err.status : 0;
         if (status === 401 || status === 403) {
+          await new Promise((r) => setTimeout(r, 1000));
+          try {
+            const retry = await fetchSessionUser();
+            if (Number(retry.id) === Number(userId)) return;
+          } catch { /* still failing */ }
           await logoutUser().catch(() => undefined);
           clearStoredSession();
           window.location.href = localizePath('/');

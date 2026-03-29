@@ -1,4 +1,4 @@
-const LEGACY_REMOTE_API = 'https://api-237jobs.onrender.com';
+const DEFAULT_REMOTE_API = 'https://api.bolo237.com';
 
 let cachedApiBase: string | null = null;
 let resolvingApiBase: Promise<string> | null = null;
@@ -31,7 +31,7 @@ function getApiBaseCandidates() {
     }
   }
 
-  candidates.push(LEGACY_REMOTE_API);
+  candidates.push(DEFAULT_REMOTE_API);
   return uniqueBases(candidates);
 }
 
@@ -64,7 +64,7 @@ async function resolveApiBase() {
 
     // Outside browser, probing is not reliable. Prefer env then legacy fallback.
     if (typeof window === 'undefined') {
-      const resolved = candidates[0] || LEGACY_REMOTE_API;
+      const resolved = candidates[0] || DEFAULT_REMOTE_API;
       cachedApiBase = resolved;
       resolvingApiBase = null;
       return resolved;
@@ -79,7 +79,7 @@ async function resolveApiBase() {
       }
     }
 
-    const fallback = candidates[0] || LEGACY_REMOTE_API;
+    const fallback = candidates[0] || DEFAULT_REMOTE_API;
     cachedApiBase = fallback;
     resolvingApiBase = null;
     return fallback;

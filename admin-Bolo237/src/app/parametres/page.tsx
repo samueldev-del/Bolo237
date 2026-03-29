@@ -92,7 +92,7 @@ export default function ParametresPage() {
         return "http://localhost:5000";
       }
     }
-    return "https://api-237jobs.onrender.com";
+    return "https://api.bolo237.com";
   })();
 
   function showToast(message: string, type: "success" | "error") {

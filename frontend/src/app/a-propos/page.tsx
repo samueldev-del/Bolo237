@@ -8,6 +8,45 @@ import { useLocale } from '@/components/LocaleProvider';
 export default function AProposPage() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
+  const faqItems = [
+    {
+      question: isEn ? 'Is Bolo237 free to use?' : 'Bolo237 est-il gratuit ?',
+      answer: isEn
+        ? 'Yes. Creating an account, browsing offers, and connecting with candidates or artisans is completely free on Bolo237.'
+        : 'Oui. La creation de compte, la consultation des offres et la mise en relation avec les candidats ou artisans sont entierement gratuites sur Bolo237.',
+    },
+    {
+      question: isEn ? 'How does identity verification work?' : 'Comment fonctionne la verification d identite ?',
+      answer: isEn
+        ? 'Users can submit an ID document and a selfie through Identity Shield. Our team reviews submissions manually before granting a verified badge.'
+        : 'Les utilisateurs peuvent soumettre une piece d identite et un selfie via Identity Shield. Notre equipe verifie manuellement chaque dossier avant attribution du badge verifie.',
+    },
+    {
+      question: isEn ? 'Can I use Bolo237 on mobile without an app store?' : 'Puis-je utiliser Bolo237 sur mobile sans Play Store ?',
+      answer: isEn
+        ? 'Yes. Bolo237 is a Progressive Web App (PWA): you can open it in your browser and install it directly on your phone.'
+        : 'Oui. Bolo237 est une Progressive Web App (PWA) : vous pouvez l ouvrir dans le navigateur et l installer directement sur votre telephone.',
+    },
+    {
+      question: isEn ? 'Does Bolo237 hire candidates directly?' : 'Bolo237 recrute-t-il directement les candidats ?',
+      answer: isEn
+        ? 'No. Bolo237 is an intermediary platform. Employment or service contracts are agreed directly between users.'
+        : 'Non. Bolo237 est une plateforme intermediaire. Les contrats d emploi ou de service sont conclus directement entre les utilisateurs.',
+    },
+  ];
+
+  const faqSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqItems.map((item) => ({
+      '@type': 'Question',
+      name: item.question,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: item.answer,
+      },
+    })),
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -90,6 +129,30 @@ export default function AProposPage() {
                   </div>
                 </footer>
               </blockquote>
+            </div>
+          </div>
+        </section>
+
+        {/* ── FAQ ── */}
+        <section className="py-16 md:py-24 px-4 bg-[#FAFAFA]">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-10">
+              <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-2">
+                {isEn ? 'Frequently Asked Questions' : 'Questions frequentes'}
+              </h2>
+              <div className="w-16 h-1 bg-[#DA7756] rounded-full mx-auto" />
+            </div>
+
+            <div className="space-y-4">
+              {faqItems.map((item) => (
+                <details key={item.question} className="group bg-white rounded-2xl border border-gray-200 p-5">
+                  <summary className="cursor-pointer list-none font-bold text-gray-900 flex items-center justify-between gap-4">
+                    <span>{item.question}</span>
+                    <span className="text-[#DA7756] text-xl leading-none group-open:rotate-45 transition-transform">+</span>
+                  </summary>
+                  <p className="mt-3 text-sm md:text-base text-gray-700 leading-relaxed">{item.answer}</p>
+                </details>
+              ))}
             </div>
           </div>
         </section>
@@ -354,6 +417,11 @@ export default function AProposPage() {
         </section>
 
       </main>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
 
       <Footer />
     </div>

@@ -8,6 +8,8 @@ import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
   createJob,
+  fetchJobs,
+  fetchCandidateProfileDetail,
   uploadFile,
   fetchSessionUser,
   fetchUserNotifications,
@@ -17,6 +19,7 @@ import {
   createVerificationSubmission,
   ApiError,
   type ApiNotification,
+  type ApiJob,
   type VerificationStatus,
 } from '@/lib/api';
 import { fileToImageDataUrl } from '@/lib/filePreview';
@@ -39,6 +42,14 @@ type JobDraft = {
   location: string;
   contract: string;
   salary: string;
+};
+
+type CandidateMatchResult = {
+  candidateId: number;
+  score: number;
+  explanation: string;
+  strengths: string[];
+  gaps: string[];
 };
 
 type SidebarSection = 'dashboard' | 'post' | 'listings' | 'applications' | 'interviews' | 'cvtheque' | 'profile' | 'billing';
@@ -84,6 +95,12 @@ export default function DashboardEntreprise() {
   const [publishMessageType, setPublishMessageType] = useState<'success' | 'error' | 'info'>('info');
   const [jobsPublishedCount, setJobsPublishedCount] = useState(0);
   const [publishedJobs, setPublishedJobs] = useState<JobEntry[]>([]);
+  const [authoredJobs, setAuthoredJobs] = useState<ApiJob[]>([]);
+  const [selectedMatchJobId, setSelectedMatchJobId] = useState(0);
+  const [isMatchingCandidates, setIsMatchingCandidates] = useState(false);
+  const [matchError, setMatchError] = useState('');
+  const [matchSource, setMatchSource] = useState<'gemini' | 'heuristic' | ''>('');
+  const [candidateMatches, setCandidateMatches] = useState<CandidateMatchResult[]>([]);
 
   const accountKey = (companyName || userName || 'entreprise').toLowerCase();
   const hasCompanyPhoto = Boolean(companyLogoPreview || companyLogoFile);
@@ -110,6 +127,7 @@ export default function DashboardEntreprise() {
   useEffect(() => {
     const ensureActiveUser = async () => {
       if (!userId) return;
+      await new Promise((r) => setTimeout(r, 500));
       try {
         const sessionUser = await fetchSessionUser();
         if (Number(sessionUser.id) !== Number(userId)) {
@@ -120,6 +138,11 @@ export default function DashboardEntreprise() {
       } catch (err) {
         const status = err instanceof ApiError ? err.status : 0;
         if (status === 401 || status === 403) {
+          await new Promise((r) => setTimeout(r, 1000));
+          try {
+            const retry = await fetchSessionUser();
+            if (Number(retry.id) === Number(userId)) return;
+          } catch { /* still failing */ }
           await logoutUser().catch(() => undefined);
           clearStoredSession();
           window.location.href = localizePath('/');
@@ -177,6 +200,62 @@ export default function DashboardEntreprise() {
       clearInterval(timer);
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!userId) {
+      setAuthoredJobs([]);
+      return;
+    }
+
+    let active = true;
+
+    const loadAuthoredJobs = async () => {
+      try {
+        const res = await fetchJobs({ authorId: userId, limit: 100 });
+        if (!active) return;
+        setAuthoredJobs(res.jobs);
+
+        setPublishedJobs(
+          res.jobs.map((job) => ({
+            id: job.id,
+            title: job.title,
+            contract: 'CDI',
+            status: job.status === 'approved' ? 'approved' : job.status === 'rejected' ? 'rejected' : 'pending',
+            date: new Date(job.createdAt).toLocaleDateString(isEn ? 'en-US' : 'fr-FR'),
+          }))
+        );
+      } catch {
+        if (!active) return;
+        setAuthoredJobs([]);
+      }
+    };
+
+    loadAuthoredJobs();
+
+    return () => {
+      active = false;
+    };
+  }, [userId, isEn]);
+
+  useEffect(() => {
+    if (selectedMatchJobId && authoredJobs.some((job) => job.id === selectedMatchJobId)) return;
+
+    const notificationJobIds = new Set(
+      notifications
+        .map((n) => Number(n.data?.jobId || 0))
+        .filter((id) => Number.isFinite(id) && id > 0)
+    );
+
+    const firstNotified = authoredJobs.find((job) => notificationJobIds.has(job.id));
+    if (firstNotified) {
+      setSelectedMatchJobId(firstNotified.id);
+      return;
+    }
+
+    if (authoredJobs.length > 0) {
+      setSelectedMatchJobId(authoredJobs[0].id);
+    }
+  }, [notifications, authoredJobs, selectedMatchJobId]);
 
   // Get company initials
   const getInitials = useCallback(() => {
@@ -425,6 +504,111 @@ export default function DashboardEntreprise() {
       await markAllNotificationsAsRead(userId);
     } catch {
       // keep UI responsive even if read-all fails
+    }
+  };
+
+  const matchCandidatesWithAi = async () => {
+    if (!selectedMatchJobId) {
+      setMatchError(isEn ? 'Select a job listing first.' : 'Selectionnez d abord une annonce.');
+      return;
+    }
+
+    const targetJob = authoredJobs.find((job) => job.id === selectedMatchJobId);
+    if (!targetJob) {
+      setMatchError(isEn ? 'Selected job is unavailable.' : 'Annonce selectionnee introuvable.');
+      return;
+    }
+
+    const candidateIds = Array.from(
+      new Set(
+        notifications
+          .map((n) => Number(n.data?.candidateId || 0))
+          .filter((id) => Number.isFinite(id) && id > 0)
+      )
+    );
+
+    if (candidateIds.length === 0) {
+      setMatchError(isEn ? 'No candidate applications available yet.' : 'Aucune candidature exploitable pour le moment.');
+      return;
+    }
+
+    setIsMatchingCandidates(true);
+    setMatchError('');
+    setMatchSource('');
+    setCandidateMatches([]);
+
+    try {
+      const details = await Promise.all(
+        candidateIds.map(async (candidateId) => {
+          try {
+            return await fetchCandidateProfileDetail(candidateId);
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const candidates = details
+        .filter((candidate): candidate is NonNullable<typeof candidate> => Boolean(candidate))
+        .map((candidate) => ({
+          candidateId: candidate.id,
+          fullName: candidate.profile?.fullName || candidate.nom || `Candidat #${candidate.id}`,
+          title: candidate.profile?.title || candidate.titre || '',
+          location: candidate.profile?.location || candidate.localisation || '',
+          skillsText: candidate.profile?.skillsText || (candidate.competences || []).join(', '),
+          profile: candidate.profile?.profile || '',
+          experience: candidate.profile?.experience || '',
+          education: candidate.profile?.education || '',
+        }))
+        .filter((candidate) =>
+          Boolean(
+            candidate.skillsText.trim() ||
+            candidate.profile.trim() ||
+            candidate.experience.trim() ||
+            candidate.education.trim()
+          )
+        );
+
+      if (candidates.length === 0) {
+        throw new Error(isEn ? 'Candidate profiles are still incomplete.' : 'Les profils candidats sont encore incomplets.');
+      }
+
+      const response = await fetch('/api/ai/candidate-match', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: isEn ? 'EN' : 'FR',
+          jobData: {
+            title: targetJob.title,
+            description: targetJob.description,
+            location: targetJob.location,
+            salary: targetJob.salary || '',
+          },
+          candidates,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        success?: boolean;
+        source?: 'gemini' | 'heuristic';
+        message?: string;
+        matches?: CandidateMatchResult[];
+      };
+
+      if (!response.ok || !payload.success || !Array.isArray(payload.matches)) {
+        throw new Error(payload.message || (isEn ? 'Candidate matching failed.' : 'Echec du matching candidats.'));
+      }
+
+      setMatchSource(payload.source || '');
+      setCandidateMatches(payload.matches.slice(0, 10));
+      if (payload.source === 'heuristic') {
+        setMatchError(isEn ? 'Temporary fallback scoring used. Gemini unavailable.' : 'Scoring de secours utilise temporairement. Gemini indisponible.');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setMatchError(message);
+    } finally {
+      setIsMatchingCandidates(false);
     }
   };
 
@@ -1381,6 +1565,77 @@ export default function DashboardEntreprise() {
                   <span className="text-xs font-bold text-gray-500">
                     {isEn ? `${notifications.length} notifications` : `${notifications.length} notifications`}
                   </span>
+                </div>
+
+                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 space-y-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                    {isEn ? 'Intelligent matching' : 'Matching intelligent'}
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <select
+                      value={selectedMatchJobId || ''}
+                      onChange={(e) => setSelectedMatchJobId(Number(e.target.value || 0))}
+                      className="flex-1 p-2.5 border border-gray-200 rounded-xl bg-white text-sm"
+                    >
+                      <option value="">{isEn ? 'Select a job listing' : 'Selectionnez une annonce'}</option>
+                      {authoredJobs.map((job) => (
+                        <option key={job.id} value={job.id}>
+                          #{job.id} - {job.title}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={matchCandidatesWithAi}
+                      disabled={isMatchingCandidates || authoredJobs.length === 0}
+                      className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition disabled:opacity-60"
+                    >
+                      {isMatchingCandidates
+                        ? (isEn ? 'Scoring...' : 'Scoring...')
+                        : (isEn ? 'See top qualified candidates' : 'Voir les candidats les plus qualifies')}
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 font-medium">
+                    {isEn
+                      ? `Candidates detected from applications: ${new Set(notifications.map((n) => Number(n.data?.candidateId || 0)).filter((id) => id > 0)).size}`
+                      : `Candidats detectes depuis les candidatures: ${new Set(notifications.map((n) => Number(n.data?.candidateId || 0)).filter((id) => id > 0)).size}`}
+                  </p>
+                  {matchSource === 'gemini' && (
+                    <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      {isEn ? 'Scoring generated by Gemini.' : 'Scoring genere par Gemini.'}
+                    </p>
+                  )}
+                  {matchError && (
+                    <p className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                      {matchError}
+                    </p>
+                  )}
+                  {candidateMatches.length > 0 && (
+                    <div className="space-y-2">
+                      {candidateMatches.map((match) => (
+                        <div key={match.candidateId} className="bg-white border border-gray-200 rounded-xl p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-bold text-gray-900">
+                              {isEn ? 'Candidate' : 'Candidat'} #{match.candidateId}
+                            </p>
+                            <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                              {match.score}%
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">{match.explanation}</p>
+                          {match.strengths.length > 0 && (
+                            <p className="text-[11px] text-emerald-700 mt-2">
+                              {isEn ? 'Strengths:' : 'Forces:'} {match.strengths.join(' | ')}
+                            </p>
+                          )}
+                          {match.gaps.length > 0 && (
+                            <p className="text-[11px] text-amber-700 mt-1">
+                              {isEn ? 'Gaps:' : 'Ecarts:'} {match.gaps.join(' | ')}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {notifications.length === 0 ? (

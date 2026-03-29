@@ -240,11 +240,31 @@ export default function DashboardArtisan() {
 
         try {
           const sessionUser = await fetchSessionUser();
-          if (Number(sessionUser.id) === Number(userId)) {
+          const sessionRole = String(sessionUser.role || '').toUpperCase();
+          if (sessionRole === 'CANDIDAT') {
             mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+            window.location.href = localizePath('/dashboard');
             return;
           }
-          continue;
+          if (sessionRole === 'ENTREPRISE') {
+            mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+            window.location.href = localizePath('/dashboard-entreprise');
+            return;
+          }
+          if (sessionRole === 'ADMIN' || sessionRole === 'SUPER_ADMIN') {
+            mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+            window.location.href = localizePath('/super-admin');
+            return;
+          }
+
+          mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+          if (Number(sessionUser.id) && Number(sessionUser.id) !== Number(userId)) {
+            setUserId(Number(sessionUser.id));
+          }
+          if (sessionUser.name) {
+            setUserName(String(sessionUser.name));
+          }
+          return;
         } catch (err) {
           const status = err instanceof ApiError ? err.status : 0;
           if (status !== 401 && status !== 403) return;

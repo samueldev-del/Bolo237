@@ -16,6 +16,19 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Environment Variables
+
+Create or update your environment file with:
+
+```bash
+NEXT_PUBLIC_API_URL=http://localhost:5001
+GEMINI_API_KEY=your_server_side_gemini_key
+```
+
+Security note:
+- Never call Gemini directly from client-side code.
+- `GEMINI_API_KEY` must stay server-side only (used by `src/app/api/ai/cv-optimize/route.ts`).
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

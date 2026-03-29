@@ -9,6 +9,19 @@ import { useLocale } from '@/components/LocaleProvider';
 import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, ApiError, type ApiJob, type UserApplication } from '@/lib/api';
 import { clearStoredSession, getStoredUser, mergeStoredUser } from '@/lib/session';
 
+type CvFormData = {
+  fullName: string;
+  title: string;
+  location: string;
+  phone: string;
+  email: string;
+  profile: string;
+  experience: string;
+  education: string;
+  skillsText: string;
+  languagesText: string;
+};
+
 export default function DashboardCandidat() {
   const { locale, localizePath } = useLocale();
   const router = useRouter();
@@ -32,10 +45,12 @@ export default function DashboardCandidat() {
   const [isSavingCv, setIsSavingCv] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [isOptimizingCv, setIsOptimizingCv] = useState(false);
   const [cvActionMessage, setCvActionMessage] = useState('');
+  const [aiDraft, setAiDraft] = useState<CvFormData | null>(null);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
   const photoInputRef = useRef<HTMLInputElement | null>(null);
-  const [cvData, setCvData] = useState({
+  const [cvData, setCvData] = useState<CvFormData>({
     fullName: '',
     title: '',
     location: '',
@@ -287,6 +302,11 @@ export default function DashboardCandidat() {
       generating: 'Generation...',
       downloadPdf: 'Telecharger en PDF',
       continueEditor: 'Continuer vers l editeur',
+      aiOptimize: 'Optimiser avec l IA',
+      aiOptimizing: 'L IA analyse votre profil...',
+      aiApplyDraft: 'Appliquer cette version',
+      aiDraftReady: 'Suggestion IA prete. Relisez puis appliquez.',
+      aiOptimizeError: 'Optimisation IA indisponible pour le moment.',
     },
     EN: {
       requiredNameTitle: 'Please enter at least full name and job title before saving.',
@@ -328,6 +348,11 @@ export default function DashboardCandidat() {
       generating: 'Generating...',
       downloadPdf: 'Download PDF',
       continueEditor: 'Continue to editor',
+      aiOptimize: 'Optimize with AI',
+      aiOptimizing: 'AI is analyzing your profile...',
+      aiApplyDraft: 'Apply this version',
+      aiDraftReady: 'AI draft ready. Review then apply.',
+      aiOptimizeError: 'AI optimization is currently unavailable.',
     },
   } as const;
 
@@ -396,6 +421,48 @@ export default function DashboardCandidat() {
     } finally {
       setIsUploadingPhoto(false);
     }
+  };
+
+  const handleOptimizeWithAi = async () => {
+    setIsOptimizingCv(true);
+    setCvActionMessage('');
+
+    try {
+      const response = await fetch('/api/ai/cv-optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: cvLanguage,
+          role: 'candidate',
+          cvData,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        success?: boolean;
+        message?: string;
+        optimized?: CvFormData;
+      };
+
+      if (!response.ok || !payload?.success || !payload.optimized) {
+        throw new Error(payload?.message || t.aiOptimizeError);
+      }
+
+      setAiDraft(payload.optimized);
+      setCvActionMessage(t.aiDraftReady);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t.aiOptimizeError;
+      setCvActionMessage(message);
+    } finally {
+      setIsOptimizingCv(false);
+    }
+  };
+
+  const handleApplyAiDraft = () => {
+    if (!aiDraft) return;
+    setCvData(aiDraft);
+    setAiDraft(null);
+    setCvActionMessage(isEn ? 'AI version applied to your editor.' : 'Version IA appliquee dans votre editeur.');
   };
 
   const handleSaveAndApply = async () => {
@@ -1015,7 +1082,47 @@ export default function DashboardCandidat() {
 
                   {/* Action bar */}
                   <div className="sticky bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-200 p-3 sm:p-4 flex flex-col gap-2">
+                    {isOptimizingCv && (
+                      <div className="rounded-xl border border-purple-100 bg-purple-50 px-3 py-2 animate-pulse">
+                        <p className="text-xs font-extrabold text-purple-700">{t.aiOptimizing}</p>
+                      </div>
+                    )}
+
+                    {aiDraft && (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 space-y-2">
+                        <p className="text-xs font-extrabold uppercase tracking-wide text-gray-600">
+                          {isEn ? 'AI draft (editable before apply)' : 'Version IA (modifiable avant application)'}
+                        </p>
+                        <textarea
+                          value={aiDraft.profile}
+                          onChange={(e) => setAiDraft((prev) => (prev ? { ...prev, profile: e.target.value } : prev))}
+                          className={`${inputCls} h-20 resize-none`}
+                          placeholder={t.placeholderIntro}
+                        />
+                        <textarea
+                          value={aiDraft.experience}
+                          onChange={(e) => setAiDraft((prev) => (prev ? { ...prev, experience: e.target.value } : prev))}
+                          className={`${inputCls} h-24 resize-none`}
+                          placeholder={t.placeholderExp}
+                        />
+                        <button
+                          onClick={handleApplyAiDraft}
+                          className="w-full sm:w-auto bg-purple-600 text-white px-4 py-2 rounded-xl font-extrabold text-sm hover:bg-purple-700 transition"
+                        >
+                          {t.aiApplyDraft}
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+                      <button
+                        onClick={handleOptimizeWithAi}
+                        disabled={isOptimizingCv}
+                        className="bg-purple-600 text-white px-4 py-2.5 rounded-xl font-extrabold text-sm hover:bg-purple-700 transition disabled:opacity-60 flex items-center justify-center gap-2"
+                      >
+                        <span>&#10024;</span>
+                        {isOptimizingCv ? t.aiOptimizing : t.aiOptimize}
+                      </button>
                       <button
                         onClick={handleSaveAndApply}
                         disabled={isSavingCv}

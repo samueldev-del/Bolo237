@@ -25,7 +25,7 @@ Redeployer apres toute modification auth/cookie/CORS.
 Depuis `backend/`, executer:
 
 ```bash
-BASE_URL=https://api-bolo237.onrender.com \
+BASE_URL=https://api-237jobs.onrender.com \
 EXPECT_SAMESITE=none \
 REQUIRE_SECURE_COOKIE=true \
 node session-cookie-smoke.js
@@ -48,7 +48,7 @@ Resultat attendu:
 Avant release, relancer au minimum:
 
 ```bash
-BASE_URL=https://api-bolo237.onrender.com node session-cookie-smoke.js
+BASE_URL=https://api-237jobs.onrender.com node session-cookie-smoke.js
 ```
 
 Si le test echoue, ne pas promouvoir la release.

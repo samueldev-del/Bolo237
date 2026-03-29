@@ -1,4 +1,4 @@
-const DEFAULT_REMOTE_API = 'https://api.bolo237.com';
+const DEFAULT_REMOTE_API = 'https://api-237jobs.onrender.com';
 
 let cachedApiBase: string | null = null;
 let resolvingApiBase: Promise<string> | null = null;

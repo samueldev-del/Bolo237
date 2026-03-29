@@ -124,14 +124,15 @@ const allowedOrigins = new Set([
   'https://www.bolo237.com',
   'https://admin.bolo237.com',
   'https://admin-bolo237.vercel.app',
+  'https://admin-237jobs.vercel.app',
   ...envOrigins,
 ]);
 
 function isAllowedOrigin(origin) {
   if (allowedOrigins.has(origin)) return true;
 
-  // Allow Bolo237 Vercel deployments (production + preview) for admin/frontend.
-  if (/^https:\/\/[a-z0-9-]*bolo237[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
+  // Allow Bolo237 and legacy 237jobs Vercel deployments (production + preview).
+  if (/^https:\/\/[a-z0-9-]*(bolo237|237jobs)[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
     return true;
   }
 

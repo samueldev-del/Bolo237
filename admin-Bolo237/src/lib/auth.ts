@@ -1,29 +1,48 @@
 import { cookies } from "next/headers";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 
 const COOKIE_NAME = "admin_session";
 const SESSION_MAX_AGE = 60 * 60 * 8; // 8 heures
 
 /**
- * Genere un token de session simple a partir du secret + timestamp.
- * En production, utiliser JWT ou un vrai systeme de session.
+ * Genere un token de session signe avec HMAC-SHA256.
  */
 function generateToken(): string {
   const secret = process.env.ADMIN_SESSION_SECRET || "fallback_secret";
   const timestamp = Date.now().toString(36);
-  const payload = `${secret}:${timestamp}`;
-  // Encodage base64 simple (pas crypto-grade, mais suffisant pour un admin unique)
-  return Buffer.from(payload).toString("base64url");
+  const nonce = randomBytes(16).toString("hex");
+  const payload = `${timestamp}:${nonce}`;
+  const signature = createHmac("sha256", secret).update(payload).digest("base64url");
+  return `${payload}.${signature}`;
 }
 
 /**
- * Verifie si le token de session est valide.
+ * Verifie si le token de session est valide (signature HMAC).
  */
 function isValidToken(token: string): boolean {
   try {
     const secret = process.env.ADMIN_SESSION_SECRET || "fallback_secret";
-    const decoded = Buffer.from(token, "base64url").toString();
-    const [tokenSecret] = decoded.split(":");
-    return tokenSecret === secret;
+    const dotIndex = token.lastIndexOf(".");
+    if (dotIndex === -1) return false;
+
+    const payload = token.slice(0, dotIndex);
+    const signature = token.slice(dotIndex + 1);
+
+    const expectedSignature = createHmac("sha256", secret).update(payload).digest("base64url");
+
+    // Comparaison en temps constant pour eviter les timing attacks
+    const sigBuf = Buffer.from(signature);
+    const expectedBuf = Buffer.from(expectedSignature);
+    if (sigBuf.length !== expectedBuf.length) return false;
+    if (!timingSafeEqual(sigBuf, expectedBuf)) return false;
+
+    // Verifier l'expiration du token
+    const [timestampStr] = payload.split(":");
+    const created = parseInt(timestampStr, 36);
+    const now = Date.now();
+    if (now - created > SESSION_MAX_AGE * 1000) return false;
+
+    return true;
   } catch {
     return false;
   }
@@ -38,7 +57,11 @@ export function verifyPassword(password: string): boolean {
     console.error("[Auth] ADMIN_PASSWORD non defini dans .env");
     return false;
   }
-  return password === adminPassword;
+  // Comparaison en temps constant
+  const inputBuf = Buffer.from(password);
+  const expectedBuf = Buffer.from(adminPassword);
+  if (inputBuf.length !== expectedBuf.length) return false;
+  return timingSafeEqual(inputBuf, expectedBuf);
 }
 
 /**
@@ -48,9 +71,9 @@ export async function createSession(): Promise<void> {
   const token = generateToken();
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, token, {
-    httpOnly: false,
+    httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
     maxAge: SESSION_MAX_AGE,
   });

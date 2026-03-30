@@ -6,8 +6,9 @@ const ADMIN_BACKEND_PASSWORD = process.env.ADMIN_BACKEND_PASSWORD || "";
 
 /**
  * POST /api/backend-login
- * Proxy qui login au backend avec les identifiants admin (gardes cote serveur)
- * et renvoie le cookie de session JWT au navigateur.
+ * Proxy securise: login au backend avec identifiants admin (serveur uniquement)
+ * et transmet le cookie JWT au navigateur.
+ * Les identifiants ne sont JAMAIS exposes cote client.
  */
 export async function POST() {
   if (!ADMIN_BACKEND_EMAIL || !ADMIN_BACKEND_PASSWORD) {
@@ -37,10 +38,13 @@ export async function POST() {
 
     const userData = await backendRes.json();
 
-    // Extraire le cookie de session du backend
+    // Extraire les cookies de session du backend
     const setCookieHeaders = backendRes.headers.getSetCookie?.() || [];
 
-    const response = NextResponse.json({ ok: true, user: { id: userData.id, role: userData.role } });
+    const response = NextResponse.json({
+      ok: true,
+      user: { id: userData.id, role: userData.role },
+    });
 
     // Transmettre tous les cookies du backend au navigateur
     for (const cookieHeader of setCookieHeaders) {

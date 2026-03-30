@@ -3,11 +3,7 @@
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "./actions";
 import { Lock, ShieldCheck, Eye, EyeOff } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-237jobs.onrender.com";
-const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_BACKEND_EMAIL || "";
-const ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_BACKEND_PASSWORD || "";
+import { useState, useRef } from "react";
 
 const initialState: LoginState = {};
 
@@ -17,21 +13,12 @@ export default function LoginPage() {
   const [backendLoading, setBackendLoading] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Login au backend directement (cross-origin) pour obtenir le cookie JWT
+  // Login au backend via le proxy serveur securise (pas d'identifiants cote client)
   const loginToBackend = async () => {
-    if (!ADMIN_EMAIL || !ADMIN_PASS) return;
     try {
-      await fetch(`${API_URL}/api/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          identifier: ADMIN_EMAIL,
-          password: ADMIN_PASS,
-        }),
-      });
+      await fetch("/api/backend-login", { method: "POST" });
     } catch {
-      console.warn("[Admin] Backend login failed");
+      console.warn("[Admin] Backend login via proxy failed");
     }
   };
 
@@ -39,7 +26,7 @@ export default function LoginPage() {
     e.preventDefault();
     setBackendLoading(true);
 
-    // 1. Login au backend d'abord (pour poser le cookie JWT cross-origin)
+    // 1. Login au backend via proxy serveur (pose le cookie JWT)
     await loginToBackend();
 
     // 2. Soumettre le formulaire pour la session locale admin
@@ -47,11 +34,6 @@ export default function LoginPage() {
     const formData = new FormData(e.currentTarget);
     formAction(formData);
   };
-
-  // Pre-login au backend au chargement
-  useEffect(() => {
-    loginToBackend();
-  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#8B4332] via-[#6B3325] to-[#4A2218] p-4">

@@ -110,7 +110,7 @@ export default function DashboardArtisan() {
   const isEn = locale === 'en';
 
   /* ---------- user info from localStorage ---------- */
-  const [userName] = useState(() => {
+  const [userName, setUserName] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
       const raw = localStorage.getItem('bolo237-user');
@@ -132,7 +132,7 @@ export default function DashboardArtisan() {
       return '';
     }
   });
-  const [userId] = useState(() => {
+  const [userId, setUserId] = useState(() => {
     if (typeof window === 'undefined') return 0;
     try {
       const raw = localStorage.getItem('bolo237-user');

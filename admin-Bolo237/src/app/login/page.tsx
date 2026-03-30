@@ -1,22 +1,27 @@
 "use client";
 
-import { useActionState } from "react";
-import { loginAction, type LoginState } from "./actions";
 import { Lock, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { useState, useRef } from "react";
 
-const initialState: LoginState = {};
-
 export default function LoginPage() {
-  const [state, formAction, isPending] = useActionState(loginAction, initialState);
+  const [authError, setAuthError] = useState("");
+  const [isPending, setIsPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [backendLoading, setBackendLoading] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setAuthError("");
     const form = e.currentTarget;
     const password = new FormData(form).get("password") as string;
+
+    if (!password?.trim()) {
+      setAuthError("Veuillez entrer le mot de passe.");
+      return;
+    }
+
+    setIsPending(true);
     setBackendLoading(true);
 
     // 1. Obtenir les identifiants backend via le proxy securise
@@ -41,10 +46,31 @@ export default function LoginPage() {
       console.warn("[Admin] Backend login failed");
     }
 
-    // 3. Soumettre le formulaire pour la session locale admin
+    // 3. Creer la session admin locale
     setBackendLoading(false);
-    const formData = new FormData(form);
-    formAction(formData);
+    try {
+      const localRes = await fetch("/api/admin-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+
+      const payload = (await localRes.json().catch(() => ({}))) as {
+        success?: boolean;
+        error?: string;
+      };
+
+      if (!localRes.ok || !payload.success) {
+        setAuthError(payload.error || "Connexion impossible.");
+        setIsPending(false);
+        return;
+      }
+
+      window.location.href = "/";
+    } catch {
+      setAuthError("Connexion impossible.");
+      setIsPending(false);
+    }
   };
 
   return (
@@ -78,7 +104,7 @@ export default function LoginPage() {
 
           <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
             {/* Error */}
-            {state.error && (
+            {authError && (
               <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
                 <svg className="h-4 w-4 shrink-0" fill="currentColor" viewBox="0 0 20 20">
                   <path
@@ -87,7 +113,7 @@ export default function LoginPage() {
                     clipRule="evenodd"
                   />
                 </svg>
-                {state.error}
+                {authError}
               </div>
             )}
 

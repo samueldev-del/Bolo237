@@ -52,16 +52,26 @@ function isValidToken(token: string): boolean {
  * Verifie le mot de passe admin.
  */
 export function verifyPassword(password: string): boolean {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) {
-    console.error("[Auth] ADMIN_PASSWORD non defini dans .env");
+  const candidates = [
+    String(process.env.ADMIN_PASSWORD || ''),
+    String(process.env.ADMIN_BACKEND_PASSWORD || ''),
+  ].map((v) => v.trim()).filter(Boolean);
+
+  if (candidates.length === 0) {
+    console.error("[Auth] ADMIN_PASSWORD / ADMIN_BACKEND_PASSWORD non definis dans l'environnement");
     return false;
   }
-  // Comparaison en temps constant
-  const inputBuf = Buffer.from(password);
-  const expectedBuf = Buffer.from(adminPassword);
-  if (inputBuf.length !== expectedBuf.length) return false;
-  return timingSafeEqual(inputBuf, expectedBuf);
+
+  const normalizedInput = String(password || '').trim();
+  const inputBuf = Buffer.from(normalizedInput);
+
+  for (const expected of candidates) {
+    const expectedBuf = Buffer.from(expected);
+    if (inputBuf.length !== expectedBuf.length) continue;
+    if (timingSafeEqual(inputBuf, expectedBuf)) return true;
+  }
+
+  return false;
 }
 
 /**

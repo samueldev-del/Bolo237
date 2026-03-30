@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { verifyPassword } from "@/lib/auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-237jobs.onrender.com";
 const ADMIN_BACKEND_EMAIL = process.env.ADMIN_BACKEND_EMAIL || "";
@@ -13,10 +14,9 @@ const ADMIN_BACKEND_PASSWORD = process.env.ADMIN_BACKEND_PASSWORD || "";
  */
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const adminPassword = process.env.ADMIN_PASSWORD || "";
 
   // Verifier que le mot de passe admin est correct
-  if (!body.password || body.password !== adminPassword) {
+  if (!body.password || !verifyPassword(String(body.password))) {
     return NextResponse.json({ error: "Non autorise" }, { status: 401 });
   }
 

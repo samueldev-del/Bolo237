@@ -28,6 +28,7 @@ export default function BannissementsPage() {
   const [page, setPage] = useState(1);
   const [unbanModal, setUnbanModal] = useState<User | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -57,7 +58,8 @@ export default function BannissementsPage() {
       setUsers(prev => prev.filter(u => u.id !== user.id));
       setUnbanModal(null);
     } catch {
-      alert("Erreur lors du debannissement");
+      setToast("Erreur lors du debannissement");
+      setTimeout(() => setToast(""), 3000);
     } finally {
       setActionLoading(null);
     }
@@ -65,6 +67,11 @@ export default function BannissementsPage() {
 
   return (
     <AdminShell title="Bannissements" description="Audit des comptes bannis et liste noire.">
+      {toast && (
+        <div className="animate-fade-in rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {toast}
+        </div>
+      )}
       {/* Search */}
       <div className="relative w-full max-w-md">
         <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />

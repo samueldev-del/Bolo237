@@ -94,7 +94,7 @@ export default function AdminDashboard() {
         });
       }
     } catch {
-      alert("Erreur lors de la moderation");
+      setError("Erreur lors de la moderation");
     } finally {
       setActionLoading(null);
     }

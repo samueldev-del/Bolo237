@@ -13,25 +13,35 @@ export default function LoginPage() {
   const [backendLoading, setBackendLoading] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Login au backend via le proxy serveur securise (pas d'identifiants cote client)
-  const loginToBackend = async () => {
-    try {
-      await fetch("/api/backend-login", { method: "POST" });
-    } catch {
-      console.warn("[Admin] Backend login via proxy failed");
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Capturer la ref du formulaire AVANT le await (React recycle les evenements)
     const form = e.currentTarget;
+    const password = new FormData(form).get("password") as string;
     setBackendLoading(true);
 
-    // 1. Login au backend via proxy serveur (pose le cookie JWT)
-    await loginToBackend();
+    // 1. Obtenir les identifiants backend via le proxy securise
+    try {
+      const proxyRes = await fetch("/api/backend-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
 
-    // 2. Soumettre le formulaire pour la session locale admin
+      if (proxyRes.ok) {
+        const { apiUrl, email, password: backendPass } = await proxyRes.json();
+        // 2. Appeler le backend DIRECTEMENT pour poser le cookie JWT sur son domaine
+        await fetch(`${apiUrl}/api/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ identifier: email, password: backendPass }),
+        }).catch(() => {});
+      }
+    } catch {
+      console.warn("[Admin] Backend login failed");
+    }
+
+    // 3. Soumettre le formulaire pour la session locale admin
     setBackendLoading(false);
     const formData = new FormData(form);
     formAction(formData);

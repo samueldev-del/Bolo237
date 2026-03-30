@@ -6,11 +6,20 @@ const ADMIN_BACKEND_PASSWORD = process.env.ADMIN_BACKEND_PASSWORD || "";
 
 /**
  * POST /api/backend-login
- * Proxy securise: login au backend avec identifiants admin (serveur uniquement)
- * et transmet le cookie JWT au navigateur.
- * Les identifiants ne sont JAMAIS exposes cote client.
+ * Retourne les infos necessaires pour que le client appelle directement
+ * le backend et obtienne le cookie JWT sur le bon domaine.
+ *
+ * Protege par verification du mot de passe admin dans le body.
  */
-export async function POST() {
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  const adminPassword = process.env.ADMIN_PASSWORD || "";
+
+  // Verifier que le mot de passe admin est correct
+  if (!body.password || body.password !== adminPassword) {
+    return NextResponse.json({ error: "Non autorise" }, { status: 401 });
+  }
+
   if (!ADMIN_BACKEND_EMAIL || !ADMIN_BACKEND_PASSWORD) {
     return NextResponse.json(
       { error: "Identifiants backend admin non configures" },
@@ -18,45 +27,9 @@ export async function POST() {
     );
   }
 
-  try {
-    const backendRes = await fetch(`${API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        identifier: ADMIN_BACKEND_EMAIL,
-        password: ADMIN_BACKEND_PASSWORD,
-      }),
-    });
-
-    if (!backendRes.ok) {
-      const body = await backendRes.json().catch(() => ({}));
-      return NextResponse.json(
-        { error: body.error || "Login backend echoue" },
-        { status: backendRes.status }
-      );
-    }
-
-    const userData = await backendRes.json();
-
-    // Extraire les cookies de session du backend
-    const setCookieHeaders = backendRes.headers.getSetCookie?.() || [];
-
-    const response = NextResponse.json({
-      ok: true,
-      user: { id: userData.id, role: userData.role },
-    });
-
-    // Transmettre tous les cookies du backend au navigateur
-    for (const cookieHeader of setCookieHeaders) {
-      response.headers.append("Set-Cookie", cookieHeader);
-    }
-
-    return response;
-  } catch (error) {
-    console.error("[backend-login] Error:", error);
-    return NextResponse.json(
-      { error: "Erreur de connexion au backend" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    apiUrl: API_URL,
+    email: ADMIN_BACKEND_EMAIL,
+    password: ADMIN_BACKEND_PASSWORD,
+  });
 }

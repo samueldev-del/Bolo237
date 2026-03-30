@@ -3,13 +3,55 @@
 import { useActionState } from "react";
 import { loginAction, type LoginState } from "./actions";
 import { Lock, ShieldCheck, Eye, EyeOff } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api-237jobs.onrender.com";
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_BACKEND_EMAIL || "";
+const ADMIN_PASS = process.env.NEXT_PUBLIC_ADMIN_BACKEND_PASSWORD || "";
 
 const initialState: LoginState = {};
 
 export default function LoginPage() {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
   const [showPassword, setShowPassword] = useState(false);
+  const [backendLoading, setBackendLoading] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Login au backend directement (cross-origin) pour obtenir le cookie JWT
+  const loginToBackend = async () => {
+    if (!ADMIN_EMAIL || !ADMIN_PASS) return;
+    try {
+      await fetch(`${API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          identifier: ADMIN_EMAIL,
+          password: ADMIN_PASS,
+        }),
+      });
+    } catch {
+      console.warn("[Admin] Backend login failed");
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setBackendLoading(true);
+
+    // 1. Login au backend d'abord (pour poser le cookie JWT cross-origin)
+    await loginToBackend();
+
+    // 2. Soumettre le formulaire pour la session locale admin
+    setBackendLoading(false);
+    const formData = new FormData(e.currentTarget);
+    formAction(formData);
+  };
+
+  // Pre-login au backend au chargement
+  useEffect(() => {
+    loginToBackend();
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#8B4332] via-[#6B3325] to-[#4A2218] p-4">
@@ -40,7 +82,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <form action={formAction} className="space-y-5">
+          <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
             {/* Error */}
             {state.error && (
               <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -84,10 +126,10 @@ export default function LoginPage() {
             {/* Submit button */}
             <button
               type="submit"
-              disabled={isPending}
+              disabled={isPending || backendLoading}
               className="relative h-12 w-full rounded-xl bg-gradient-to-b from-[#DA7756] to-[#C4623F] text-sm font-semibold text-white shadow-sm transition hover:from-[#E8A87C] hover:to-[#DA7756] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isPending ? (
+              {isPending || backendLoading ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

@@ -253,7 +253,7 @@ export default function DashboardArtisan() {
           }
           if (sessionRole === 'ADMIN' || sessionRole === 'SUPER_ADMIN') {
             mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
-            window.location.href = localizePath('/super-admin');
+            window.location.href = 'https://admin.bolo237.com';
             return;
           }
 

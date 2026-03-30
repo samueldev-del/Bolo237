@@ -5,6 +5,7 @@ import { verifyPassword, createSession } from "@/lib/auth";
 
 export type LoginState = {
   error?: string;
+  success?: boolean;
 };
 
 export async function loginAction(

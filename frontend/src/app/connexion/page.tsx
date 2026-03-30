@@ -98,7 +98,7 @@ export default function Connexion() {
   const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
 
   const getDashboardRoute = (role: Role) => {
-    if (role === 'admin') return localizePath('/super-admin');
+    if (role === 'admin') return 'https://admin.bolo237.com';
     if (role === 'entreprise') return localizePath('/dashboard-entreprise');
     if (role === 'artisan') return localizePath('/dashboard-artisan');
     return localizePath('/dashboard');

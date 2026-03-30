@@ -24,6 +24,8 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    // Capturer la ref du formulaire AVANT le await (React recycle les evenements)
+    const form = e.currentTarget;
     setBackendLoading(true);
 
     // 1. Login au backend via proxy serveur (pose le cookie JWT)
@@ -31,7 +33,7 @@ export default function LoginPage() {
 
     // 2. Soumettre le formulaire pour la session locale admin
     setBackendLoading(false);
-    const formData = new FormData(e.currentTarget);
+    const formData = new FormData(form);
     formAction(formData);
   };
 

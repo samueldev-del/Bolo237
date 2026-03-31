@@ -152,11 +152,16 @@ model VerificationSubmission {
 
 model SupportTicket {
   id          Int      @id @default(autoincrement())
+  messageId   String?  @unique
+  imapUid     Int?
   senderEmail String   // L'adresse de celui qui t'ecrit
   senderName  String?  // Son nom (s'il est detecte)
   subject     String   // L'objet du mail
   body        String   // Le contenu du message
+  attachments Json?
   status      String   @default("UNREAD") // Statuts : UNREAD, READ, REPLIED
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
 }

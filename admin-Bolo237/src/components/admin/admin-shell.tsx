@@ -20,6 +20,7 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 import { useState } from "react";
+import { useAdminInbox } from "@/components/admin/admin-inbox-provider";
 
 type AdminShellProps = {
   title: string;
@@ -99,7 +100,7 @@ function SidebarLink({
   onNavigate: () => void;
 }) {
   const isActive = pathname === item.href;
-  const isAlert = item.href.startsWith("/alertes");
+  const isAlert = item.href.startsWith("/alertes") || item.href === "/inbox";
 
   return (
     <Link
@@ -135,6 +136,27 @@ export default function AdminShell({
 }: AdminShellProps) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { summary, sync, isLoading } = useAdminInbox();
+  const unreadCount = summary?.unreadCount ?? 0;
+  const inboxBadge = unreadCount > 99 ? "99+" : unreadCount > 0 ? String(unreadCount) : undefined;
+  const hostingerStatusLabel = !sync?.enabled
+    ? "IMAP a configurer"
+    : sync.lastError
+      ? "Sync en erreur"
+      : sync.syncing || isLoading
+        ? "Synchronisation..."
+        : unreadCount > 0
+          ? `${unreadCount} non lu${unreadCount > 1 ? "s" : ""}`
+          : "Boite a jour";
+
+  const navigationAlertItems = alertItems.map((item) =>
+    item.href === "/inbox"
+      ? {
+          ...item,
+          badge: inboxBadge,
+        }
+      : item,
+  );
 
   return (
     <div className="min-h-screen bg-gray-50 p-3 sm:p-4">
@@ -210,7 +232,7 @@ export default function AdminShell({
               <p className="px-3 text-xs font-semibold uppercase tracking-[0.16em] text-[#DA7756]/70">
                 Alertes
               </p>
-              {alertItems.map((item) => (
+              {navigationAlertItems.map((item) => (
                 <SidebarLink
                   key={item.href}
                   item={item}
@@ -275,13 +297,56 @@ export default function AdminShell({
               </label>
 
               <div className="flex items-center justify-end gap-2 sm:gap-4">
-                <button className="relative rounded-xl border border-zinc-200 bg-white p-3 text-zinc-700 transition hover:bg-zinc-50">
+                <Link
+                  href="/inbox"
+                  className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-right leading-tight transition hover:bg-white"
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500">
+                    Hostinger Mail
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-zinc-900">{hostingerStatusLabel}</p>
+                  <p className="text-xs text-zinc-500">
+                    {sync?.lastSyncedAt
+                      ? `Derniere sync ${new Date(sync.lastSyncedAt).toLocaleTimeString("fr-FR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}`
+                      : "Clique pour ouvrir la boite"}
+                  </p>
+                </Link>
+
+                <Link
+                  href="/inbox"
+                  className="relative rounded-xl border border-zinc-200 bg-white p-3 text-zinc-700 transition hover:bg-zinc-50"
+                  aria-label="Ouvrir la boite de reception"
+                >
                   <Bell className="h-5 w-5" />
+                  {inboxBadge ? (
+                    <span className="absolute -right-1 -top-1 rounded-full bg-[#DA7756] px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                      {inboxBadge}
+                    </span>
+                  ) : null}
                   <span className="absolute right-2 top-2 flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#DA7756] opacity-75" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#DA7756]" />
+                    <span
+                      className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        sync?.lastError
+                          ? "bg-red-500"
+                          : unreadCount > 0
+                            ? "animate-ping bg-[#DA7756]"
+                            : "bg-emerald-500"
+                      }`}
+                    />
+                    <span
+                      className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
+                        sync?.lastError
+                          ? "bg-red-500"
+                          : unreadCount > 0
+                            ? "bg-[#DA7756]"
+                            : "bg-emerald-500"
+                      }`}
+                    />
                   </span>
-                </button>
+                </Link>
 
                 <div className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
                   <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#DA7756] to-[#8B4332] text-sm font-bold text-white">

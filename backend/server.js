@@ -11,6 +11,13 @@ const twilio = require('twilio');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
+const {
+  downloadAdminInboxAttachment,
+  getAdminInbox,
+  getAdminInboxSummary,
+  markAdminInboxTicketRead,
+  replyToAdminInboxTicket,
+} = require('./lib/adminInboxService');
 require('dotenv').config();
 
 const fs = require('fs');
@@ -2208,7 +2215,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 });
 
 // =============================================
-// ROUTES: Boîte de Réception (Emails via n8n)
+// ROUTES: Boite de Reception (Hostinger IMAP + legacy webhook)
 // =============================================
 
 app.post('/api/admin/emails', async (req, res) => {
@@ -2247,45 +2254,87 @@ app.post('/api/admin/emails', async (req, res) => {
 
 app.get('/api/admin/emails', async (req, res) => {
   try {
-    // On récupère tous les emails, du plus récent au plus ancien
-    const tickets = await prisma.supportTicket.findMany({
-      orderBy: { createdAt: 'desc' }
+    const force = req.query.force === '1' || req.query.force === 'true';
+    const inbox = await getAdminInbox(prisma, {
+      force,
+      limit: req.query.limit,
     });
-    
-    res.status(200).json(tickets);
+
+    res.status(200).json(inbox);
   } catch (error) {
     console.error('GET /api/admin/emails error:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des emails.' });
   }
 });
 
+app.get('/api/admin/emails/summary', async (req, res) => {
+  try {
+    const force = req.query.force === '1' || req.query.force === 'true';
+    const summary = await getAdminInboxSummary(prisma, { force });
+    res.status(200).json(summary);
+  } catch (error) {
+    console.error('GET /api/admin/emails/summary error:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération du résumé des emails.' });
+  }
+});
+
+app.post('/api/admin/emails/:ticketId/read', async (req, res) => {
+  try {
+    const item = await markAdminInboxTicketRead(prisma, req.params.ticketId);
+    res.status(200).json({ success: true, item });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Impossible de mettre le message à jour.';
+    const statusCode = error?.code === 'NOT_FOUND'
+      ? 404
+      : /invalide|requis/i.test(message)
+        ? 400
+        : 500;
+
+    console.error('POST /api/admin/emails/:ticketId/read error:', error);
+    res.status(statusCode).json({ error: message });
+  }
+});
+
+app.get('/api/admin/emails/:ticketId/attachments/:part/download', async (req, res) => {
+  try {
+    const result = await downloadAdminInboxAttachment(prisma, req.params.ticketId, req.params.part);
+    const filename = String(result.meta.filename || result.attachment.filename || 'attachment.bin').replace(/[\r\n"]/g, '_');
+    const contentType = String(result.meta.contentType || result.attachment.contentType || 'application/octet-stream');
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', String(result.content.length));
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
+    res.status(200).send(result.content);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Impossible de telecharger la piece jointe.';
+    const statusCode = error?.code === 'NOT_FOUND'
+      ? 404
+      : error?.code === 'TOO_LARGE'
+        ? 413
+        : /invalide|indisponible/i.test(message)
+          ? 400
+          : 500;
+
+    console.error('GET /api/admin/emails/:ticketId/attachments/:part/download error:', error);
+    res.status(statusCode).json({ error: message });
+  }
+});
+
 // ROUTE: Repondre a un ticket
 app.post('/api/admin/emails/reply', async (req, res) => {
-  const { ticketId, replyMessage, customerEmail, subject } = req.body;
-
-  if (!ticketId || !replyMessage || !customerEmail || !subject) {
-    return res.status(400).json({ error: 'ticketId, replyMessage, customerEmail et subject sont requis.' });
-  }
-
   try {
-    // 1. Envoyer l'email reel via Hostinger
-    await transporter.sendMail({
-      from: `"Support Bolo237" <${process.env.EMAIL_USER}>`,
-      to: customerEmail,
-      subject: `Re: ${subject}`,
-      text: replyMessage,
-    });
-
-    // 2. Mettre a jour le statut du ticket
-    await prisma.supportTicket.update({
-      where: { id: Number(ticketId) },
-      data: { status: 'READ' },
-    });
-
-    res.status(200).json({ success: true, message: 'Reponse envoyee !' });
+    const result = await replyToAdminInboxTicket(prisma, transporter, req.body);
+    res.status(200).json(result);
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Impossible d\'envoyer la reponse.';
+    const statusCode = error?.code === 'NOT_FOUND'
+      ? 404
+      : /invalide|requis/i.test(message)
+        ? 400
+        : 500;
+
     console.error('Erreur envoi reponse:', error);
-    res.status(500).json({ error: 'Impossible d\'envoyer la reponse.' });
+    res.status(statusCode).json({ error: message });
   }
 });
 

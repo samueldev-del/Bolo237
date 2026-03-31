@@ -208,11 +208,50 @@ export type ActivityEvent = {
 
 export type AdminEmail = {
   id: number;
+  messageId: string | null;
+  imapUid: number | null;
   senderEmail: string;
+  senderName: string | null;
   subject: string;
   body: string;
-  status: string;
+  attachments: AdminEmailAttachment[];
+  status: 'UNREAD' | 'READ' | 'REPLIED';
   createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminEmailAttachment = {
+  part: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  encoding: string | null;
+  inline: boolean;
+};
+
+export type AdminInboxSummary = {
+  totalCount: number;
+  unreadCount: number;
+  repliedCount: number;
+  readCount: number;
+  lastMessageAt: string | null;
+};
+
+export type AdminInboxSync = {
+  enabled: boolean;
+  mailbox: string;
+  syncing: boolean;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  lastErrorAt: string | null;
+  totalInMailbox: number;
+  unreadInMailbox: number;
+};
+
+export type AdminInboxResponse = {
+  items: AdminEmail[];
+  summary: AdminInboxSummary;
+  sync: AdminInboxSync;
 };
 
 // ── Fetch helper ─────────────────────────────────────────────────
@@ -377,12 +416,49 @@ export function fetchAdminReviews(): Promise<{ reviews: UserReview[]; alerts: Re
 
 // ── Admin Inbox ─────────────────────────────────────────────────
 
+function buildAdminInboxQuery(options: { force?: boolean; limit?: number } = {}) {
+  const params = new URLSearchParams();
+  if (options.force) params.set('force', '1');
+  if (options.limit) params.set('limit', String(options.limit));
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+export async function fetchAdminInbox(options: { force?: boolean; limit?: number } = {}): Promise<AdminInboxResponse> {
+  return apiFetch<AdminInboxResponse>(`/api/admin/emails${buildAdminInboxQuery(options)}`);
+}
+
+export async function fetchAdminInboxSummary(options: { force?: boolean } = {}): Promise<{
+  summary: AdminInboxSummary;
+  sync: AdminInboxSync;
+}> {
+  return apiFetch(`/api/admin/emails/summary${buildAdminInboxQuery(options)}`);
+}
+
 export async function fetchAdminEmails(): Promise<AdminEmail[]> {
-  const response = await apiFetch<AdminEmail[] | { items?: AdminEmail[]; emails?: AdminEmail[] }>('/api/admin/emails');
-  if (Array.isArray(response)) return response;
-  if (Array.isArray(response.items)) return response.items;
-  if (Array.isArray(response.emails)) return response.emails;
-  return [];
+  const response = await fetchAdminInbox();
+  return response.items;
+}
+
+export function markAdminEmailAsRead(ticketId: number): Promise<{ success: boolean; item: AdminEmail }> {
+  return apiFetch(`/api/admin/emails/${ticketId}/read`, {
+    method: 'POST',
+  });
+}
+
+export async function downloadAdminEmailAttachment(ticketId: number, part: string): Promise<Blob> {
+  const apiBase = await resolveApiBase();
+  const res = await fetch(`${apiBase}/api/admin/emails/${ticketId}/attachments/${encodeURIComponent(part)}/download`, {
+    method: 'GET',
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Erreur API ${res.status} (${apiBase})`);
+  }
+
+  return res.blob();
 }
 
 export function replyToAdminEmail(data: {
@@ -390,7 +466,7 @@ export function replyToAdminEmail(data: {
   replyMessage: string;
   customerEmail: string;
   subject: string;
-}): Promise<{ success: boolean; message: string }> {
+}): Promise<{ success: boolean; message: string; item?: AdminEmail; warning?: string | null }> {
   return apiFetch('/api/admin/emails/reply', {
     method: 'POST',
     body: JSON.stringify(data),

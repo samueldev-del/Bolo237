@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchCandidateProfileDetail, fetchUserReviews, type UserReview } from '@/lib/api';
@@ -15,18 +15,21 @@ type CandidatParams = {
 
 export default function FicheCandidatPage({ params }: CandidatParams) {
   const { id } = use(params);
-  const { t, localizePath, locale } = useLocale();
+  const { localizePath, locale } = useLocale();
   const isEn = locale === 'en';
   // Check auth for contact access
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const userRaw = window.localStorage.getItem('bolo237-user');
-    const role = window.localStorage.getItem('bolo237-account-role');
-    setIsLoggedIn(!!userRaw);
-    setUserRole(role);
-  }, []);
+  const userSnapshot = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem('bolo237-user'),
+    () => null,
+  );
+  const roleSnapshot = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem('bolo237-account-role'),
+    () => null,
+  );
+  const isLoggedIn = Boolean(userSnapshot);
+  const userRole = roleSnapshot;
 
   const canViewContact = isLoggedIn && (userRole === 'entreprise' || userRole === 'artisan');
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -143,7 +143,20 @@ function FilterCheckbox({ label, count, color = '#7C3AED' }: { label: string; co
 // ── Page principale ───────────────────────────────────────────────
 export default function EmploisFormels() {
   const { localizePath } = useLocale();
-  const [userId, setUserId] = useState<number>(0);
+  const userSnapshot = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem('bolo237-user'),
+    () => null,
+  );
+  const userId = useMemo(() => {
+    try {
+      if (!userSnapshot) return 0;
+      const parsed = JSON.parse(userSnapshot);
+      return Number(parsed?.id || 0);
+    } catch {
+      return 0;
+    }
+  }, [userSnapshot]);
   const [savedIds, setSavedIds] = useState<number[]>([]);
   const [alertActive, setAlertActive] = useState(false);
   const [activeChips, setActiveChips] = useState<string[]>([]);
@@ -156,17 +169,6 @@ export default function EmploisFormels() {
     setAppliedSearch(searchInput.trim());
     setAppliedLocation(locationInput.trim());
   };
-
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('bolo237-user');
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      setUserId(Number(parsed?.id || 0));
-    } catch {
-      // ignore parse errors
-    }
-  }, []);
 
   useEffect(() => {
     const loadSavedJobs = async () => {
@@ -513,6 +515,7 @@ export default function EmploisFormels() {
                     {/* Logo entreprise */}
                     <div style={{ position: 'relative' }}>
                       {offre.logoUrl ? (
+                        /* eslint-disable-next-line @next/next/no-img-element */
                         <img
                           src={offre.logoUrl}
                           alt={offre.entreprise}
@@ -521,7 +524,14 @@ export default function EmploisFormels() {
                             objectFit: 'contain', background: '#fff',
                             border: '1.5px solid #E2E8F0', padding: '4px',
                           }}
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling && ((e.target as HTMLImageElement).nextElementSibling as HTMLElement).style.removeProperty('display'); }}
+                          onError={(e) => {
+                            const image = e.target as HTMLImageElement;
+                            image.style.display = 'none';
+                            const fallback = image.nextElementSibling;
+                            if (fallback instanceof HTMLElement) {
+                              fallback.style.removeProperty('display');
+                            }
+                          }}
                         />
                       ) : null}
                       <div style={{

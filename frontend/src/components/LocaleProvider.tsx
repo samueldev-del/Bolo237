@@ -18,13 +18,13 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const locale = useMemo<Locale>(() => getLocaleFromPath(pathname || '/'), [pathname]);
 
-  const setLocale = (nextLocale: Locale) => {
+  const setLocale = useCallback((nextLocale: Locale) => {
     const basePath = stripLocalePrefix(pathname || '/');
     const nextPath = withLocale(basePath, nextLocale);
     document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=31536000`;
     localStorage.setItem('NEXT_LOCALE', nextLocale);
     router.push(nextPath);
-  };
+  }, [pathname, router]);
 
   const localizePath = useCallback((path: string) => {
     return withLocale(path, locale || DEFAULT_LOCALE);

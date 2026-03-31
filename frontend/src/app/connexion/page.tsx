@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { createUser, loginUser } from '@/lib/api';
 import { markRecentAuthSuccess } from '@/lib/session';
@@ -49,7 +48,6 @@ const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
 ];
 
 export default function Connexion() {
-  const router = useRouter();
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
 
@@ -69,10 +67,6 @@ export default function Connexion() {
   const [showPassword, setShowPassword] = useState(false);
   // Entreprise
   const [companyName, setCompanyName] = useState('');
-  const [sector, setSector] = useState('');
-  // Artisan
-  const [specialty, setSpecialty] = useState('');
-  const [city, setCity] = useState('');
 
   // Login
   const [loginEmail, setLoginEmail] = useState('');
@@ -138,7 +132,7 @@ export default function Connexion() {
         ? `${companyName.trim()} — ${firstName.trim()} ${lastName.trim()} (@${username.trim()})`
         : `${firstName.trim()} ${lastName.trim()} (@${username.trim()})`;
 
-      const user = await createUser({
+      await createUser({
         email: email.trim() || undefined,
         password: password,
         name: fullName,
@@ -230,9 +224,6 @@ export default function Connexion() {
   };
 
   const currentRole = roleConfig[selectedRole];
-  // Couleurs qui correspondent aux dashboards : candidat=terracotta, entreprise=blue, artisan=amber
-  const borderColor = selectedRole === 'chercheur' ? 'border-[#DA7756]' : selectedRole === 'entreprise' ? 'border-blue-500' : 'border-amber-500';
-  const bgColor = selectedRole === 'chercheur' ? 'bg-[#FFF5EF]' : selectedRole === 'entreprise' ? 'bg-blue-50' : 'bg-amber-50';
 
   const heroGradient = selectedRole === 'entreprise'
     ? 'linear-gradient(135deg, rgba(30, 58, 138, 0.85), rgba(17, 24, 39, 0.75))'

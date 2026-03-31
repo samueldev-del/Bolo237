@@ -277,7 +277,7 @@ export default function DashboardArtisan() {
     };
 
     ensureActiveUser();
-  }, [userId]);
+  }, [userId, localizePath]);
 
   useEffect(() => {
     const loadVerificationStatus = async () => {
@@ -1078,7 +1078,7 @@ export default function DashboardArtisan() {
                   </div>
                   <Link
                     href={localizePath('/publier')}
-                    onClick={(e) => {
+                    onClick={() => {
                       if (!profilePhotoPreview) {
                         setVerificationMessage(
                           isEn

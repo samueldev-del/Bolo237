@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -93,17 +93,23 @@ export default function CvthequePage() {
   const [actif30Jours, setActif30Jours] = useState(false);
 
   // Access control: only entreprise and artisan can view CVthèque
-  const [accessAllowed, setAccessAllowed] = useState<boolean | null>(null);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const role = window.localStorage.getItem(ROLE_KEY);
-    const userRaw = window.localStorage.getItem(USER_KEY);
-    if (userRaw && (role === 'entreprise' || role === 'artisan')) {
-      setAccessAllowed(true);
-    } else {
-      setAccessAllowed(false);
+  const userSnapshot = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem(USER_KEY),
+    () => undefined,
+  );
+  const roleSnapshot = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem(ROLE_KEY),
+    () => undefined,
+  );
+  const accessAllowed = useMemo<boolean | null>(() => {
+    if (userSnapshot === undefined && roleSnapshot === undefined) {
+      return null;
     }
-  }, []);
+
+    return Boolean(userSnapshot && (roleSnapshot === 'entreprise' || roleSnapshot === 'artisan'));
+  }, [roleSnapshot, userSnapshot]);
 
   useEffect(() => {
     if (accessAllowed !== true) return;

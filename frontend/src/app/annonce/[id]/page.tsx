@@ -4,7 +4,7 @@ import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
-import { applyToJob, fetchJob, fetchUserProfile, type ApiJob } from '@/lib/api';
+import { applyToJob, fetchJob, fetchUserProfile } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 
 type JobParams = {
@@ -55,7 +55,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
   const numericId = parseInt(id, 10);
   const { t, localizePath, locale } = useLocale();
   const [translated, setTranslated] = useState(false);
-  const [maskedByReports, setMaskedByReports] = useState(false);
+  const [maskedByReports] = useState(false);
   const [applyMessage, setApplyMessage] = useState('');
   const [isApplying, setIsApplying] = useState(false);
   const [showApplicationReview, setShowApplicationReview] = useState(false);
@@ -313,6 +313,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
             <div className="flex items-start gap-4">
               <div className="relative shrink-0">
                 {'logoUrl' in annonce && annonce.logoUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
                   <img
                     src={annonce.logoUrl}
                     alt={annonce.entreprise}

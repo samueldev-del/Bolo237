@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useLocale } from '@/components/LocaleProvider';
 
 type FraudReportButtonProps = {
@@ -33,44 +33,58 @@ function getOrCreateReporterId() {
   return id;
 }
 
+function parseStoredReports(raw: string | null): ReportEntry[] {
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function getReportSnapshot(raw: string | null) {
+  const reports = parseStoredReports(raw);
+  const reporterId = getOrCreateReporterId();
+
+  return {
+    uniqueReportCount: new Set(reports.map((item) => item.reporterId)).size,
+    alreadyReported: reports.some((item) => item.reporterId === reporterId),
+  };
+}
+
 export default function FraudReportButton({ targetType, targetId, compact = false, onAutoMaskedChange }: FraudReportButtonProps) {
   const { t } = useLocale();
   const storageKey = useMemo(() => `bolo237-reports-${targetType}-${targetId}`, [targetId, targetType]);
+  const reportsRaw = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem(storageKey),
+    () => null,
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason>('demande-argent');
-  const [uniqueReportCount, setUniqueReportCount] = useState(0);
-  const [alreadyReported, setAlreadyReported] = useState(false);
+  const { uniqueReportCount, alreadyReported } = useMemo(() => getReportSnapshot(reportsRaw), [reportsRaw]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
-      return;
-    }
-    const raw = window.localStorage.getItem(storageKey);
-    const reports: ReportEntry[] = raw ? JSON.parse(raw) : [];
-    const reporterId = getOrCreateReporterId();
-    const uniqueCount = new Set(reports.map((item) => item.reporterId)).size;
-    setUniqueReportCount(uniqueCount);
-    setAlreadyReported(reports.some((item) => item.reporterId === reporterId));
-    onAutoMaskedChange?.(uniqueCount >= 3);
-  }, [onAutoMaskedChange, storageKey]);
+    onAutoMaskedChange?.(uniqueReportCount >= 3);
+  }, [onAutoMaskedChange, uniqueReportCount]);
 
   const submitReport = () => {
     if (typeof window === 'undefined' || alreadyReported) {
       return;
     }
     const reporterId = getOrCreateReporterId();
-    const raw = window.localStorage.getItem(storageKey);
-    const reports: ReportEntry[] = raw ? JSON.parse(raw) : [];
+    const reports = parseStoredReports(window.localStorage.getItem(storageKey));
     if (reports.some((item) => item.reporterId === reporterId)) {
-      setAlreadyReported(true);
       return;
     }
 
     const next = [...reports, { reporterId, reason, createdAt: new Date().toISOString() }];
     window.localStorage.setItem(storageKey, JSON.stringify(next));
     const uniqueCount = new Set(next.map((item) => item.reporterId)).size;
-    setUniqueReportCount(uniqueCount);
-    setAlreadyReported(true);
     setIsOpen(false);
     onAutoMaskedChange?.(uniqueCount >= 3);
   };

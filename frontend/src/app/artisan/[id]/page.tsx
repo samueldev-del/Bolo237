@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState } from 'react';
+import { use, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
@@ -19,7 +19,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   const isEn = locale === 'en';
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [translated, setTranslated] = useState(false);
-  const [maskedByReports, setMaskedByReports] = useState(false);
+  const [maskedByReports] = useState(false);
   const [reviews, setReviews] = useState<UserReview[]>([]);
   const [reviewAvg, setReviewAvg] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
@@ -28,13 +28,13 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   const artisanId = Number.parseInt(id, 10);
 
   // Check if user is logged in for contact actions
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const userSnapshot = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem('bolo237-user'),
+    () => null,
+  );
+  const isLoggedIn = Boolean(userSnapshot);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const userRaw = window.localStorage.getItem('bolo237-user');
-    setIsLoggedIn(!!userRaw);
-  }, []);
 
   const requireAuth = (action: () => void) => {
     if (isLoggedIn) {

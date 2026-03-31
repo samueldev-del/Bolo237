@@ -176,7 +176,7 @@ export default function DashboardEntreprise() {
     };
 
     ensureActiveUser();
-  }, [userId]);
+  }, [userId, localizePath]);
 
   useEffect(() => {
     const loadVerificationStatus = async () => {

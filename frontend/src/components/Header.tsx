@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
@@ -16,10 +16,9 @@ function normalizeRole(role: string | null | undefined): string {
   return String(role || '').toLowerCase();
 }
 
-function getUserFromStorage(): UserData {
-  if (typeof window === 'undefined') return null;
+function parseUserFromStorage(raw: string | null): UserData {
+  if (!raw) return null;
   try {
-    const raw = window.localStorage.getItem(USER_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
 }
@@ -68,13 +67,19 @@ export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { locale, setLocale, t, localizePath } = useLocale();
   const menuRef = useRef<HTMLDivElement>(null);
-  const [user, setUser] = useState<UserData>(null);
+  const userRaw = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem(USER_KEY),
+    () => null,
+  );
+  const storedRole = useSyncExternalStore(
+    () => () => {},
+    () => window.localStorage.getItem(ROLE_KEY),
+    () => null,
+  );
+  const user = useMemo(() => parseUserFromStorage(userRaw), [userRaw]);
 
   const isEn = locale === 'en';
-
-  useEffect(() => {
-    setUser(getUserFromStorage());
-  }, []);
 
   // Fermer le menu en cliquant dehors
   useEffect(() => {
@@ -88,13 +93,12 @@ export default function Header() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [isMenuOpen]);
 
-  const localRole = typeof window !== 'undefined' ? window.localStorage.getItem(ROLE_KEY) : null;
+  const localRole = storedRole || user?.role || null;
   const localRoleNormalized = normalizeRole(localRole);
 
   const handleLogout = async () => {
     await logoutUser().catch(() => undefined);
     clearStoredSession();
-    setUser(null);
     setIsMenuOpen(false);
     window.location.href = localizePath('/');
   };

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from 'react';
-import { createUserReview, fetchUserReviews } from '@/lib/api';
+import { createUserReview } from '@/lib/api';
 
 type RatingModalProps = {
   isOpen: boolean;

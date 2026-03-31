@@ -201,7 +201,7 @@ export default function DashboardCandidat() {
     };
 
     ensureActiveUser();
-  }, [userId]);
+  }, [userId, localizePath]);
 
   // Vide — sera rempli par les vraies offres sauvegardees
   const emploisSauvegardes: { id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[] = savedJobs.map((job) => {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Archive,
   BellRing,
   Download,
   FileText,
@@ -11,14 +12,17 @@ import {
   Paperclip,
   RefreshCw,
   Reply,
+  Trash2,
 } from "lucide-react";
 import AdminShell from "@/components/admin/admin-shell";
 import { useAdminInbox } from "@/components/admin/admin-inbox-provider";
 import {
+  archiveAdminEmail,
   downloadAdminEmailAttachment,
   fetchAdminInbox,
   markAdminEmailAsRead,
   replyToAdminEmail,
+  trashAdminEmail,
   type AdminEmailAttachment,
   type AdminEmail,
 } from "@/lib/api";
@@ -92,6 +96,7 @@ export default function AdminInboxPage() {
   const [selectedEmailId, setSelectedEmailId] = useState<number | null>(null);
   const [replyMessage, setReplyMessage] = useState("");
   const [sendingReply, setSendingReply] = useState(false);
+  const [messageAction, setMessageAction] = useState<"archive" | "trash" | null>(null);
   const [downloadingPart, setDownloadingPart] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
 
@@ -272,6 +277,46 @@ export default function AdminInboxPage() {
     }
   }
 
+  async function handleMailboxAction(action: "archive" | "trash") {
+    if (!selectedEmail) {
+      return;
+    }
+
+    if (action === "trash") {
+      const confirmed = window.confirm(
+        "Ce message sera retire de l'inbox admin et deplace dans la corbeille Hostinger. Continuer ?",
+      );
+
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setMessageAction(action);
+    setNotice(null);
+
+    try {
+      const result =
+        action === "archive"
+          ? await archiveAdminEmail(selectedEmail.id)
+          : await trashAdminEmail(selectedEmail.id);
+
+      setReplyMessage("");
+      setNotice({
+        tone: "success",
+        message: result.message,
+      });
+      await loadInbox({ force: true, silent: true, notify: false });
+    } catch (error) {
+      setNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : "Impossible de mettre a jour ce message.",
+      });
+    } finally {
+      setMessageAction(null);
+    }
+  }
+
   return (
     <AdminShell
       title="Boite de reception Hostinger"
@@ -434,7 +479,25 @@ export default function AdminInboxPage() {
                       <p className="mt-1 text-sm text-zinc-500">Recu le {formatMessageDate(selectedEmail.createdAt)}</p>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleMailboxAction("archive")}
+                        disabled={Boolean(messageAction) || sendingReply}
+                        className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm font-semibold text-zinc-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {messageAction === "archive" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Archive className="h-4 w-4" />}
+                        Archiver
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleMailboxAction("trash")}
+                        disabled={Boolean(messageAction) || sendingReply}
+                        className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {messageAction === "trash" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        Supprimer
+                      </button>
                       <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${getStatusClasses(selectedEmail.status)}`}>
                         {getStatusLabel(selectedEmail.status)}
                       </span>
@@ -502,7 +565,7 @@ export default function AdminInboxPage() {
                     <button
                       type="button"
                       onClick={() => setReplyMessage("")}
-                      disabled={!replyMessage.trim() || sendingReply}
+                      disabled={!replyMessage.trim() || sendingReply || Boolean(messageAction)}
                       className="text-sm font-medium text-zinc-500 transition hover:text-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Vider
@@ -521,7 +584,7 @@ export default function AdminInboxPage() {
                     <button
                       type="button"
                       onClick={() => setReplyMessage("")}
-                      disabled={sendingReply}
+                      disabled={sendingReply || Boolean(messageAction)}
                       className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Annuler
@@ -529,7 +592,7 @@ export default function AdminInboxPage() {
                     <button
                       type="button"
                       onClick={() => void handleReply()}
-                      disabled={!replyMessage.trim() || sendingReply}
+                      disabled={!replyMessage.trim() || sendingReply || Boolean(messageAction)}
                       className="inline-flex items-center gap-2 rounded-xl bg-[#8B4332] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#7A3A2B] disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {sendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Reply className="h-4 w-4" />}

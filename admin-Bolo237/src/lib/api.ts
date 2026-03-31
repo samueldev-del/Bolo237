@@ -210,6 +210,7 @@ export type AdminEmail = {
   id: number;
   messageId: string | null;
   imapUid: number | null;
+  mailboxPath: string;
   senderEmail: string;
   senderName: string | null;
   subject: string;
@@ -252,6 +253,12 @@ export type AdminInboxResponse = {
   items: AdminEmail[];
   summary: AdminInboxSummary;
   sync: AdminInboxSync;
+};
+
+export type AdminInboxMutationResponse = {
+  success: boolean;
+  message: string;
+  item: AdminEmail;
 };
 
 // ── Fetch helper ─────────────────────────────────────────────────
@@ -442,6 +449,18 @@ export async function fetchAdminEmails(): Promise<AdminEmail[]> {
 
 export function markAdminEmailAsRead(ticketId: number): Promise<{ success: boolean; item: AdminEmail }> {
   return apiFetch(`/api/admin/emails/${ticketId}/read`, {
+    method: 'POST',
+  });
+}
+
+export function archiveAdminEmail(ticketId: number): Promise<AdminInboxMutationResponse> {
+  return apiFetch(`/api/admin/emails/${ticketId}/archive`, {
+    method: 'POST',
+  });
+}
+
+export function trashAdminEmail(ticketId: number): Promise<AdminInboxMutationResponse> {
+  return apiFetch(`/api/admin/emails/${ticketId}/trash`, {
     method: 'POST',
   });
 }

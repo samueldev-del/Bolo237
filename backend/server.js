@@ -12,11 +12,13 @@ const nodemailer = require('nodemailer');
 const multer = require('multer');
 const cloudinary = require('cloudinary').v2;
 const {
+  archiveAdminInboxTicket,
   downloadAdminInboxAttachment,
   getAdminInbox,
   getAdminInboxSummary,
   markAdminInboxTicketRead,
   replyToAdminInboxTicket,
+  trashAdminInboxTicket,
 } = require('./lib/adminInboxService');
 require('dotenv').config();
 
@@ -2291,6 +2293,40 @@ app.post('/api/admin/emails/:ticketId/read', async (req, res) => {
         : 500;
 
     console.error('POST /api/admin/emails/:ticketId/read error:', error);
+    res.status(statusCode).json({ error: message });
+  }
+});
+
+app.post('/api/admin/emails/:ticketId/archive', async (req, res) => {
+  try {
+    const result = await archiveAdminInboxTicket(prisma, req.params.ticketId);
+    res.status(200).json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Impossible d\'archiver le message.';
+    const statusCode = error?.code === 'NOT_FOUND'
+      ? 404
+      : /invalide|indisponible/i.test(message)
+        ? 400
+        : 500;
+
+    console.error('POST /api/admin/emails/:ticketId/archive error:', error);
+    res.status(statusCode).json({ error: message });
+  }
+});
+
+app.post('/api/admin/emails/:ticketId/trash', async (req, res) => {
+  try {
+    const result = await trashAdminInboxTicket(prisma, req.params.ticketId);
+    res.status(200).json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Impossible de supprimer le message.';
+    const statusCode = error?.code === 'NOT_FOUND'
+      ? 404
+      : /invalide|indisponible/i.test(message)
+        ? 400
+        : 500;
+
+    console.error('POST /api/admin/emails/:ticketId/trash error:', error);
     res.status(statusCode).json({ error: message });
   }
 });

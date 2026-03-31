@@ -4,6 +4,8 @@ const { simpleParser } = require('mailparser');
 const DEFAULT_IMAP_HOST = 'imap.hostinger.com';
 const DEFAULT_IMAP_PORT = 993;
 const DEFAULT_MAILBOX = 'INBOX';
+const DEFAULT_ARCHIVE_MAILBOX = 'Archive';
+const DEFAULT_TRASH_MAILBOX = 'Trash';
 const DEFAULT_SYNC_INTERVAL_MS = 60 * 1000;
 const DEFAULT_FETCH_LIMIT = 80;
 const DEFAULT_ATTACHMENT_DOWNLOAD_LIMIT = 15 * 1024 * 1024;
@@ -61,6 +63,8 @@ function getMailboxConfig() {
     port: parseInteger(process.env.EMAIL_IMAP_PORT || process.env.IMAP_PORT, portFallback, { min: 1, max: 65535 }),
     secure,
     mailbox: String(process.env.EMAIL_IMAP_MAILBOX || process.env.IMAP_MAILBOX || DEFAULT_MAILBOX).trim() || DEFAULT_MAILBOX,
+    archiveMailbox: String(process.env.EMAIL_IMAP_ARCHIVE_MAILBOX || process.env.IMAP_ARCHIVE_MAILBOX || '').trim() || null,
+    trashMailbox: String(process.env.EMAIL_IMAP_TRASH_MAILBOX || process.env.IMAP_TRASH_MAILBOX || '').trim() || null,
     user,
     pass,
     syncIntervalMs: parseInteger(process.env.EMAIL_IMAP_SYNC_INTERVAL_MS, DEFAULT_SYNC_INTERVAL_MS, {
@@ -213,6 +217,7 @@ function serializeTicket(ticket) {
     id: ticket.id,
     messageId: ticket.messageId ?? null,
     imapUid: ticket.imapUid ?? null,
+    mailboxPath: ticket.mailboxPath || DEFAULT_MAILBOX,
     senderEmail: ticket.senderEmail,
     senderName: ticket.senderName ?? null,
     subject: ticket.subject,
@@ -227,6 +232,7 @@ function serializeTicket(ticket) {
 async function readInboxState(prisma, config, options = {}) {
   const limit = parseInteger(options.limit, 60, { min: 1, max: 200 });
   const mailboxFilter = {
+    mailboxPath: config.mailbox,
     messageId: {
       not: null,
     },
@@ -271,7 +277,7 @@ async function withMailbox(config, options, handler) {
   let lock = null;
 
   try {
-    lock = await client.getMailboxLock(config.mailbox, {
+    lock = await client.getMailboxLock(options.mailboxPath || config.mailbox, {
       readOnly: Boolean(options.readOnly),
       description: options.description || 'admin-inbox',
     });
@@ -389,6 +395,7 @@ async function syncAdminInbox(prisma, options = {}) {
               where: { messageId: item.messageId },
               update: {
                 imapUid: item.imapUid,
+                mailboxPath: config.mailbox,
                 senderEmail: item.senderEmail,
                 senderName: item.senderName,
                 subject: item.subject,
@@ -399,6 +406,7 @@ async function syncAdminInbox(prisma, options = {}) {
               create: {
                 messageId: item.messageId,
                 imapUid: item.imapUid,
+                mailboxPath: config.mailbox,
                 senderEmail: item.senderEmail,
                 senderName: item.senderName,
                 subject: item.subject,
@@ -451,7 +459,11 @@ async function addFlagsToMessage(ticket, flags) {
 
   await withMailbox(
     config,
-    { readOnly: false, description: 'admin-inbox-update-flags' },
+    {
+      readOnly: false,
+      mailboxPath: ticket.mailboxPath || config.mailbox,
+      description: 'admin-inbox-update-flags',
+    },
     async (client) => {
       await client.messageFlagsAdd(ticket.imapUid, flags, { uid: true });
       syncState.totalInMailbox = Number(client.mailbox?.exists || syncState.totalInMailbox || 0);
@@ -460,6 +472,143 @@ async function addFlagsToMessage(ticket, flags) {
   );
 
   return true;
+}
+
+async function resolveTargetMailbox(client, config, target) {
+  const targetConfig = target === 'archive'
+    ? {
+        explicitPath: config.archiveMailbox,
+        fallbackPath: DEFAULT_ARCHIVE_MAILBOX,
+        specialUse: '\\Archive',
+      }
+    : {
+        explicitPath: config.trashMailbox,
+        fallbackPath: DEFAULT_TRASH_MAILBOX,
+        specialUse: '\\Trash',
+      };
+
+  const mailboxes = await client.list();
+
+  if (targetConfig.explicitPath) {
+    const existingExplicit = mailboxes.find((mailbox) => mailbox.path.toLowerCase() === targetConfig.explicitPath.toLowerCase());
+    if (existingExplicit) {
+      return existingExplicit.path;
+    }
+
+    const createdExplicit = await client.mailboxCreate(targetConfig.explicitPath);
+    return createdExplicit.path || targetConfig.explicitPath;
+  }
+
+  const specialUseMailbox = mailboxes.find((mailbox) => mailbox.specialUse === targetConfig.specialUse);
+  if (specialUseMailbox) {
+    return specialUseMailbox.path;
+  }
+
+  const namedMailbox = mailboxes.find(
+    (mailbox) =>
+      mailbox.path.toLowerCase() === targetConfig.fallbackPath.toLowerCase() ||
+      mailbox.name.toLowerCase() === targetConfig.fallbackPath.toLowerCase(),
+  );
+  if (namedMailbox) {
+    return namedMailbox.path;
+  }
+
+  const createdMailbox = await client.mailboxCreate(targetConfig.fallbackPath);
+  return createdMailbox.path || targetConfig.fallbackPath;
+}
+
+async function moveMessageToMailbox(client, uid, destinationPath) {
+  try {
+    return await client.messageMove(uid, destinationPath, { uid: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error || '');
+    if (!/move|capability|unsupported|unknown command/i.test(message)) {
+      throw error;
+    }
+
+    const copied = await client.messageCopy(uid, destinationPath, { uid: true });
+    await client.messageDelete(uid, { uid: true });
+    return copied;
+  }
+}
+
+async function moveAdminInboxTicket(prisma, ticketId, target) {
+  const normalizedId = parseInteger(ticketId, NaN, { min: 1 });
+  if (!Number.isFinite(normalizedId)) {
+    throw new Error('Identifiant de ticket invalide.');
+  }
+
+  const ticket = await prisma.supportTicket.findUnique({ where: { id: normalizedId } });
+  if (!ticket) {
+    const error = new Error('Ticket introuvable.');
+    error.code = 'NOT_FOUND';
+    throw error;
+  }
+
+  if (!ticket.messageId || !ticket.imapUid) {
+    throw new Error('Ce ticket ne provient pas de la boite IMAP.');
+  }
+
+  const config = getMailboxConfig();
+  if (!config.enabled) {
+    throw new Error('Configuration IMAP indisponible.');
+  }
+
+  const sourceMailbox = String(ticket.mailboxPath || config.mailbox || DEFAULT_MAILBOX).trim() || config.mailbox;
+  let destinationPath = sourceMailbox;
+  let nextUid = null;
+
+  await withMailbox(
+    config,
+    {
+      readOnly: false,
+      mailboxPath: sourceMailbox,
+      description: `admin-inbox-${target}`,
+    },
+    async (client) => {
+      destinationPath = await resolveTargetMailbox(client, config, target);
+
+      if (destinationPath === sourceMailbox) {
+        return;
+      }
+
+      const result = await moveMessageToMailbox(client, ticket.imapUid, destinationPath);
+      if (result?.uidMap && typeof result.uidMap.get === 'function') {
+        const mappedUid = result.uidMap.get(ticket.imapUid);
+        nextUid = Number.isFinite(mappedUid) ? Number(mappedUid) : null;
+      }
+    },
+  );
+
+  if (destinationPath === sourceMailbox) {
+    return {
+      success: true,
+      message: target === 'archive' ? 'Email deja archive.' : 'Email deja deplace dans la corbeille.',
+      item: serializeTicket(ticket),
+    };
+  }
+
+  const updated = await prisma.supportTicket.update({
+    where: { id: normalizedId },
+    data: {
+      mailboxPath: destinationPath,
+      imapUid: nextUid,
+    },
+  });
+
+  return {
+    success: true,
+    message: target === 'archive' ? 'Email archive dans Hostinger.' : 'Email deplace dans la corbeille Hostinger.',
+    item: serializeTicket(updated),
+  };
+}
+
+async function archiveAdminInboxTicket(prisma, ticketId) {
+  return moveAdminInboxTicket(prisma, ticketId, 'archive');
+}
+
+async function trashAdminInboxTicket(prisma, ticketId) {
+  return moveAdminInboxTicket(prisma, ticketId, 'trash');
 }
 
 async function markAdminInboxTicketRead(prisma, ticketId) {
@@ -596,7 +745,7 @@ async function downloadAdminInboxAttachment(prisma, ticketId, part) {
   let lock = null;
 
   try {
-    lock = await client.getMailboxLock(config.mailbox, {
+    lock = await client.getMailboxLock(ticket.mailboxPath || config.mailbox, {
       readOnly: true,
       description: 'admin-inbox-download-attachment',
     });
@@ -632,9 +781,11 @@ async function downloadAdminInboxAttachment(prisma, ticketId, part) {
 }
 
 module.exports = {
+  archiveAdminInboxTicket,
   downloadAdminInboxAttachment,
   getAdminInbox,
   getAdminInboxSummary,
   markAdminInboxTicketRead,
   replyToAdminInboxTicket,
+  trashAdminInboxTicket,
 };

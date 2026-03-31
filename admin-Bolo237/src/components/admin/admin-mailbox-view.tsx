@@ -39,7 +39,6 @@ const dateFormatter = new Intl.DateTimeFormat("fr-FR", {
 const mailboxTabs: Array<{ view: AdminMailboxView; href: string; label: string }> = [
   { view: "inbox", href: "/inbox", label: "Reception" },
   { view: "archive", href: "/inbox/archives", label: "Archives" },
-  { view: "trash", href: "/inbox/corbeille", label: "Corbeille" },
 ];
 
 const mailboxMeta: Record<

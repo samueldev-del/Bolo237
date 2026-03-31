@@ -230,6 +230,8 @@ export type AdminEmailAttachment = {
   inline: boolean;
 };
 
+export type AdminMailboxView = 'inbox' | 'archive' | 'trash';
+
 export type AdminInboxSummary = {
   totalCount: number;
   unreadCount: number;
@@ -423,19 +425,20 @@ export function fetchAdminReviews(): Promise<{ reviews: UserReview[]; alerts: Re
 
 // ── Admin Inbox ─────────────────────────────────────────────────
 
-function buildAdminInboxQuery(options: { force?: boolean; limit?: number } = {}) {
+function buildAdminInboxQuery(options: { force?: boolean; limit?: number; view?: AdminMailboxView } = {}) {
   const params = new URLSearchParams();
   if (options.force) params.set('force', '1');
   if (options.limit) params.set('limit', String(options.limit));
+  if (options.view && options.view !== 'inbox') params.set('view', options.view);
   const qs = params.toString();
   return qs ? `?${qs}` : '';
 }
 
-export async function fetchAdminInbox(options: { force?: boolean; limit?: number } = {}): Promise<AdminInboxResponse> {
+export async function fetchAdminInbox(options: { force?: boolean; limit?: number; view?: AdminMailboxView } = {}): Promise<AdminInboxResponse> {
   return apiFetch<AdminInboxResponse>(`/api/admin/emails${buildAdminInboxQuery(options)}`);
 }
 
-export async function fetchAdminInboxSummary(options: { force?: boolean } = {}): Promise<{
+export async function fetchAdminInboxSummary(options: { force?: boolean; view?: AdminMailboxView } = {}): Promise<{
   summary: AdminInboxSummary;
   sync: AdminInboxSync;
 }> {

@@ -10,13 +10,22 @@ const DEFAULT_SYNC_INTERVAL_MS = 60 * 1000;
 const DEFAULT_FETCH_LIMIT = 80;
 const DEFAULT_ATTACHMENT_DOWNLOAD_LIMIT = 15 * 1024 * 1024;
 
+function createSyncState() {
+  return {
+    activePromise: null,
+    lastSyncedAt: null,
+    lastError: null,
+    lastErrorAt: null,
+    totalInMailbox: 0,
+    unreadInMailbox: 0,
+    mailbox: null,
+  };
+}
+
 const syncState = {
-  activePromise: null,
-  lastSyncedAt: null,
-  lastError: null,
-  lastErrorAt: null,
-  totalInMailbox: 0,
-  unreadInMailbox: 0,
+  inbox: createSyncState(),
+  archive: createSyncState(),
+  trash: createSyncState(),
 };
 
 function parseBoolean(value, fallback) {
@@ -78,16 +87,44 @@ function getMailboxConfig() {
   };
 }
 
-function buildSyncStatus(config) {
+function normalizeMailboxScope(value) {
+  const normalized = String(value || 'inbox').trim().toLowerCase();
+  if (normalized === 'archive' || normalized === 'trash') {
+    return normalized;
+  }
+
+  return 'inbox';
+}
+
+function getDefaultMailboxPath(config, scope) {
+  if (scope === 'archive') {
+    return config.archiveMailbox || DEFAULT_ARCHIVE_MAILBOX;
+  }
+
+  if (scope === 'trash') {
+    return config.trashMailbox || DEFAULT_TRASH_MAILBOX;
+  }
+
+  return config.mailbox;
+}
+
+function getScopeState(scope) {
+  return syncState[normalizeMailboxScope(scope)];
+}
+
+function buildSyncStatus(config, scope = 'inbox', mailboxPath) {
+  const normalizedScope = normalizeMailboxScope(scope);
+  const state = getScopeState(normalizedScope);
+
   return {
     enabled: config.enabled,
-    mailbox: config.mailbox,
-    syncing: Boolean(syncState.activePromise),
-    lastSyncedAt: syncState.lastSyncedAt ? new Date(syncState.lastSyncedAt).toISOString() : null,
-    lastError: syncState.lastError,
-    lastErrorAt: syncState.lastErrorAt ? new Date(syncState.lastErrorAt).toISOString() : null,
-    totalInMailbox: syncState.totalInMailbox,
-    unreadInMailbox: syncState.unreadInMailbox,
+    mailbox: mailboxPath || state.mailbox || getDefaultMailboxPath(config, normalizedScope),
+    syncing: Boolean(state.activePromise),
+    lastSyncedAt: state.lastSyncedAt ? new Date(state.lastSyncedAt).toISOString() : null,
+    lastError: state.lastError,
+    lastErrorAt: state.lastErrorAt ? new Date(state.lastErrorAt).toISOString() : null,
+    totalInMailbox: state.totalInMailbox,
+    unreadInMailbox: state.unreadInMailbox,
   };
 }
 
@@ -106,6 +143,27 @@ function createImapClient(config) {
     connectionTimeout: 30_000,
     socketTimeout: 120_000,
   });
+}
+
+async function withImapClient(config, handler) {
+  const client = createImapClient(config);
+  client.on('error', (error) => {
+    console.error('[admin-inbox] IMAP error:', error?.message || error);
+  });
+
+  await client.connect();
+
+  try {
+    return await handler(client);
+  } finally {
+    if (client.usable) {
+      await client.logout().catch(() => {
+        client.close();
+      });
+    } else {
+      client.close();
+    }
+  }
 }
 
 function normalizeEmail(value, fallback) {
@@ -230,9 +288,11 @@ function serializeTicket(ticket) {
 }
 
 async function readInboxState(prisma, config, options = {}) {
+  const scope = normalizeMailboxScope(options.scope);
   const limit = parseInteger(options.limit, 60, { min: 1, max: 200 });
+  const mailboxPath = String(options.mailboxPath || getDefaultMailboxPath(config, scope)).trim() || config.mailbox;
   const mailboxFilter = {
-    mailboxPath: config.mailbox,
+    mailboxPath,
     messageId: {
       not: null,
     },
@@ -247,188 +307,254 @@ async function readInboxState(prisma, config, options = {}) {
     prisma.supportTicket.count({ where: mailboxFilter }),
     prisma.supportTicket.count({ where: { ...mailboxFilter, status: 'UNREAD' } }),
     prisma.supportTicket.count({ where: { ...mailboxFilter, status: 'REPLIED' } }),
-    prisma.supportTicket.findFirst({
+      sync: buildSyncStatus(config, scope, mailboxPath),
       where: mailboxFilter,
       orderBy: { createdAt: 'desc' },
       select: { createdAt: true },
-    }),
-  ]);
+  async function withMailbox(config, options, handler) {
+    return withImapClient(config, async (client) => {
+      const lock = await client.getMailboxLock(options.mailboxPath || config.mailbox, {
+        readOnly: Boolean(options.readOnly),
+        description: options.description || 'admin-inbox',
+      });
 
-  return {
-    items: items.map(serializeTicket),
-    summary: {
-      totalCount,
-      unreadCount,
-      repliedCount,
-      readCount: Math.max(0, totalCount - unreadCount - repliedCount),
-      lastMessageAt: latestTicket?.createdAt ? latestTicket.createdAt.toISOString() : null,
-    },
-    sync: buildSyncStatus(config),
-  };
-}
+      try {
+        return await handler(client);
+      } finally {
+        lock.release();
+      }
+    });
+  }
 
-async function withMailbox(config, options, handler) {
-  const client = createImapClient(config);
-  client.on('error', (error) => {
-    console.error('[admin-inbox] IMAP error:', error?.message || error);
-  });
+  async function resolveMailboxPath(client, config, scope, options = {}) {
+    const normalizedScope = normalizeMailboxScope(scope);
+    if (normalizedScope === 'inbox') {
+      return {
+        path: config.mailbox,
+        exists: true,
+      };
+    }
 
-  await client.connect();
-  let lock = null;
+    const fallbackPath = getDefaultMailboxPath(config, normalizedScope);
+    const explicitPath = normalizedScope === 'archive' ? config.archiveMailbox : config.trashMailbox;
+    const specialUse = normalizedScope === 'archive' ? '\\Archive' : '\\Trash';
+    const mailboxes = await client.list();
 
-  try {
-    lock = await client.getMailboxLock(options.mailboxPath || config.mailbox, {
-      readOnly: Boolean(options.readOnly),
+    if (explicitPath) {
+      const existingExplicit = mailboxes.find((mailbox) => mailbox.path.toLowerCase() === explicitPath.toLowerCase());
+      if (existingExplicit) {
+        return { path: existingExplicit.path, exists: true };
+      }
+
+      if (!options.createIfMissing) {
+        return { path: explicitPath, exists: false };
+      }
+
+      const createdExplicit = await client.mailboxCreate(explicitPath);
+      return { path: createdExplicit.path || explicitPath, exists: true };
+    }
+
+    const specialUseMailbox = mailboxes.find((mailbox) => mailbox.specialUse === specialUse);
+    if (specialUseMailbox) {
+      return { path: specialUseMailbox.path, exists: true };
+    }
+
+    const namedMailbox = mailboxes.find(
+      (mailbox) =>
+        mailbox.path.toLowerCase() === fallbackPath.toLowerCase() ||
+        mailbox.name.toLowerCase() === fallbackPath.toLowerCase(),
+    );
+    if (namedMailbox) {
+      return { path: namedMailbox.path, exists: true };
+    }
+
+    if (!options.createIfMissing) {
+      return { path: fallbackPath, exists: false };
+    }
+
+    const createdMailbox = await client.mailboxCreate(fallbackPath);
+    return { path: createdMailbox.path || fallbackPath, exists: true };
       description: options.description || 'admin-inbox',
     });
     return await handler(client);
   } finally {
+    const scope = normalizeMailboxScope(options.scope);
     if (lock) {
+    const scopeState = getScopeState(scope);
+    const fallbackMailboxPath = getDefaultMailboxPath(config, scope);
       lock.release();
     }
-
-    if (client.usable) {
-      await client.logout().catch(() => {
+      scopeState.lastError = 'Configuration IMAP manquante. Renseignez EMAIL_IMAP_USER et EMAIL_IMAP_PASS, ou reutilisez EMAIL_USER et EMAIL_PASS.';
+      scopeState.lastErrorAt = Date.now();
+      scopeState.mailbox = fallbackMailboxPath;
+      return buildSyncStatus(config, scope, fallbackMailboxPath);
         client.close();
       });
-    } else {
-      client.close();
+    if (scopeState.activePromise) {
+      return scopeState.activePromise;
     }
   }
-}
-
+    if (!force && scopeState.lastSyncedAt && Date.now() - scopeState.lastSyncedAt < config.syncIntervalMs) {
+      return buildSyncStatus(config, scope);
 async function syncAdminInbox(prisma, options = {}) {
   const config = getMailboxConfig();
-  const force = Boolean(options.force);
+    scopeState.activePromise = (async () => {
+      let resolvedMailboxPath = fallbackMailboxPath;
 
-  if (!config.enabled) {
-    syncState.lastError = 'Configuration IMAP manquante. Renseignez EMAIL_IMAP_USER et EMAIL_IMAP_PASS, ou reutilisez EMAIL_USER et EMAIL_PASS.';
-    syncState.lastErrorAt = Date.now();
-    return buildSyncStatus(config);
-  }
 
-  if (syncState.activePromise) {
-    return syncState.activePromise;
-  }
-
-  if (!force && syncState.lastSyncedAt && Date.now() - syncState.lastSyncedAt < config.syncIntervalMs) {
-    return buildSyncStatus(config);
-  }
-
-  syncState.activePromise = (async () => {
-    try {
-      await withMailbox(
-        config,
-        { readOnly: true, description: 'admin-inbox-sync' },
-        async (client) => {
-          syncState.totalInMailbox = Number(client.mailbox?.exists || 0);
-          syncState.unreadInMailbox = Number(client.mailbox?.unseen || 0);
-
-          if (!syncState.totalInMailbox) {
-            return;
-          }
-
-          const allUids = await client.search({ all: true }, { uid: true });
-          const recentUids = allUids.slice(-config.fetchLimit);
-
-          if (!recentUids.length) {
-            return;
-          }
-
-          const messages = await client.fetchAll(
-            recentUids,
-            {
-              bodyStructure: true,
-              envelope: true,
-              flags: true,
-              internalDate: true,
-              source: true,
-            },
-            { uid: true },
-          );
-
-          const normalizedMessages = [];
-
-          for (const message of messages) {
-            const parsed = await simpleParser(message.source);
-            const envelopeFrom = Array.isArray(message.envelope?.from) ? message.envelope.from[0] : null;
-            const parsedFrom = Array.isArray(parsed.from?.value) ? parsed.from.value[0] : null;
-            const senderFallback = `unknown-${message.uid}@mail.bolo237.local`;
-
-            normalizedMessages.push({
-              messageId: normalizeMessageId(parsed.messageId || message.envelope?.messageId, message.uid),
-              imapUid: Number(message.uid),
-              senderEmail: normalizeEmail(parsedFrom?.address || envelopeFrom?.address, senderFallback),
-              senderName: String(parsedFrom?.name || envelopeFrom?.name || '').trim() || null,
-              subject: String(parsed.subject || message.envelope?.subject || 'Sans sujet').trim() || 'Sans sujet',
-              body: normalizeBody(parsed.text, parsed.html),
-              attachments: extractAttachmentsFromBodyStructure(message.bodyStructure),
-              status: getStatusFromFlags(message.flags),
-              createdAt: toDate(parsed.date || message.envelope?.date || message.internalDate),
-            });
-          }
-
-          const existingTickets = await prisma.supportTicket.findMany({
-            where: {
-              messageId: {
-                in: normalizedMessages.map((item) => item.messageId),
-              },
-            },
-            select: {
-              id: true,
-              messageId: true,
-              status: true,
-            },
+        await withImapClient(config, async (client) => {
+          const mailboxInfo = await resolveMailboxPath(client, config, scope, {
+            createIfMissing: false,
           });
 
-          const existingByMessageId = new Map(existingTickets.map((item) => [item.messageId, item]));
+          resolvedMailboxPath = mailboxInfo.path || fallbackMailboxPath;
+          scopeState.mailbox = resolvedMailboxPath;
 
-          for (const item of normalizedMessages) {
-            const existing = existingByMessageId.get(item.messageId);
-            const nextStatus = item.status === 'REPLIED'
-              ? 'REPLIED'
-              : existing?.status === 'REPLIED'
-                ? 'REPLIED'
-                : item.status;
+          if (!mailboxInfo.exists && scope !== 'inbox') {
+            scopeState.totalInMailbox = 0;
+            scopeState.unreadInMailbox = 0;
+            return;
+          }
 
-            await prisma.supportTicket.upsert({
-              where: { messageId: item.messageId },
-              update: {
-                imapUid: item.imapUid,
-                mailboxPath: config.mailbox,
-                senderEmail: item.senderEmail,
-                senderName: item.senderName,
-                subject: item.subject,
-                body: item.body,
-                attachments: item.attachments,
-                status: nextStatus,
+          const lock = await client.getMailboxLock(resolvedMailboxPath, {
+            readOnly: true,
+            description: `admin-inbox-sync-${scope}`,
+          });
+
+          try {
+            scopeState.totalInMailbox = Number(client.mailbox?.exists || 0);
+            scopeState.unreadInMailbox = Number(client.mailbox?.unseen || 0);
+
+            if (!scopeState.totalInMailbox) {
+              return;
+            }
+
+            const allUids = await client.search({ all: true }, { uid: true });
+            const recentUids = allUids.slice(-config.fetchLimit);
+
+            if (!recentUids.length) {
+              return;
+            }
+
+            const messages = await client.fetchAll(
+              recentUids,
+              {
+                bodyStructure: true,
+                envelope: true,
+                flags: true,
+                internalDate: true,
+                source: true,
               },
-              create: {
-                messageId: item.messageId,
-                imapUid: item.imapUid,
-                mailboxPath: config.mailbox,
-                senderEmail: item.senderEmail,
-                senderName: item.senderName,
-                subject: item.subject,
-                body: item.body,
-                attachments: item.attachments,
-                status: nextStatus,
-                createdAt: item.createdAt,
+              { uid: true },
+            );
+
+            const normalizedMessages = [];
+
+            for (const message of messages) {
+              const parsed = await simpleParser(message.source);
+              const envelopeFrom = Array.isArray(message.envelope?.from) ? message.envelope.from[0] : null;
+              const parsedFrom = Array.isArray(parsed.from?.value) ? parsed.from.value[0] : null;
+              const senderFallback = `unknown-${message.uid}@mail.bolo237.local`;
+
+              normalizedMessages.push({
+                messageId: normalizeMessageId(parsed.messageId || message.envelope?.messageId, message.uid),
+                imapUid: Number(message.uid),
+                senderEmail: normalizeEmail(parsedFrom?.address || envelopeFrom?.address, senderFallback),
+                senderName: String(parsedFrom?.name || envelopeFrom?.name || '').trim() || null,
+                subject: String(parsed.subject || message.envelope?.subject || 'Sans sujet').trim() || 'Sans sujet',
+                body: normalizeBody(parsed.text, parsed.html),
+                attachments: extractAttachmentsFromBodyStructure(message.bodyStructure),
+                status: getStatusFromFlags(message.flags),
+                createdAt: toDate(parsed.date || message.envelope?.date || message.internalDate),
+              });
+            }
+
+            const existingTickets = await prisma.supportTicket.findMany({
+              where: {
+                messageId: {
+                  in: normalizedMessages.map((item) => item.messageId),
+                },
+              },
+              select: {
+                id: true,
+                messageId: true,
+                status: true,
               },
             });
+
+            const existingByMessageId = new Map(existingTickets.map((item) => [item.messageId, item]));
+
+            for (const item of normalizedMessages) {
+              const existing = existingByMessageId.get(item.messageId);
+              const nextStatus = item.status === 'REPLIED'
+                ? 'REPLIED'
+                : existing?.status === 'REPLIED'
+                  ? 'REPLIED'
+                  : item.status;
+
+              await prisma.supportTicket.upsert({
+                where: { messageId: item.messageId },
+                update: {
+                  imapUid: item.imapUid,
+                  mailboxPath: resolvedMailboxPath,
+                  senderEmail: item.senderEmail,
+                  senderName: item.senderName,
+                  subject: item.subject,
+                  body: item.body,
+                  attachments: item.attachments,
+                  status: nextStatus,
+                },
+                create: {
+                  messageId: item.messageId,
+                  imapUid: item.imapUid,
+                  mailboxPath: resolvedMailboxPath,
+                  senderEmail: item.senderEmail,
+                  senderName: item.senderName,
+                  subject: item.subject,
+                  body: item.body,
+                  attachments: item.attachments,
+                  status: nextStatus,
+                  createdAt: item.createdAt,
+                },
+              });
+            }
+          } finally {
+            lock.release();
+          }
+        });
+
+        scopeState.lastSyncedAt = Date.now();
+        scopeState.lastError = null;
+        scopeState.lastErrorAt = null;
+                senderEmail: item.senderEmail,
+        scopeState.lastError = error instanceof Error ? error.message : 'Erreur de synchronisation IMAP.';
+        scopeState.lastErrorAt = Date.now();
+        console.error(`[admin-inbox] ${scope} sync failure:`, error);
+                attachments: item.attachments,
+        scopeState.mailbox = resolvedMailboxPath;
+        scopeState.activePromise = null;
+                createdAt: item.createdAt,
+              },
+      return buildSyncStatus(config, scope, resolvedMailboxPath);
           }
         },
-      );
+    return scopeState.activePromise;
 
       syncState.lastSyncedAt = Date.now();
       syncState.lastError = null;
       syncState.lastErrorAt = null;
-    } catch (error) {
-      syncState.lastError = error instanceof Error ? error.message : 'Erreur de synchronisation IMAP.';
+    const scope = normalizeMailboxScope(options.scope);
+    const sync = await syncAdminInbox(prisma, { ...options, scope });
+    return readInboxState(prisma, config, {
+      ...options,
+      scope,
+      mailboxPath: sync.mailbox,
+    });
       syncState.lastErrorAt = Date.now();
       console.error('[admin-inbox] sync failure:', error);
     } finally {
-      syncState.activePromise = null;
+    const scope = normalizeMailboxScope(options.scope);
+    const snapshot = await getAdminInbox(prisma, { ...options, scope, limit: 1 });
     }
 
     return buildSyncStatus(config);
@@ -475,46 +601,10 @@ async function addFlagsToMessage(ticket, flags) {
 }
 
 async function resolveTargetMailbox(client, config, target) {
-  const targetConfig = target === 'archive'
-    ? {
-        explicitPath: config.archiveMailbox,
-        fallbackPath: DEFAULT_ARCHIVE_MAILBOX,
-        specialUse: '\\Archive',
-      }
-    : {
-        explicitPath: config.trashMailbox,
-        fallbackPath: DEFAULT_TRASH_MAILBOX,
-        specialUse: '\\Trash',
-      };
-
-  const mailboxes = await client.list();
-
-  if (targetConfig.explicitPath) {
-    const existingExplicit = mailboxes.find((mailbox) => mailbox.path.toLowerCase() === targetConfig.explicitPath.toLowerCase());
-    if (existingExplicit) {
-      return existingExplicit.path;
-    }
-
-    const createdExplicit = await client.mailboxCreate(targetConfig.explicitPath);
-    return createdExplicit.path || targetConfig.explicitPath;
-  }
-
-  const specialUseMailbox = mailboxes.find((mailbox) => mailbox.specialUse === targetConfig.specialUse);
-  if (specialUseMailbox) {
-    return specialUseMailbox.path;
-  }
-
-  const namedMailbox = mailboxes.find(
-    (mailbox) =>
-      mailbox.path.toLowerCase() === targetConfig.fallbackPath.toLowerCase() ||
-      mailbox.name.toLowerCase() === targetConfig.fallbackPath.toLowerCase(),
-  );
-  if (namedMailbox) {
-    return namedMailbox.path;
-  }
-
-  const createdMailbox = await client.mailboxCreate(targetConfig.fallbackPath);
-  return createdMailbox.path || targetConfig.fallbackPath;
+  const resolved = await resolveMailboxPath(client, config, target, {
+    createIfMissing: true,
+  });
+  return resolved.path;
 }
 
 async function moveMessageToMailbox(client, uid, destinationPath) {

@@ -99,7 +99,8 @@ function SidebarLink({
   pathname: string;
   onNavigate: () => void;
 }) {
-  const isActive = pathname === item.href;
+  const isInboxRoute = item.href === "/inbox" && (pathname === "/inbox" || pathname.startsWith("/inbox/"));
+  const isActive = pathname === item.href || isInboxRoute;
   const isAlert = item.href.startsWith("/alertes") || item.href === "/inbox";
 
   return (

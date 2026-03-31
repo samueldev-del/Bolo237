@@ -2260,6 +2260,7 @@ app.get('/api/admin/emails', async (req, res) => {
     const inbox = await getAdminInbox(prisma, {
       force,
       limit: req.query.limit,
+      scope: req.query.view,
     });
 
     res.status(200).json(inbox);
@@ -2272,7 +2273,10 @@ app.get('/api/admin/emails', async (req, res) => {
 app.get('/api/admin/emails/summary', async (req, res) => {
   try {
     const force = req.query.force === '1' || req.query.force === 'true';
-    const summary = await getAdminInboxSummary(prisma, { force });
+    const summary = await getAdminInboxSummary(prisma, {
+      force,
+      scope: req.query.view,
+    });
     res.status(200).json(summary);
   } catch (error) {
     console.error('GET /api/admin/emails/summary error:', error);

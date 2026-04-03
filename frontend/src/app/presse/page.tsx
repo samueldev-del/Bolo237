@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
@@ -46,6 +47,12 @@ export default function PressePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
+      <BreadcrumbJsonLd
+        items={[
+          { name: { fr: 'Accueil', en: 'Home' }, path: '/' },
+          { name: { fr: 'Presse', en: 'Press' }, path: '/presse' },
+        ]}
+      />
       <Header />
 
       <main className="flex-1">

@@ -1,0 +1,79 @@
+import { NextResponse } from "next/server";
+import { isAuthenticated } from "@/lib/auth";
+import { fetchBackendAsAdmin } from "@/lib/backend-admin";
+
+type RouteContext = {
+  params: Promise<{ path: string[] }>;
+};
+
+function forwardHeaders(request: Request) {
+  const headers = new Headers(request.headers);
+  headers.delete("connection");
+  headers.delete("content-length");
+  headers.delete("cookie");
+  headers.delete("host");
+  return headers;
+}
+
+async function proxyRequest(request: Request, context: RouteContext) {
+  if (!(await isAuthenticated())) {
+    return NextResponse.json({ error: "Session admin requise." }, { status: 401 });
+  }
+
+  try {
+    const { path } = await context.params;
+    if (!path?.length) {
+      return NextResponse.json({ error: "Chemin backend manquant." }, { status: 400 });
+    }
+
+    const requestUrl = new URL(request.url);
+    const backendPath = `/api/${path.join("/")}${requestUrl.search}`;
+    const method = request.method.toUpperCase();
+    const bodyText = method === "GET" || method === "HEAD" ? undefined : await request.text();
+
+    const upstream = await fetchBackendAsAdmin(backendPath, {
+      method,
+      headers: forwardHeaders(request),
+      body: bodyText && bodyText.length > 0 ? bodyText : undefined,
+    });
+
+    const responseHeaders = new Headers(upstream.headers);
+    responseHeaders.delete("set-cookie");
+
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: responseHeaders,
+    });
+  } catch (error) {
+    console.error("/api/backend proxy error:", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Connexion au backend admin impossible.",
+      },
+      { status: 502 },
+    );
+  }
+}
+
+export async function GET(request: Request, context: RouteContext) {
+  return proxyRequest(request, context);
+}
+
+export async function POST(request: Request, context: RouteContext) {
+  return proxyRequest(request, context);
+}
+
+export async function PUT(request: Request, context: RouteContext) {
+  return proxyRequest(request, context);
+}
+
+export async function PATCH(request: Request, context: RouteContext) {
+  return proxyRequest(request, context);
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  return proxyRequest(request, context);
+}

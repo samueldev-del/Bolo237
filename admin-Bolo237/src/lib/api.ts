@@ -1,91 +1,35 @@
-const DEFAULT_REMOTE_API = 'https://api-237jobs.onrender.com';
+const BACKEND_PROXY_PREFIX = '/api/backend';
 
-let cachedApiBase: string | null = null;
-let resolvingApiBase: Promise<string> | null = null;
+function buildBackendProxyPath(path: string) {
+  const normalized = String(path || '').trim();
 
-function normalizeBase(base: string) {
-  return String(base || '').trim().replace(/\/$/, '');
+  if (!normalized.startsWith('/api/')) {
+    throw new Error('Chemin API invalide.');
+  }
+
+  return `${BACKEND_PROXY_PREFIX}/${normalized.slice('/api/'.length)}`;
 }
 
-function uniqueBases(bases: string[]) {
-  return [...new Set(bases.map(normalizeBase).filter(Boolean))];
-}
+async function readErrorMessage(response: Response) {
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
 
-function getApiBaseCandidates() {
-  const fromEnv = normalizeBase(process.env.NEXT_PUBLIC_API_URL || '');
-  const candidates: string[] = [];
+  if (contentType.includes('application/json')) {
+    const body = (await response.json().catch(() => ({}))) as {
+      error?: unknown;
+      message?: unknown;
+    };
 
-  if (fromEnv) candidates.push(fromEnv);
+    if (typeof body.error === 'string' && body.error.trim()) {
+      return body.error;
+    }
 
-  if (typeof window !== 'undefined') {
-    const origin = normalizeBase(window.location.origin);
-    const host = window.location.hostname;
-
-    if (origin) candidates.push(origin);
-
-    if (host === 'localhost' || host === '127.0.0.1') {
-      candidates.push('http://localhost:5000');
-      candidates.push('http://localhost:5060');
-      candidates.push('http://127.0.0.1:5000');
-      candidates.push('http://127.0.0.1:5060');
+    if (typeof body.message === 'string' && body.message.trim()) {
+      return body.message;
     }
   }
 
-  candidates.push(DEFAULT_REMOTE_API);
-  return uniqueBases(candidates);
-}
-
-async function probeApiBase(base: string) {
-  try {
-    const res = await fetch(`${base}/api/jobs?limit=1`, {
-      method: 'GET',
-      credentials: 'include',
-    });
-
-    // Accept only real API success responses to avoid false positives like
-    // admin frontend origins that return 404 for backend routes.
-    if (!res.ok) return false;
-
-    const contentType = String(res.headers.get('content-type') || '').toLowerCase();
-    if (!contentType.includes('application/json')) return false;
-
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function resolveApiBase() {
-  if (cachedApiBase) return cachedApiBase;
-  if (resolvingApiBase) return resolvingApiBase;
-
-  resolvingApiBase = (async () => {
-    const candidates = getApiBaseCandidates();
-
-    // Outside browser, probing is not reliable. Prefer env then legacy fallback.
-    if (typeof window === 'undefined') {
-      const resolved = candidates[0] || DEFAULT_REMOTE_API;
-      cachedApiBase = resolved;
-      resolvingApiBase = null;
-      return resolved;
-    }
-
-    for (const base of candidates) {
-      const ok = await probeApiBase(base);
-      if (ok) {
-        cachedApiBase = base;
-        resolvingApiBase = null;
-        return base;
-      }
-    }
-
-    const fallback = candidates[0] || DEFAULT_REMOTE_API;
-    cachedApiBase = fallback;
-    resolvingApiBase = null;
-    return fallback;
-  })();
-
-  return resolvingApiBase;
+  const text = await response.text().catch(() => '');
+  return text.trim() || `Erreur API ${response.status}`;
 }
 
 // ── Types ────────────────────────────────────────────────────────
@@ -266,17 +210,25 @@ export type AdminInboxMutationResponse = {
 // ── Fetch helper ─────────────────────────────────────────────────
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const apiBase = await resolveApiBase();
+  const headers = new Headers(options?.headers);
 
-  const res = await fetch(`${apiBase}${path}`, {
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+  if (options?.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const res = await fetch(buildBackendProxyPath(path), {
     ...options,
+    credentials: 'same-origin',
+    headers,
+    cache: 'no-store',
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Erreur API ${res.status} (${apiBase})`);
+    throw new Error(await readErrorMessage(res));
+  }
+
+  if (res.status === 204) {
+    return undefined as T;
   }
 
   return res.json();
@@ -469,15 +421,14 @@ export function trashAdminEmail(ticketId: number): Promise<AdminInboxMutationRes
 }
 
 export async function downloadAdminEmailAttachment(ticketId: number, part: string): Promise<Blob> {
-  const apiBase = await resolveApiBase();
-  const res = await fetch(`${apiBase}/api/admin/emails/${ticketId}/attachments/${encodeURIComponent(part)}/download`, {
+  const res = await fetch(buildBackendProxyPath(`/api/admin/emails/${ticketId}/attachments/${encodeURIComponent(part)}/download`), {
     method: 'GET',
-    credentials: 'include',
+    credentials: 'same-origin',
+    cache: 'no-store',
   });
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Erreur API ${res.status} (${apiBase})`);
+    throw new Error(await readErrorMessage(res));
   }
 
   return res.blob();

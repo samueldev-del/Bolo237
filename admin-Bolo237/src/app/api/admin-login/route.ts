@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSession, verifyPassword } from "@/lib/auth";
+import { ensureBackendAdminSession } from "@/lib/backend-admin";
 
 export async function POST(request: Request) {
   try {
@@ -21,13 +22,20 @@ export async function POST(request: Request) {
       );
     }
 
+    await ensureBackendAdminSession(true);
     await createSession();
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("POST /api/admin-login error:", error);
     return NextResponse.json(
-      { success: false, error: "Erreur de connexion admin." },
-      { status: 500 }
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Erreur de connexion admin.",
+      },
+      { status: 502 }
     );
   }
 }

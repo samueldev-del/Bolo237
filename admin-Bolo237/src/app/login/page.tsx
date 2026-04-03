@@ -7,7 +7,6 @@ export default function LoginPage() {
   const [authError, setAuthError] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [backendLoading, setBackendLoading] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -22,32 +21,7 @@ export default function LoginPage() {
     }
 
     setIsPending(true);
-    setBackendLoading(true);
 
-    // 1. Obtenir les identifiants backend via le proxy securise
-    try {
-      const proxyRes = await fetch("/api/backend-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-
-      if (proxyRes.ok) {
-        const { apiUrl, email, password: backendPass } = await proxyRes.json();
-        // 2. Appeler le backend DIRECTEMENT pour poser le cookie JWT sur son domaine
-        await fetch(`${apiUrl}/api/auth/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ identifier: email, password: backendPass }),
-        }).catch(() => {});
-      }
-    } catch {
-      console.warn("[Admin] Backend login failed");
-    }
-
-    // 3. Creer la session admin locale
-    setBackendLoading(false);
     try {
       const localRes = await fetch("/api/admin-login", {
         method: "POST",
@@ -146,10 +120,10 @@ export default function LoginPage() {
             {/* Submit button */}
             <button
               type="submit"
-              disabled={isPending || backendLoading}
+              disabled={isPending}
               className="relative h-12 w-full rounded-xl bg-gradient-to-b from-[#DA7756] to-[#C4623F] text-sm font-semibold text-white shadow-sm transition hover:from-[#E8A87C] hover:to-[#DA7756] disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isPending || backendLoading ? (
+              {isPending ? (
                 <span className="flex items-center justify-center gap-2">
                   <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />

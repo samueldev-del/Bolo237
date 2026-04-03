@@ -112,7 +112,6 @@ async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier: email, password }),
       cache: "no-store",
-      redirect: "manual",
     });
 
     const payload = (await readJsonBody(response)) as { error?: string; role?: string };
@@ -170,7 +169,6 @@ export async function fetchBackendAsAdmin(path: string, init?: RequestInit) {
       ...init,
       headers,
       cache: "no-store",
-      redirect: "manual",
     });
   };
 

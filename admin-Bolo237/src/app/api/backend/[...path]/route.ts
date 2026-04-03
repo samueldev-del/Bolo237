@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
 import { fetchBackendAsAdmin } from "@/lib/backend-admin";
 
+// Render free-tier cold starts can take 30s+
+export const maxDuration = 60;
+
 type RouteContext = {
   params: Promise<{ path: string[] }>;
 };
@@ -37,10 +40,14 @@ async function proxyRequest(request: Request, context: RouteContext) {
       body: bodyText && bodyText.length > 0 ? bodyText : undefined,
     });
 
-    const responseHeaders = new Headers(upstream.headers);
-    responseHeaders.delete("set-cookie");
+    // Read full body to avoid streaming issues in serverless
+    const body = await upstream.arrayBuffer();
 
-    return new Response(upstream.body, {
+    const contentType = upstream.headers.get("content-type");
+    const responseHeaders = new Headers();
+    if (contentType) responseHeaders.set("content-type", contentType);
+
+    return new Response(body, {
       status: upstream.status,
       headers: responseHeaders,
     });

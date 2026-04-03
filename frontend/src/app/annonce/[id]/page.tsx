@@ -110,7 +110,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
         id,
         titre: apiJob.title,
         entreprise: apiJob.company,
-        logo: apiJob.company.slice(0, 2).toUpperCase(),
+        logo: (apiJob.company || '??').slice(0, 2).toUpperCase(),
         logoUrl: apiJob.author?.photoUrl || null,
         isVerified: apiJob.author?.isVerified || false,
         contrat: 'CDI',

@@ -40,7 +40,7 @@ function apiJobToAnnonce(job: ApiJob, isEn: boolean): Annonce {
     mode: 'Sur site',
     description: job.description,
     temps: timeAgoFr(job.createdAt, isEn),
-    logo: job.company.slice(0, 2).toUpperCase(),
+    logo: (job.company || '??').slice(0, 2).toUpperCase(),
   };
 }
 

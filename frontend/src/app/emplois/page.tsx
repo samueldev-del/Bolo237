@@ -46,7 +46,7 @@ function apiJobToOffre(job: ApiJob, index: number): Offre {
     id: job.id,
     titre: job.title,
     entreprise: job.company,
-    logoInitiales: job.company.slice(0, 2).toUpperCase(),
+    logoInitiales: (job.company || '??').slice(0, 2).toUpperCase(),
     logoColor: LOGO_COLORS[index % LOGO_COLORS.length],
     logoUrl: job.author?.photoUrl || null,
     isVerified: job.author?.isVerified || false,

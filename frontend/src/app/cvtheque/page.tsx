@@ -24,57 +24,6 @@ type Candidate = {
   photo?: string;
 };
 
-const candidatsData: Candidate[] = [
-  {
-    id: 101,
-    nom: 'Alain Tchoumi',
-    titre: 'Developpeur Web Fullstack',
-    localisation: 'Douala',
-    experience: 'Confirme',
-    disponibilite: 'Immediatement',
-    etudes: 'Bac+5',
-    cvMajJours: 4,
-    competences: ['React', 'Node.js', 'TypeScript', 'PostgreSQL', 'Docker'],
-    disponibleNow: true,
-  },
-  {
-    id: 102,
-    nom: 'Mireille Essono',
-    titre: 'Chef de projet digital',
-    localisation: 'Yaounde',
-    experience: 'Senior',
-    disponibilite: 'Sous 1 mois',
-    etudes: 'Bac+5',
-    cvMajJours: 18,
-    competences: ['Gestion de projet', 'Agile', 'Scrum', 'Reporting'],
-    disponibleNow: false,
-    photo: '/vercel.svg',
-  },
-  {
-    id: 103,
-    nom: 'Kevin Moukoko',
-    titre: 'Technicien support IT',
-    localisation: 'Douala',
-    experience: 'Junior',
-    disponibilite: 'A l ecoute du marche',
-    etudes: 'Bac+2',
-    cvMajJours: 33,
-    competences: ['Helpdesk', 'Windows', 'Reseaux', 'Office 365'],
-    disponibleNow: false,
-  },
-  {
-    id: 104,
-    nom: 'Christelle N.',
-    titre: 'Comptable generale',
-    localisation: 'Bafoussam',
-    experience: 'Confirme',
-    disponibilite: 'Immediatement',
-    etudes: 'Bac+3',
-    cvMajJours: 9,
-    competences: ['Comptabilite', 'Sage', 'Fiscalite', 'Excel'],
-    disponibleNow: true,
-  },
-];
 
 export default function CvthequePage() {
   const { locale, localizePath } = useLocale();
@@ -138,15 +87,7 @@ export default function CvthequePage() {
   }, [accessAllowed]);
 
   const allCandidates = useMemo(() => {
-    const ids = new Set<number>();
-    const merged: Candidate[] = [];
-
-    [...apiCandidats, ...candidatsData].forEach((cand) => {
-      if (!ids.has(cand.id)) {
-        ids.add(cand.id);
-        merged.push(cand);
-      }
-    });
+    const merged = apiCandidats;
 
     return merged;
   }, [apiCandidats]);

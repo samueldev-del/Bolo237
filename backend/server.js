@@ -1075,7 +1075,7 @@ app.post('/api/users', async (req, res) => {
         email: normalizedEmail || generatedEmail,
         password: hashedPassword,
         name: name ? String(name) : null,
-        role: role ? String(role) : 'CANDIDAT',
+        role: role && ['CANDIDAT', 'ENTREPRISE', 'ARTISAN'].includes(String(role)) ? String(role) : 'CANDIDAT',
         phone: normalizedPhone,
         isVerified: false,
       },
@@ -1618,7 +1618,7 @@ app.put('/api/reports/:id', requireAdminSession, async (req, res) => {
 // =============================================
 
 // GET /api/admin/stats — Statistiques globales (enrichi)
-app.get('/api/admin/stats', async (req, res) => {
+app.get('/api/admin/stats', requireAdminSession, async (req, res) => {
   try {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1649,7 +1649,7 @@ app.get('/api/admin/stats', async (req, res) => {
 });
 
 // GET /api/admin/reviews — All reviews with alert for low-rated users
-app.get('/api/admin/reviews', async (req, res) => {
+app.get('/api/admin/reviews', requireAdminSession, async (req, res) => {
   try {
     const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
     const reviews = await prisma.userReview.findMany({
@@ -1689,7 +1689,7 @@ app.get('/api/admin/reviews', async (req, res) => {
 });
 
 // GET /api/admin/users — User list with recent signups
-app.get('/api/admin/users', async (req, res) => {
+app.get('/api/admin/users', requireAdminSession, async (req, res) => {
   try {
     const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
     const role = req.query.role ? String(req.query.role).toUpperCase() : undefined;
@@ -1714,7 +1714,7 @@ app.get('/api/admin/users', async (req, res) => {
 });
 
 // GET /api/admin/trends?days=7 — Tendances des inscriptions et publications
-app.get('/api/admin/trends', async (req, res) => {
+app.get('/api/admin/trends', requireAdminSession, async (req, res) => {
   try {
     const daysRaw = parseInt(String(req.query.days || '7'), 10);
     const days = [7, 30].includes(daysRaw) ? daysRaw : 7;
@@ -1765,7 +1765,7 @@ app.get('/api/admin/trends', async (req, res) => {
 });
 
 // GET /api/admin/banned-users — Liste des utilisateurs bannis
-app.get('/api/admin/banned-users', async (req, res) => {
+app.get('/api/admin/banned-users', requireAdminSession, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
@@ -1799,7 +1799,7 @@ app.get('/api/admin/banned-users', async (req, res) => {
 });
 
 // POST /api/admin/notifications/broadcast — Envoyer une notification a tous ou par role
-app.post('/api/admin/notifications/broadcast', async (req, res) => {
+app.post('/api/admin/notifications/broadcast', requireAdminSession, async (req, res) => {
   try {
     const { title, message, type, targetRole } = req.body;
     if (!title || !message) return res.status(400).json({ error: 'title et message requis.' });
@@ -1830,7 +1830,7 @@ app.post('/api/admin/notifications/broadcast', async (req, res) => {
 });
 
 // GET /api/admin/notifications — Toutes les notifications (admin)
-app.get('/api/admin/notifications', async (req, res) => {
+app.get('/api/admin/notifications', requireAdminSession, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
@@ -1856,7 +1856,7 @@ app.get('/api/admin/notifications', async (req, res) => {
 });
 
 // GET /api/admin/search?q=term — Recherche globale admin
-app.get('/api/admin/search', async (req, res) => {
+app.get('/api/admin/search', requireAdminSession, async (req, res) => {
   try {
     const q = req.query.q ? String(req.query.q).trim() : '';
     if (!q) return res.json({ users: [], jobs: [] });
@@ -1892,12 +1892,12 @@ app.get('/api/admin/search', async (req, res) => {
 });
 
 // GET /api/admin/settings — Parametres de la plateforme
-app.get('/api/admin/settings', (_req, res) => {
+app.get('/api/admin/settings', requireAdminSession, (_req, res) => {
   res.json(platformSettings);
 });
 
 // PUT /api/admin/settings — Mettre a jour les parametres
-app.put('/api/admin/settings', (req, res) => {
+app.put('/api/admin/settings', requireAdminSession, (req, res) => {
   try {
     platformSettings = { ...platformSettings, ...req.body };
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(platformSettings, null, 2), 'utf8');
@@ -1909,7 +1909,7 @@ app.put('/api/admin/settings', (req, res) => {
 });
 
 // GET /api/admin/activity-log — Journal d activite recent
-app.get('/api/admin/activity-log', async (req, res) => {
+app.get('/api/admin/activity-log', requireAdminSession, async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
 
@@ -2164,7 +2164,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
       }).catch(() => {});
     }
 
-    console.log(`🔑 Reset OTP for ${phone}: ${otp}`);
+    // OTP sent (not logged for security)
     res.json({ success: true, message: "Code envoyé par SMS." });
   } catch (error) {
     console.error('forgot-password error:', error);
@@ -2219,7 +2219,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 // ROUTES: Boite de Reception (Hostinger IMAP + legacy webhook)
 // =============================================
 
-app.post('/api/admin/emails', async (req, res) => {
+app.post('/api/admin/emails', requireAdminSession, async (req, res) => {
   try {
     const { senderEmail, senderName, subject, body } = req.body;
 
@@ -2253,7 +2253,7 @@ app.post('/api/admin/emails', async (req, res) => {
   }
 });
 
-app.get('/api/admin/emails', async (req, res) => {
+app.get('/api/admin/emails', requireAdminSession, async (req, res) => {
   try {
     const force = req.query.force === '1' || req.query.force === 'true';
     const inbox = await getAdminInbox(prisma, {
@@ -2269,7 +2269,7 @@ app.get('/api/admin/emails', async (req, res) => {
   }
 });
 
-app.get('/api/admin/emails/summary', async (req, res) => {
+app.get('/api/admin/emails/summary', requireAdminSession, async (req, res) => {
   try {
     const force = req.query.force === '1' || req.query.force === 'true';
     const summary = await getAdminInboxSummary(prisma, {
@@ -2283,7 +2283,7 @@ app.get('/api/admin/emails/summary', async (req, res) => {
   }
 });
 
-app.post('/api/admin/emails/:ticketId/read', async (req, res) => {
+app.post('/api/admin/emails/:ticketId/read', requireAdminSession, async (req, res) => {
   try {
     const item = await markAdminInboxTicketRead(prisma, req.params.ticketId);
     res.status(200).json({ success: true, item });
@@ -2300,7 +2300,7 @@ app.post('/api/admin/emails/:ticketId/read', async (req, res) => {
   }
 });
 
-app.post('/api/admin/emails/:ticketId/archive', async (req, res) => {
+app.post('/api/admin/emails/:ticketId/archive', requireAdminSession, async (req, res) => {
   try {
     const result = await archiveAdminInboxTicket(prisma, req.params.ticketId);
     res.status(200).json(result);
@@ -2317,7 +2317,7 @@ app.post('/api/admin/emails/:ticketId/archive', async (req, res) => {
   }
 });
 
-app.post('/api/admin/emails/:ticketId/trash', async (req, res) => {
+app.post('/api/admin/emails/:ticketId/trash', requireAdminSession, async (req, res) => {
   try {
     const result = await trashAdminInboxTicket(prisma, req.params.ticketId);
     res.status(200).json(result);
@@ -2334,7 +2334,7 @@ app.post('/api/admin/emails/:ticketId/trash', async (req, res) => {
   }
 });
 
-app.get('/api/admin/emails/:ticketId/attachments/:part/download', async (req, res) => {
+app.get('/api/admin/emails/:ticketId/attachments/:part/download', requireAdminSession, async (req, res) => {
   try {
     const result = await downloadAdminInboxAttachment(prisma, req.params.ticketId, req.params.part);
     const filename = String(result.meta.filename || result.attachment.filename || 'attachment.bin').replace(/[\r\n"]/g, '_');
@@ -2360,7 +2360,7 @@ app.get('/api/admin/emails/:ticketId/attachments/:part/download', async (req, re
 });
 
 // ROUTE: Repondre a un ticket
-app.post('/api/admin/emails/reply', async (req, res) => {
+app.post('/api/admin/emails/reply', requireAdminSession, async (req, res) => {
   try {
     const result = await replyToAdminInboxTicket(prisma, transporter, req.body);
     res.status(200).json(result);

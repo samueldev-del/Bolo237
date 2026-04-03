@@ -4,7 +4,7 @@ import { use, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
-import { fetchUserReviews, type UserReview } from '@/lib/api';
+import { fetchUserProfile, fetchUserReviews, type UserReview } from '@/lib/api';
 import RatingModal from '@/components/RatingModal';
 
 type ArtisanParams = {
@@ -18,7 +18,6 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   const { t, localizePath, locale } = useLocale();
   const isEn = locale === 'en';
   const [showQuoteForm, setShowQuoteForm] = useState(false);
-  const [translated, setTranslated] = useState(false);
   const [maskedByReports] = useState(false);
   const [reviews, setReviews] = useState<UserReview[]>([]);
   const [reviewAvg, setReviewAvg] = useState(0);
@@ -35,6 +34,16 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   );
   const isLoggedIn = Boolean(userSnapshot);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [artisan, setArtisan] = useState<{
+    id: string;
+    nom: string;
+    specialite: string;
+    verifie: boolean;
+    whatsapp: string;
+    location: string;
+    profile: string;
+  } | null>(null);
 
   const requireAuth = (action: () => void) => {
     if (isLoggedIn) {
@@ -44,23 +53,31 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
     }
   };
 
-  const artisan = {
-    id,
-    nom: 'Jean Mvondo',
-    specialite: 'Menuisier Ebeniste',
-    note: 4.8,
-    avisCount: 37,
-    verifie: true,
-    whatsapp: '+237 6XX XX XX XX',
-    couvertureLabel: 'Atelier Bois Deido - Realisations recentes',
-    portfolio: ['Table sur mesure', 'Dressing moderne', 'Cuisine equipee', 'Porte en bois massif', 'Bureau professionnel', 'Meuble TV'],
-    services: [
-      { nom: 'Fabrication de meubles sur mesure', tarif: 'A partir de 80 000 FCFA' },
-      { nom: 'Installation de cuisine en bois', tarif: 'Sur devis' },
-      { nom: 'Reparation et restauration', tarif: 'A partir de 25 000 FCFA' },
-      { nom: 'Pose de portes et placards', tarif: 'A partir de 40 000 FCFA' },
-    ],
-  };
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!Number.isFinite(artisanId) || artisanId <= 0) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const profile = await fetchUserProfile(artisanId);
+        setArtisan({
+          id,
+          nom: profile.fullName || (locale === 'fr' ? 'Artisan' : 'Artisan'),
+          specialite: profile.title || '',
+          verifie: false,
+          whatsapp: profile.phone || '',
+          location: profile.location || '',
+          profile: profile.profile || '',
+        });
+      } catch {
+        setArtisan(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadProfile();
+  }, [artisanId, id, locale]);
 
   useEffect(() => {
     const loadReviews = async () => {
@@ -91,28 +108,44 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
     }
   };
 
-  const artisanTranslated = {
-    nom: 'John Mvondo',
-    specialite: 'Cabinet Maker',
-    couvertureLabel: 'Deido Wood Workshop - Recent projects',
-    portfolio: ['Custom table', 'Modern wardrobe', 'Fitted kitchen', 'Solid wood door', 'Office desk', 'TV stand'],
-    services: [
-      { nom: 'Custom furniture making', tarif: 'From 80,000 XAF' },
-      { nom: 'Wood kitchen installation', tarif: 'On quotation' },
-      { nom: 'Repair and restoration', tarif: 'From 25,000 XAF' },
-      { nom: 'Door and closet installation', tarif: 'From 40,000 XAF' },
-    ],
-  };
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f5f7f8] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-green-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">{locale === 'fr' ? 'Chargement...' : 'Loading...'}</p>
+        </div>
+      </div>
+    );
+  }
 
-  const display = translated
-    ? artisanTranslated
-    : {
-        nom: artisan.nom,
-        specialite: artisan.specialite,
-        couvertureLabel: artisan.couvertureLabel,
-        portfolio: artisan.portfolio,
-        services: artisan.services,
-      };
+  if (!artisan) {
+    return (
+      <div className="min-h-screen bg-[#f5f7f8]">
+        <nav className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="max-w-5xl mx-auto">
+            <Link href={localizePath('/')} className="font-bold text-lg text-green-700">Bolo237</Link>
+          </div>
+        </nav>
+        <div className="flex items-center justify-center py-32">
+          <div className="text-center">
+            <p className="text-5xl mb-4">{'\uD83D\uDD27'}</p>
+            <h1 className="text-xl font-bold text-gray-800 mb-2">
+              {locale === 'fr' ? 'Profil introuvable' : 'Profile not found'}
+            </h1>
+            <p className="text-gray-500 mb-6">
+              {locale === 'fr'
+                ? 'Ce profil artisan n\u2019existe pas ou a \u00e9t\u00e9 retir\u00e9.'
+                : 'This artisan profile does not exist or has been removed.'}
+            </p>
+            <Link href={localizePath('/petits-boulots')} className="inline-block bg-green-600 text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition">
+              {locale === 'fr' ? 'Voir les services' : 'Browse services'}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-black pb-24 md:pb-10">
@@ -130,7 +163,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
       <header className="max-w-6xl mx-auto px-4 mt-6">
         <div className="relative rounded-3xl overflow-hidden border border-gray-200 bg-white">
           <div className="h-48 md:h-64 bg-gradient-to-r from-amber-100 via-white to-green-100 flex items-center justify-center text-gray-700 font-bold text-sm">
-            {display.couvertureLabel}
+            {artisan.location || (locale === 'fr' ? 'Artisan sur Bolo237' : 'Artisan on Bolo237')}
           </div>
 
           <div className="px-6 pb-6">
@@ -140,23 +173,21 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
                   👨🏾‍🔧
                 </div>
                 <div className="pb-1">
-                  <h1 className="text-2xl md:text-3xl font-extrabold">{display.nom}</h1>
-                  <p className="text-gray-700 font-bold">{display.specialite}</p>
-                  <button
-                    onClick={() => setTranslated((s) => !s)}
-                    className="mt-2 inline-flex text-xs font-extrabold text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-full hover:bg-green-100 transition"
-                  >
-                    ✨ {locale === 'fr' ? (translated ? 'Voir la version originale' : t.home.translateProfile) : (translated ? 'Show original version' : t.home.translateProfile)}
-                  </button>
+                  <h1 className="text-2xl md:text-3xl font-extrabold">{artisan.nom}</h1>
+                  <p className="text-gray-700 font-bold">{artisan.specialite}</p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-amber-500 font-extrabold">⭐ {(reviewAvg || artisan.note).toFixed(1)}</span>
-                <span className="text-sm font-bold text-gray-600">({reviewCount || artisan.avisCount} avis)</span>
+                {reviewCount > 0 && (
+                  <>
+                    <span className="text-amber-500 font-extrabold">⭐ {reviewAvg.toFixed(1)}</span>
+                    <span className="text-sm font-bold text-gray-600">({reviewCount} {locale === 'fr' ? 'avis' : 'reviews'})</span>
+                  </>
+                )}
                 {artisan.verifie && (
                   <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-green-50 text-green-700 border border-green-100">
-                    Profil Verifie
+                    {locale === 'fr' ? 'Profil Verifie' : 'Verified Profile'}
                   </span>
                 )}
               </div>
@@ -219,37 +250,22 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
           </p>
         </section>
 
-        <section>
-          <h2 className="text-xl md:text-2xl font-extrabold mb-4">{locale === 'fr' ? 'Portfolio' : 'Portfolio'}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {display.portfolio.map((item) => (
-              <div key={item} className="rounded-2xl overflow-hidden border border-gray-200 bg-white">
-                <div className="h-32 md:h-40 bg-gray-100 flex items-center justify-center text-3xl">🪵</div>
-                <p className="p-3 text-sm font-bold text-gray-700">{item}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="bg-white border border-gray-200 rounded-2xl p-6">
-          <h2 className="text-xl md:text-2xl font-extrabold mb-4">{locale === 'fr' ? 'Services et tarifs' : 'Services and pricing'}</h2>
-          <div className="space-y-3">
-            {display.services.map((service) => (
-              <div key={service.nom} className="flex flex-col md:flex-row md:items-center md:justify-between gap-1 border-b border-gray-100 pb-3">
-                <p className="font-bold text-gray-800">{service.nom}</p>
-                <p className="text-sm font-extrabold text-green-700">{service.tarif}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        {artisan.profile && (
+          <section className="bg-white border border-gray-200 rounded-2xl p-6">
+            <h2 className="text-xl md:text-2xl font-extrabold mb-4">{locale === 'fr' ? 'A propos' : 'About'}</h2>
+            <p className="text-gray-700 leading-relaxed whitespace-pre-line">{artisan.profile}</p>
+          </section>
+        )}
 
         <section className="bg-white border border-gray-200 rounded-2xl p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <h2 className="text-xl md:text-2xl font-extrabold">{isEn ? 'Client reviews' : 'Avis clients'}</h2>
             <div className="flex items-center gap-3">
-              <p className="text-sm font-extrabold text-gray-700">
-                {(reviewAvg || artisan.note).toFixed(1)}/5 ({reviewCount || artisan.avisCount})
-              </p>
+              {reviewCount > 0 && (
+                <p className="text-sm font-extrabold text-gray-700">
+                  {reviewAvg.toFixed(1)}/5 ({reviewCount})
+                </p>
+              )}
               <button
                 onClick={() => requireAuth(() => setShowRatingModal(true))}
                 className="px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-500 text-black text-sm font-extrabold"
@@ -285,7 +301,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
         isOpen={showRatingModal}
         onClose={() => setShowRatingModal(false)}
         reviewedId={artisanId}
-        reviewedName={display.nom}
+        reviewedName={artisan.nom}
         isEn={isEn}
         onSuccess={reloadReviews}
       />

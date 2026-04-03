@@ -625,7 +625,7 @@ export default function DashboardCandidat() {
       y += 16;
 
       doc.setFontSize(10);
-      doc.text(`${cvData.location} | ${cvData.phone} | ${cvData.email}`, margin, y);
+      doc.text(`${cvData.location} | ${cvData.phone}`, margin, y);
       y += 24;
 
       addTitle(sectionLabel.profile);
@@ -668,7 +668,7 @@ export default function DashboardCandidat() {
           <div>
             <h3 className="text-xl font-extrabold tracking-tight">{cvData.fullName || t.fullNameFallback}</h3>
             <p className="text-sm font-semibold mt-1">{cvData.title || t.profileTitleFallback}</p>
-            <p className="text-xs opacity-90 mt-2">{cvData.location} • {cvData.phone} • {cvData.email}</p>
+            <p className="text-xs opacity-90 mt-2">{cvData.location} • {cvData.phone}</p>
           </div>
         </div>
       </div>

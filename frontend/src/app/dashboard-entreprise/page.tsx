@@ -114,7 +114,7 @@ export default function DashboardEntreprise() {
       if (raw) {
         const user = JSON.parse(raw);
         setUserId(Number(user.id || 0));
-        setUserName(user.name || user.fullName || user.email || '');
+        setUserName(user.name || user.fullName || '');
         setCompanyName(user.company || user.companyName || '');
         setIsVerifiedFromBackend(Boolean(user.isVerified));
         setCompanyLogoPreview(String(user.logoUrl || ''));
@@ -441,7 +441,7 @@ export default function DashboardEntreprise() {
         const user = JSON.parse(raw);
         authorId = user.id;
         if (!authorCompany) {
-          authorCompany = user.company || user.companyName || user.name || user.email || '';
+          authorCompany = user.company || user.companyName || user.name || '';
         }
       }
     } catch {

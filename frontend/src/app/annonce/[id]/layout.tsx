@@ -44,9 +44,23 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
       },
     };
   } catch {
+    const title = 'Offre d\'emploi | Bolo237';
+    const description = 'Consultez cette offre d\'emploi sur Bolo237, la plateforme emploi du Cameroun.';
     return {
-      title: 'Offre d\'emploi | Bolo237',
-      description: 'Consultez cette offre d\'emploi sur Bolo237, la plateforme emploi du Cameroun.',
+      title,
+      description,
+      openGraph: {
+        title,
+        description,
+        type: 'article',
+        siteName: 'Bolo237',
+        locale: 'fr_CM',
+      },
+      twitter: {
+        card: 'summary_large_image' as const,
+        title,
+        description,
+      },
     };
   }
 }

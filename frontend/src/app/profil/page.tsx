@@ -453,7 +453,7 @@ export default function ProfilCV() {
                 <div className="border-b border-gray-100 pb-3">
                   <h3 className="text-xl font-extrabold">{fullName || '—'}</h3>
                   <p className="text-sm font-bold text-green-700">{title || '—'}</p>
-                  <p className="text-xs text-gray-500">{city} {internationalPhone && `• ${internationalPhone}`} {email && `• ${email}`}</p>
+                  <p className="text-xs text-gray-500">{city} {internationalPhone && `• ${internationalPhone}`}</p>
                 </div>
                 {bio && <div><p className="text-xs font-bold text-gray-400 uppercase mb-1">{isEn ? 'About' : 'Profil'}</p><p className="text-sm text-gray-700">{bio}</p></div>}
 

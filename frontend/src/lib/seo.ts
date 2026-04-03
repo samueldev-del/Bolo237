@@ -4,9 +4,13 @@ import { withLocale } from '@/lib/i18n';
 
 export const SITE_URL = 'https://www.bolo237.com';
 
-type LocalizedText = Record<Locale, string>;
+export type LocalizedText = Record<Locale, string>;
 type ChangeFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
 type PageKind = 'website' | 'article';
+export type BreadcrumbItem = {
+  name: string | LocalizedText;
+  path: string;
+};
 
 export type SiteSection = {
   path: string;
@@ -228,6 +232,19 @@ export function localizedUrl(path: string, locale: Locale = DEFAULT_LOCALE) {
   return `${SITE_URL}${withLocale(path, locale)}`;
 }
 
+export function resolveLocalizedText(value: string | LocalizedText, locale: Locale) {
+  return typeof value === 'string' ? value : value[locale];
+}
+
+export function truncateText(value: string, maxLength = 160) {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
 export function buildAlternates(path: string) {
   return {
     canonical: localizedUrl(path, 'fr'),
@@ -241,6 +258,22 @@ export function buildAlternates(path: string) {
 
 export function getSiteSection(path: string) {
   return SITE_SECTIONS.find((section) => section.path === path);
+}
+
+export function buildBreadcrumbSchema(
+  items: BreadcrumbItem[],
+  locale: Locale = DEFAULT_LOCALE
+) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      name: resolveLocalizedText(item.name, locale),
+      item: localizedUrl(item.path, locale),
+    })),
+  };
 }
 
 export function buildLocalizedMetadata(

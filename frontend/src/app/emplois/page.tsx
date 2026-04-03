@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
+import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchJobs, fetchUserSavedJobs, removeUserSavedJob, saveUserJob, type ApiJob } from '@/lib/api';
@@ -224,6 +225,12 @@ export default function EmploisFormels() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F7F8FA' }}>
+      <BreadcrumbJsonLd
+        items={[
+          { name: { fr: 'Accueil', en: 'Home' }, path: '/' },
+          { name: { fr: 'Emplois', en: 'Jobs' }, path: '/emplois' },
+        ]}
+      />
       <Header />
 
       {/* ── Barre de recherche principale ─────────────────────── */}

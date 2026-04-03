@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
@@ -116,6 +117,12 @@ export default function PetitsBoulots() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#F8FAFC' }}>
+      <BreadcrumbJsonLd
+        items={[
+          { name: { fr: 'Accueil', en: 'Home' }, path: '/' },
+          { name: { fr: 'Services', en: 'Services' }, path: '/petits-boulots' },
+        ]}
+      />
       <Header />
 
       {/* ── Header eBay-style ─────────────────────────────────── */}

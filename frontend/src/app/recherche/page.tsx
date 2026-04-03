@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
@@ -71,6 +72,13 @@ export default function Recherche() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-12">
+      <BreadcrumbJsonLd
+        items={[
+          { name: { fr: 'Accueil', en: 'Home' }, path: '/' },
+          { name: { fr: 'Emplois', en: 'Jobs' }, path: '/emplois' },
+          { name: { fr: 'Recherche', en: 'Search' }, path: '/recherche' },
+        ]}
+      />
       <Header />
 
       {/* Back button */}

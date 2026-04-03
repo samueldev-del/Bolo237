@@ -1,5 +1,6 @@
 "use client";
 
+import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
@@ -63,6 +64,12 @@ export default function QuestionsFrequentesPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      <BreadcrumbJsonLd
+        items={[
+          { name: { fr: 'Accueil', en: 'Home' }, path: '/' },
+          { name: { fr: 'FAQ', en: 'FAQ' }, path: '/questions-frequentes' },
+        ]}
+      />
       <Header />
 
       <main className="flex-1 max-w-4xl mx-auto w-full px-4 py-12 md:py-16">

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from 'next/link';
+import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import { useLocale } from '@/components/LocaleProvider';
 
 export default function PublierPage() {
@@ -9,6 +10,12 @@ export default function PublierPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-black">
+      <BreadcrumbJsonLd
+        items={[
+          { name: { fr: 'Accueil', en: 'Home' }, path: '/' },
+          { name: { fr: 'Publier', en: 'Post' }, path: '/publier' },
+        ]}
+      />
       <main className="max-w-4xl mx-auto px-4 py-12">
         <div className="bg-white border border-gray-200 rounded-3xl p-8 md:p-10 shadow-sm">
           <h1 className="text-3xl md:text-4xl font-extrabold mb-3">

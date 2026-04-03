@@ -49,6 +49,14 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
     return {
       title,
       description,
+      alternates: {
+        canonical: `https://www.bolo237.com/fr/annonce/${id}`,
+        languages: {
+          fr: `https://www.bolo237.com/fr/annonce/${id}`,
+          en: `https://www.bolo237.com/en/annonce/${id}`,
+          'x-default': `https://www.bolo237.com/fr/annonce/${id}`,
+        },
+      },
       openGraph: {
         title,
         description,

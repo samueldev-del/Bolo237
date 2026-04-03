@@ -30,7 +30,7 @@ export function useApi<T>(
       setState({ data, loading: false, error: null });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Erreur inconnue';
-      console.warn('[useApi] Fallback activé:', message);
+      // fallback silently in production
       setState({ data: fallback, loading: false, error: message });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

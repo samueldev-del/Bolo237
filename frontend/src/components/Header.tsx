@@ -3,9 +3,11 @@
 import { useState, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { clearStoredSession } from '@/lib/session';
 import { logoutUser } from '@/lib/api';
+import { PRIMARY_NAV_ITEMS } from '@/lib/seo';
 
 const USER_KEY = 'bolo237-user';
 const ROLE_KEY = 'bolo237-account-role';
@@ -66,6 +68,7 @@ function getRoleIcon(role: string | null | undefined): string {
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { locale, setLocale, t, localizePath } = useLocale();
+  const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
   const userRaw = useSyncExternalStore(
     () => () => {},
@@ -80,6 +83,14 @@ export default function Header() {
   const user = useMemo(() => parseUserFromStorage(userRaw), [userRaw]);
 
   const isEn = locale === 'en';
+  const desktopNavItems = useMemo(
+    () => PRIMARY_NAV_ITEMS.map((item) => ({
+      href: localizePath(item.path),
+      label: item.navLabel[locale],
+      path: item.path,
+    })),
+    [locale, localizePath]
+  );
 
   // Fermer le menu en cliquant dehors
   useEffect(() => {
@@ -112,8 +123,25 @@ export default function Header() {
           <Image src="/logo.svg" alt="Bolo237" width={140} height={36} priority className="h-8 md:h-9 w-auto" />
         </Link>
 
-        {/* Navigation links are in the burger menu */}
-        <div className="hidden lg:block" />
+        <nav aria-label={isEn ? 'Primary navigation' : 'Navigation principale'} className="hidden lg:flex items-center gap-1">
+          {desktopNavItems.map((item) => {
+            const isActive = pathname === item.href || pathname?.startsWith(`${item.href}/`);
+
+            return (
+              <Link
+                key={item.path}
+                href={item.href}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  isActive
+                    ? 'bg-[#FFF5EF] text-[#C4623F]'
+                    : 'text-gray-600 hover:bg-[#FFF5EF] hover:text-[#C4623F]'
+                }`}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
 
         {/* BLOC DROIT */}
         <div className="flex items-center gap-3">

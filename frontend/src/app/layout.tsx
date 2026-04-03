@@ -4,13 +4,16 @@ import "./globals.css";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import AppFeedbackWidget from "@/components/AppFeedbackWidget";
 import { cookies } from "next/headers";
+import { buildLocalizedMetadata, SITE_URL } from "@/lib/seo";
 
 const inter = Inter({ subsets: ["latin"] });
 
+const homeMetadata = buildLocalizedMetadata('/');
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://www.bolo237.com"),
-  title: "Bolo237 - Emplois et Services au Cameroun",
-  description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
+  metadataBase: new URL(SITE_URL),
+  title: homeMetadata.title,
+  description: homeMetadata.description,
   applicationName: "Bolo237",
   keywords: [
     "Bolo237",
@@ -30,28 +33,9 @@ export const metadata: Metadata = {
     shortcut: "/icon.svg",
     apple: "/icons/icon-192.png",
   },
-  alternates: {
-    canonical: "/fr",
-    languages: {
-      fr: "/fr",
-      en: "/en",
-      "x-default": "/fr",
-    },
-  },
-  openGraph: {
-    type: "website",
-    title: "Bolo237 - Emplois et Services au Cameroun",
-    description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
-    url: "https://www.bolo237.com/fr",
-    siteName: "Bolo237",
-    locale: "fr_CM",
-    alternateLocale: ["en_US"],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "Bolo237 - Emplois et Services au Cameroun",
-    description: "Trouvez l'opportunité idéale ou proposez vos services partout au Cameroun.",
-  },
+  alternates: homeMetadata.alternates,
+  openGraph: homeMetadata.openGraph,
+  twitter: homeMetadata.twitter,
 };
 
 export const viewport: Viewport = {

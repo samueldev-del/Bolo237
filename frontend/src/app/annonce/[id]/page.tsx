@@ -13,22 +13,6 @@ type JobParams = {
   }>;
 };
 
-// Mock data de fallback
-const MOCK_ANNONCE = {
-  titre: 'Responsable Marketing Digital',
-  entreprise: 'TechCamer S.A',
-  logo: 'TC',
-  contrat: 'CDI',
-  lieu: 'Douala',
-  mode: 'Hybride',
-  salaire: '450 000 - 650 000 FCFA',
-  publication: '21 mars 2026',
-  limite: '15 avril 2026',
-  description:
-    "Dans le cadre de sa croissance, TechCamer renforce son équipe marketing pour accélérer l'acquisition client et la visibilité de ses produits numériques au Cameroun et en Afrique centrale.",
-  entrepriseResume:
-    'TechCamer S.A est une entreprise technologique basée à Douala, spécialisée dans les solutions web et mobile pour les PME.',
-};
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('fr-FR', {
@@ -120,7 +104,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
     }
   }, [showApplicationReview, locale]);
 
-  // Construire les données d'affichage (API ou fallback mock)
+  // Construire les données d'affichage depuis l'API
   const annonce = apiJob
     ? {
         id,
@@ -138,7 +122,35 @@ export default function OffreEmploiPage({ params }: JobParams) {
         description: apiJob.description,
         entrepriseResume: `${apiJob.company} — ${apiJob.location}`,
       }
-    : { id, ...MOCK_ANNONCE };
+    : null;
+
+  if (!annonce) {
+    return (
+      <div className="min-h-screen bg-[#f5f7f8]">
+        <nav className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="max-w-5xl mx-auto">
+            <Link href={localizePath('/')} className="font-bold text-lg text-[#C4623F]">Bolo237</Link>
+          </div>
+        </nav>
+        <div className="flex items-center justify-center py-32">
+          <div className="text-center">
+            <p className="text-5xl mb-4">{'\uD83D\uDCCB'}</p>
+            <h1 className="text-xl font-bold text-gray-800 mb-2">
+              {locale === 'fr' ? 'Annonce introuvable' : 'Listing not found'}
+            </h1>
+            <p className="text-gray-500 mb-6">
+              {locale === 'fr'
+                ? 'Cette offre n\u2019existe plus ou a \u00e9t\u00e9 retir\u00e9e.'
+                : 'This listing no longer exists or has been removed.'}
+            </p>
+            <Link href={localizePath('/emplois')} className="inline-block bg-[#C4623F] text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition">
+              {locale === 'fr' ? 'Voir les offres' : 'Browse jobs'}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const display = translated
     ? {

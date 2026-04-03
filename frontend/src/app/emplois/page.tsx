@@ -65,39 +65,6 @@ function apiJobToOffre(job: ApiJob, index: number): Offre {
   };
 }
 
-// ── Mock data (fallback si backend indisponible) ──────────────────
-const MOCK_OFFRES: Offre[] = [
-  {
-    id: 1, titre: 'Développeur Web React.js', entreprise: 'TechCamer', logoInitiales: 'TC', logoColor: '#7C3AED', logoUrl: null, isVerified: false,
-    lieu: 'Douala, Akwa', region: 'Littoral', teletravail: 'Partiel', contrat: 'CDI', secteur: 'Informatique & Tech', niveau: 'Bac+3',
-    salaire: '300 000 – 400 000 FCFA', description: 'Nous recherchons un développeur React.js passionné pour rejoindre notre équipe. Vous travaillerez sur des projets innovants pour des clients locaux et internationaux.',
-    heures: 'Il y a 2h', candidatureRapide: true, nouveau: true, saved: false,
-  },
-  {
-    id: 3, titre: 'Comptable Junior (H/F)', entreprise: 'K-Finance SA', logoInitiales: 'KF', logoColor: '#059669', logoUrl: null, isVerified: false,
-    lieu: 'Douala, Bonanjo', region: 'Littoral', teletravail: 'Non', contrat: 'Stage', secteur: 'Finance & Banque', niveau: 'Bac+2',
-    salaire: null, description: 'Stage de 6 mois en comptabilité générale. Saisie, rapprochement bancaire, préparation des bilans. Encadrement par un senior.',
-    heures: 'Il y a 1 jour', candidatureRapide: false, nouveau: true, saved: false,
-  },
-  {
-    id: 5, titre: 'Responsable Marketing Digital', entreprise: 'MTN Cameroun', logoInitiales: 'MT', logoColor: '#D97706', logoUrl: null, isVerified: false,
-    lieu: 'Yaoundé, Bastos', region: 'Centre', teletravail: 'Partiel', contrat: 'CDI', secteur: 'Télécommunications', niveau: 'Bac+4/5',
-    salaire: '450 000 – 600 000 FCFA', description: 'Pilotage de la stratégie de communication digitale, gestion des réseaux sociaux, campagnes publicitaires et analyse des performances.',
-    heures: 'Il y a 3 jours', candidatureRapide: true, nouveau: false, saved: false,
-  },
-  {
-    id: 7, titre: 'Ingénieur Génie Civil', entreprise: 'BATIGROUP SA', logoInitiales: 'BG', logoColor: '#DC2626', logoUrl: null, isVerified: false,
-    lieu: 'Bafoussam', region: 'Ouest', teletravail: 'Non', contrat: 'CDD', secteur: 'BTP & Construction', niveau: 'Bac+5',
-    salaire: '350 000 – 500 000 FCFA', description: 'Supervision de chantiers, coordination des équipes, contrôle qualité et respect des délais sur des projets d\'infrastructure publique.',
-    heures: 'Il y a 5 jours', candidatureRapide: false, nouveau: false, saved: false,
-  },
-  {
-    id: 8, titre: 'Data Analyst', entreprise: 'Orange Cameroun', logoInitiales: 'OC', logoColor: '#EA580C', logoUrl: null, isVerified: false,
-    lieu: 'Douala', region: 'Littoral', teletravail: 'Oui', contrat: 'CDI', secteur: 'Télécommunications', niveau: 'Bac+4/5',
-    salaire: '400 000 – 550 000 FCFA', description: 'Analyse des données clients, modélisation prédictive, dashboards et rapports de performance pour la direction commerciale.',
-    heures: 'Il y a 1 semaine', candidatureRapide: true, nouveau: false, saved: false,
-  },
-];
 
 // ── Accordion section ─────────────────────────────────────────────
 function FilterSection({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
@@ -199,7 +166,7 @@ export default function EmploisFormels() {
 
   const OFFRES: Offre[] = jobsData && jobsData.jobs.length > 0
     ? jobsData.jobs.map((j, i) => apiJobToOffre(j, i))
-    : MOCK_OFFRES;
+    : [];
 
   const toggleSave = async (id: number) => {
     const isSaved = savedIds.includes(id);

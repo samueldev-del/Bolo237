@@ -9,101 +9,36 @@ import { useLocale } from '@/components/LocaleProvider';
 
 // ── Catégories ────────────────────────────────────────────────────
 const categories = [
-  { icon: '🏗️', label: 'Bâtiment & Chantiers', count: 89 },
-  { icon: '🧹', label: 'Ménage & Entretien', count: 156 },
-  { icon: '🚗', label: 'Transport & Livraison', count: 77 },
-  { icon: '🛒', label: 'Commerce & Vente', count: 134 },
-  { icon: '🔨', label: 'Artisanat', count: 62 },
-  { icon: '👶', label: "Garde d'enfants", count: 48 },
-  { icon: '🍽️', label: 'Restauration', count: 91 },
-  { icon: '📱', label: 'Tech & Dépannage', count: 38 },
-  { icon: '💇', label: 'Coiffure & Beauté', count: 55 },
-  { icon: '📚', label: 'Cours Particuliers', count: 70 },
-  { icon: '🌱', label: 'Jardinage', count: 29 },
-  { icon: '🔐', label: 'Gardiennage', count: 43 },
+  { icon: '🏗️', label: 'Bâtiment & Chantiers' },
+  { icon: '🧹', label: 'Ménage & Entretien' },
+  { icon: '🚗', label: 'Transport & Livraison' },
+  { icon: '🛒', label: 'Commerce & Vente' },
+  { icon: '🔨', label: 'Artisanat' },
+  { icon: '👶', label: "Garde d'enfants" },
+  { icon: '🍽️', label: 'Restauration' },
+  { icon: '📱', label: 'Tech & Dépannage' },
+  { icon: '💇', label: 'Coiffure & Beauté' },
+  { icon: '📚', label: 'Cours Particuliers' },
+  { icon: '🌱', label: 'Jardinage' },
+  { icon: '🔐', label: 'Gardiennage' },
 ];
 
-// ── Annonces ──────────────────────────────────────────────────────
-const annonces = [
-  {
-    id: 2,
-    titre: "Cherche plombier — fuite d'eau salle de bain",
-    contact: 'Mme Tchoufa',
-    quartier: 'Bastos',
-    ville: 'Yaoundé',
-    categorie: 'Bâtiment & Chantiers',
-    urgence: 'Aujourd\'hui',
-    budget: '15 000 FCFA',
-    whatsapp: '+237 699 00 00 00',
-    temps: 'Il y a 1h',
-    description: 'Fuite sous le lavabo de la salle de bain. Besoin d\'intervention rapide. Matériel fourni.',
-  },
-  {
-    id: 4,
-    titre: 'Peintre cherché pour 2 chambres',
-    contact: 'M. Mballa',
-    quartier: 'Akwa',
-    ville: 'Douala',
-    categorie: 'Bâtiment & Chantiers',
-    urgence: 'Ce week-end',
-    budget: '25 000 FCFA / jour',
-    whatsapp: '+237 677 00 00 00',
-    temps: 'Il y a 3h',
-    description: 'Deux chambres à peindre (environ 30m²). Peinture blanc cassé fournie. Prévoir 2 jours de travail.',
-  },
-  {
-    id: 6,
-    titre: 'Gardien de nuit pour résidence',
-    contact: 'Résidence Palmiers',
-    quartier: 'Bonanjo',
-    ville: 'Douala',
-    categorie: 'Gardiennage',
-    urgence: 'Dès maintenant',
-    budget: '80 000 FCFA / mois',
-    whatsapp: '+237 655 00 00 00',
-    temps: 'Il y a 5h',
-    description: 'Gardien sérieux pour une résidence de 12 appartements. Poste de nuit, 18h–6h. Logement possible.',
-  },
-  {
-    id: 8,
-    titre: 'Couturière pour robes de mariée',
-    contact: 'Mme Epée',
-    quartier: 'Bali',
-    ville: 'Douala',
-    categorie: 'Artisanat',
-    urgence: 'Sous 2 semaines',
-    budget: '50 000 FCFA / robe',
-    whatsapp: '+237 690 00 00 00',
-    temps: 'Il y a 8h',
-    description: 'Cherche couturière expérimentée pour confectionner 3 robes de mariée en wax et dentelle pour une cérémonie prévue dans 2 semaines.',
-  },
-  {
-    id: 9,
-    titre: 'Livreur moto pour épicerie',
-    contact: 'Épicerie Centrale Bafoussam',
-    quartier: 'Marché B',
-    ville: 'Bafoussam',
-    categorie: 'Transport & Livraison',
-    urgence: 'Temps plein',
-    budget: '60 000 FCFA / mois',
-    whatsapp: '+237 670 00 00 00',
-    temps: 'Il y a 12h',
-    description: 'Livreur à moto pour livraisons de courses en ville. Moto personnelle requise. Poste fixe avec bonne rémunération.',
-  },
-  {
-    id: 10,
-    titre: "Babysitter pour 2 enfants (3 et 6 ans)",
-    contact: 'Famille Ateba',
-    quartier: 'Omnisport',
-    ville: 'Yaoundé',
-    categorie: "Garde d'enfants",
-    urgence: 'Lundi–Vendredi',
-    budget: '70 000 FCFA / mois',
-    whatsapp: '+237 697 00 00 00',
-    temps: 'Il y a 1 jour',
-    description: 'Cherche babysitter sérieuse et douce pour s\'occuper de 2 enfants le matin (7h–13h) pendant que les parents travaillent.',
-  },
-];
+// ── Annonces (populated from API when available) ─────────────────
+type Annonce = {
+  id: number;
+  titre: string;
+  contact: string;
+  quartier: string;
+  ville: string;
+  categorie: string;
+  urgence: string;
+  budget: string;
+  whatsapp: string;
+  temps: string;
+  description: string;
+};
+
+const annonces: Annonce[] = [];
 
 export default function PetitsBoulots() {
   const { localizePath } = useLocale();

@@ -47,6 +47,11 @@ export type ApiReportSubmission = {
   summary: ApiReportSummary;
 };
 
+export type ApiPrivacyExport = Record<string, unknown> & {
+  reference: string;
+  exportedAt: string;
+};
+
 export type Pagination = {
   page: number;
   limit: number;
@@ -354,8 +359,8 @@ export async function createReport(data: {
   });
 }
 
-export async function exportPrivacyData(): Promise<Record<string, unknown>> {
-  return apiFetch<Record<string, unknown>>('/api/privacy/export');
+export async function exportPrivacyData(): Promise<ApiPrivacyExport> {
+  return apiFetch<ApiPrivacyExport>('/api/privacy/export');
 }
 
 export async function requestAccountDeletion(reason?: string): Promise<{ ok: boolean; reference: string; delivery: string; message: string }> {

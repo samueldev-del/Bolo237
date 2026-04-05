@@ -143,6 +143,42 @@ export type AdminNotification = {
   user: { id: number; name: string | null; email: string; role: string };
 };
 
+export type PrivacyRequestKind = 'EXPORT' | 'DELETE';
+export type PrivacyRequestStatus = 'PENDING' | 'IN_REVIEW' | 'COMPLETED' | 'REJECTED';
+
+export type AdminPrivacyRequest = {
+  id: number;
+  reference: string;
+  kind: PrivacyRequestKind;
+  status: PrivacyRequestStatus;
+  userId: number | null;
+  requesterEmail: string;
+  requesterPhone: string | null;
+  requesterRole: string | null;
+  requesterName: string | null;
+  reason: string | null;
+  delivery: string | null;
+  sourceIp: string | null;
+  userAgent: string | null;
+  notes: string | null;
+  payload: Record<string, unknown> | null;
+  requestedAt: string;
+  processedAt: string | null;
+  processedBy: string | null;
+  updatedAt: string;
+  user: { id: number; name: string | null; email: string; role: string } | null;
+};
+
+export type AdminPrivacyRequestSummary = {
+  total: number;
+  pending: number;
+  inReview: number;
+  completed: number;
+  rejected: number;
+  exports: number;
+  deletions: number;
+};
+
 export type ActivityEvent = {
   type: string;
   description: string;
@@ -479,6 +515,31 @@ export async function fetchAdminNotifications(params: { limit?: number; page?: n
   if (params.page) qs.set('page', String(params.page));
   const q = qs.toString();
   return apiFetch(`/api/admin/notifications${q ? `?${q}` : ''}`);
+}
+
+export async function fetchAdminPrivacyRequests(params: {
+  kind?: PrivacyRequestKind;
+  status?: PrivacyRequestStatus;
+  page?: number;
+  limit?: number;
+} = {}): Promise<{ items: AdminPrivacyRequest[]; pagination: Pagination; summary: AdminPrivacyRequestSummary }> {
+  const qs = new URLSearchParams();
+  if (params.kind) qs.set('kind', params.kind);
+  if (params.status) qs.set('status', params.status);
+  if (params.page) qs.set('page', String(params.page));
+  if (params.limit) qs.set('limit', String(params.limit));
+  const q = qs.toString();
+  return apiFetch(`/api/admin/privacy-requests${q ? `?${q}` : ''}`);
+}
+
+export async function updateAdminPrivacyRequest(reference: string, data: {
+  status?: PrivacyRequestStatus;
+  notes?: string;
+}): Promise<AdminPrivacyRequest> {
+  return apiFetch(`/api/admin/privacy-requests/${encodeURIComponent(reference)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
 }
 
 // ── Admin Search ────────────────────────────────────────────────

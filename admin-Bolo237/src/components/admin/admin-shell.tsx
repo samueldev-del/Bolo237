@@ -74,6 +74,11 @@ const alertItems: NavItem[] = [
     icon: <Flag className="h-4 w-4" />,
   },
   {
+    href: "/alertes/confidentialite",
+    label: "Demandes confidentialite",
+    icon: <ShieldCheck className="h-4 w-4" />,
+  },
+  {
     href: "/alertes/avis",
     label: "Avis & Notes",
     icon: <Star className="h-4 w-4" />,

@@ -56,6 +56,7 @@ export default function PrivacyRightsPanel() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [exportReference, setExportReference] = useState<string | null>(null);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleteConfirmed, setDeleteConfirmed] = useState(false);
   const [isSubmittingDelete, setIsSubmittingDelete] = useState(false);
@@ -118,10 +119,12 @@ export default function PrivacyRightsPanel() {
     setIsExporting(true);
     setExportFeedback(null);
     setExportError(null);
+    setExportReference(null);
 
     try {
       const data = await exportPrivacyData();
       triggerJsonDownload(data);
+      setExportReference(data.reference);
       setExportFeedback(
         isEn
           ? 'Your export has been prepared and downloaded as a JSON file.'
@@ -130,6 +133,11 @@ export default function PrivacyRightsPanel() {
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
         setSessionState('guest');
+          {exportReference && (
+            <p className="mt-3 rounded-2xl border border-[#F2D7C8] bg-[#FFF8F3] px-4 py-3 text-xs font-semibold text-[#9A4D30]">
+              {isEn ? 'Reference:' : 'Reference :'} <span className="font-mono">{exportReference}</span>
+            </p>
+          )}
         setSessionUser(null);
         setExportError(requireLoginMessage);
       } else {

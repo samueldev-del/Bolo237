@@ -23,6 +23,7 @@ model User {
   createdAt   DateTime @default(now())
   jobs        Job[]
   notifications Notification[]
+  privacyRequests PrivacyRequest[]
   appFeedbacks AppFeedback[]
   reviewsGiven UserReview[] @relation("reviewer")
   reviewsReceived UserReview[] @relation("reviewed")
@@ -65,6 +66,33 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, isRead, createdAt])
+}
+
+model PrivacyRequest {
+  id             Int      @id @default(autoincrement())
+  reference      String   @unique
+  kind           String
+  status         String   @default("PENDING")
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId         Int?
+  requesterEmail String
+  requesterPhone String?
+  requesterRole  String?
+  requesterName  String?
+  reason         String?
+  delivery       String?
+  sourceIp       String?
+  userAgent      String?
+  notes          String?
+  payload        Json?
+  requestedAt    DateTime @default(now())
+  processedAt    DateTime?
+  processedBy    String?
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, requestedAt])
+  @@index([kind, requestedAt])
+  @@index([userId, requestedAt])
 }
 
 model AppFeedback {

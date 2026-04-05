@@ -297,6 +297,8 @@ const REPORT_TARGET_ALLOWLIST = new Set(['annonce', 'artisan']);
 const REPORT_REASON_ALLOWLIST = new Set(['demande-argent', 'fausse-identite', 'artisan-injoignable']);
 const REPORT_DEDUPE_WINDOW_MS = 12 * 60 * 60 * 1000;
 const REPORT_REVIEW_THRESHOLD = 3;
+const PRIVACY_REQUEST_KIND_ALLOWLIST = new Set(['EXPORT', 'DELETE']);
+const PRIVACY_REQUEST_STATUS_ALLOWLIST = new Set(['PENDING', 'IN_REVIEW', 'COMPLETED', 'REJECTED']);
 const recentReportSubmissions = new Map();
 
 function parsePositiveInt(value) {
@@ -356,6 +358,50 @@ async function buildReportSummary(targetType, targetId) {
 
 function buildPrivacyReference(prefix) {
   return `${prefix}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
+function normalizePrivacyRequestKind(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  return PRIVACY_REQUEST_KIND_ALLOWLIST.has(normalized) ? normalized : null;
+}
+
+function normalizePrivacyRequestStatus(value) {
+  const normalized = String(value || '').trim().toUpperCase();
+  return PRIVACY_REQUEST_STATUS_ALLOWLIST.has(normalized) ? normalized : null;
+}
+
+function normalizePrivacyNotes(value) {
+  if (value === undefined) return undefined;
+  return String(value || '').trim().slice(0, 4000);
+}
+
+function getRequestSourceIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  const fallback = String(req.ip || req.socket?.remoteAddress || '').trim();
+  return (forwarded || fallback || 'unknown').slice(0, 120);
+}
+
+async function createPrivacyRequestLog({ reference, kind, status = 'PENDING', user, reason, delivery, req, notes, payload, processedAt, processedBy }) {
+  return prisma.privacyRequest.create({
+    data: {
+      reference,
+      kind,
+      status,
+      userId: user?.id || null,
+      requesterEmail: String(user?.email || ''),
+      requesterPhone: user?.phone || null,
+      requesterRole: user?.role || null,
+      requesterName: user?.name || null,
+      reason: reason || null,
+      delivery: delivery || null,
+      sourceIp: req ? getRequestSourceIp(req) : null,
+      userAgent: String(req?.get?.('user-agent') || '').trim().slice(0, 400) || null,
+      notes: notes || null,
+      payload: payload || undefined,
+      processedAt: processedAt || null,
+      processedBy: processedBy || null,
+    },
+  });
 }
 
 async function notifyPrivacyTeam({ subject, text, replyTo }) {
@@ -1690,6 +1736,8 @@ app.post('/api/auth/logout', (_req, res) => {
 app.get('/api/privacy/export', requireUserSession, async (req, res) => {
   try {
     const user = req.sessionUser;
+    const reference = buildPrivacyReference('EXP');
+    const exportedAt = new Date().toISOString();
 
     const [profile, candidateProfile, jobs, notifications, reviewsGiven, reviewsReceived, savedJobs] = await prisma.$transaction([
       prisma.userProfile.findUnique({ where: { userId: user.id } }),
@@ -1705,8 +1753,28 @@ app.get('/api/privacy/export', requireUserSession, async (req, res) => {
       ? await prisma.verificationSubmission.findMany({ where: { phone: user.phone }, orderBy: { submittedAt: 'desc' } })
       : [];
 
+    await createPrivacyRequestLog({
+      reference,
+      kind: 'EXPORT',
+      status: 'COMPLETED',
+      user,
+      delivery: 'download',
+      req,
+      processedAt: new Date(exportedAt),
+      processedBy: 'system',
+      payload: {
+        jobsCount: jobs.length,
+        notificationsCount: notifications.length,
+        reviewsGivenCount: reviewsGiven.length,
+        reviewsReceivedCount: reviewsReceived.length,
+        savedJobsCount: savedJobs.length,
+        verificationSubmissionsCount: verificationSubmissions.length,
+      },
+    });
+
     return res.json({
-      exportedAt: new Date().toISOString(),
+      reference,
+      exportedAt,
       user,
       profile,
       candidateProfile,
@@ -1728,6 +1796,7 @@ app.post('/api/privacy/delete-request', requireUserSession, privacyRequestLimite
     const user = req.sessionUser;
     const reason = String(req.body?.reason || '').trim().slice(0, 1000);
     const reference = buildPrivacyReference('DEL');
+    const requestedAt = new Date().toISOString();
     const lines = [
       'Nouvelle demande de suppression de compte Bolo237',
       `Reference: ${reference}`,
@@ -1735,14 +1804,33 @@ app.post('/api/privacy/delete-request', requireUserSession, privacyRequestLimite
       `Email: ${user.email}`,
       `Phone: ${user.phone || 'non renseigne'}`,
       `Role: ${user.role}`,
-      `Requested at: ${new Date().toISOString()}`,
+      `Requested at: ${requestedAt}`,
       `Reason: ${reason || 'Aucun motif fourni.'}`,
     ];
+
+    await createPrivacyRequestLog({
+      reference,
+      kind: 'DELETE',
+      status: 'PENDING',
+      user,
+      reason,
+      delivery: 'pending',
+      req,
+      payload: {
+        requestedAt,
+        channel: 'self-service',
+      },
+    });
 
     const delivery = await notifyPrivacyTeam({
       subject: `[Bolo237] Demande de suppression ${reference}`,
       text: lines.join('\n'),
       replyTo: user.email,
+    });
+
+    await prisma.privacyRequest.update({
+      where: { reference },
+      data: { delivery },
     });
 
     return res.status(202).json({
@@ -1904,6 +1992,138 @@ app.get('/api/admin/stats', requireAdminSession, async (req, res) => {
   } catch (error) {
     console.error('GET /api/admin/stats error:', error);
     res.status(500).json({ error: 'Erreur lors de la lecture des statistiques.' });
+  }
+});
+
+// GET /api/admin/privacy-requests — Journal des demandes de confidentialite
+app.get('/api/admin/privacy-requests', requireAdminSession, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const skip = (page - 1) * limit;
+    const rawStatus = req.query.status ? String(req.query.status) : '';
+    const rawKind = req.query.kind ? String(req.query.kind) : '';
+    const status = rawStatus ? normalizePrivacyRequestStatus(rawStatus) : null;
+    const kind = rawKind ? normalizePrivacyRequestKind(rawKind) : null;
+
+    if (rawStatus && !status) {
+      return res.status(400).json({ error: 'Statut de demande de confidentialite invalide.' });
+    }
+
+    if (rawKind && !kind) {
+      return res.status(400).json({ error: 'Type de demande de confidentialite invalide.' });
+    }
+
+    const where = {};
+    if (status) where.status = status;
+    if (kind) where.kind = kind;
+
+    const [items, filteredTotal, total, pending, inReview, completed, rejected, exportsCount, deletionsCount] = await Promise.all([
+      prisma.privacyRequest.findMany({
+        where,
+        orderBy: [{ requestedAt: 'desc' }, { id: 'desc' }],
+        skip,
+        take: limit,
+        include: {
+          user: { select: { id: true, name: true, email: true, role: true } },
+        },
+      }),
+      prisma.privacyRequest.count({ where }),
+      prisma.privacyRequest.count(),
+      prisma.privacyRequest.count({ where: { status: 'PENDING' } }),
+      prisma.privacyRequest.count({ where: { status: 'IN_REVIEW' } }),
+      prisma.privacyRequest.count({ where: { status: 'COMPLETED' } }),
+      prisma.privacyRequest.count({ where: { status: 'REJECTED' } }),
+      prisma.privacyRequest.count({ where: { kind: 'EXPORT' } }),
+      prisma.privacyRequest.count({ where: { kind: 'DELETE' } }),
+    ]);
+
+    res.json({
+      items,
+      pagination: { page, limit, total: filteredTotal, totalPages: Math.ceil(filteredTotal / limit) || 1 },
+      summary: {
+        total,
+        pending,
+        inReview,
+        completed,
+        rejected,
+        exports: exportsCount,
+        deletions: deletionsCount,
+      },
+    });
+  } catch (error) {
+    console.error('GET /api/admin/privacy-requests error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture du journal de confidentialite.' });
+  }
+});
+
+// PATCH /api/admin/privacy-requests/:reference — Suivi manuel d'une demande de confidentialite
+app.patch('/api/admin/privacy-requests/:reference', requireAdminSession, async (req, res) => {
+  try {
+    const reference = String(req.params.reference || '').trim().toUpperCase();
+    const body = req.body && typeof req.body === 'object' ? req.body : {};
+    const statusProvided = Object.prototype.hasOwnProperty.call(body, 'status');
+    const notesProvided = Object.prototype.hasOwnProperty.call(body, 'notes');
+    const status = statusProvided ? normalizePrivacyRequestStatus(body.status) : null;
+    const notes = normalizePrivacyNotes(body.notes);
+
+    if (!reference) {
+      return res.status(400).json({ error: 'Reference de demande invalide.' });
+    }
+
+    if (statusProvided && !status) {
+      return res.status(400).json({ error: 'Statut de confidentialite invalide.' });
+    }
+
+    if (!statusProvided && !notesProvided) {
+      return res.status(400).json({ error: 'Aucune mise a jour fournie.' });
+    }
+
+    const [current, adminUser] = await Promise.all([
+      prisma.privacyRequest.findUnique({
+        where: { reference },
+        include: { user: { select: { id: true, name: true, email: true, role: true } } },
+      }),
+      prisma.user.findUnique({
+        where: { id: req.adminUserId },
+        select: { id: true, name: true, email: true },
+      }),
+    ]);
+
+    if (!current) {
+      return res.status(404).json({ error: 'Demande de confidentialite introuvable.' });
+    }
+
+    const nextStatus = statusProvided ? status : current.status;
+    const adminLabel = adminUser?.email || adminUser?.name || `admin#${req.adminUserId}`;
+    const updateData = {};
+
+    if (statusProvided) {
+      updateData.status = nextStatus;
+    }
+
+    if (notesProvided) {
+      updateData.notes = notes || null;
+    }
+
+    if (statusProvided && nextStatus === 'PENDING') {
+      updateData.processedAt = null;
+      updateData.processedBy = null;
+    } else if ((statusProvided && nextStatus !== 'PENDING') || (notesProvided && current.status !== 'PENDING')) {
+      updateData.processedAt = new Date();
+      updateData.processedBy = adminLabel;
+    }
+
+    const updated = await prisma.privacyRequest.update({
+      where: { reference },
+      data: updateData,
+      include: { user: { select: { id: true, name: true, email: true, role: true } } },
+    });
+
+    res.json(updated);
+  } catch (error) {
+    console.error('PATCH /api/admin/privacy-requests/:reference error:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise a jour de la demande de confidentialite.' });
   }
 });
 
@@ -2172,7 +2392,7 @@ app.get('/api/admin/activity-log', requireAdminSession, async (req, res) => {
   try {
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
 
-    const [recentUsers, recentJobs, recentReports, recentBans] = await Promise.all([
+    const [recentUsers, recentJobs, recentReports, recentBans, recentPrivacyRequests] = await Promise.all([
       prisma.user.findMany({
         orderBy: { createdAt: 'desc' },
         take: limit,
@@ -2193,6 +2413,11 @@ app.get('/api/admin/activity-log', requireAdminSession, async (req, res) => {
         orderBy: { bannedAt: 'desc' },
         take: limit,
         select: { id: true, name: true, bannedAt: true },
+      }),
+      prisma.privacyRequest.findMany({
+        orderBy: { requestedAt: 'desc' },
+        take: limit,
+        select: { reference: true, kind: true, status: true, requestedAt: true, requesterEmail: true },
       }),
     ]);
 
@@ -2231,6 +2456,21 @@ app.get('/api/admin/activity-log', requireAdminSession, async (req, res) => {
         description: `Utilisateur banni: ${b.name}`,
         timestamp: b.bannedAt,
         meta: { userId: b.id, name: b.name },
+      });
+    });
+
+    recentPrivacyRequests.forEach((request) => {
+      const actionLabel = request.kind === 'EXPORT' ? 'Export de donnees' : 'Demande de suppression';
+      events.push({
+        type: 'privacy_request',
+        description: `${actionLabel}: ${request.reference} (${request.status})`,
+        timestamp: request.requestedAt,
+        meta: {
+          reference: request.reference,
+          kind: request.kind,
+          status: request.status,
+          requesterEmail: request.requesterEmail,
+        },
       });
     });
 

@@ -19,8 +19,9 @@ import {
   X,
   LayoutDashboard,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAdminInbox } from "@/components/admin/admin-inbox-provider";
+import { fetchAdminMyNotifications } from "@/lib/api";
 
 type AdminShellProps = {
   title: string;
@@ -77,6 +78,11 @@ const alertItems: NavItem[] = [
     href: "/alertes/confidentialite",
     label: "Demandes confidentialite",
     icon: <ShieldCheck className="h-4 w-4" />,
+  },
+  {
+    href: "/alertes/notifications",
+    label: "Notifications internes",
+    icon: <Bell className="h-4 w-4" />,
   },
   {
     href: "/alertes/avis",
@@ -142,9 +148,11 @@ export default function AdminShell({
 }: AdminShellProps) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [adminUnreadCount, setAdminUnreadCount] = useState(0);
   const { summary, sync, isLoading } = useAdminInbox();
   const unreadCount = summary?.unreadCount ?? 0;
   const inboxBadge = unreadCount > 99 ? "99+" : unreadCount > 0 ? String(unreadCount) : undefined;
+  const adminNotificationsBadge = adminUnreadCount > 99 ? "99+" : adminUnreadCount > 0 ? String(adminUnreadCount) : undefined;
   const hostingerStatusLabel = !sync?.enabled
     ? "IMAP a configurer"
     : sync.lastError
@@ -155,12 +163,40 @@ export default function AdminShell({
           ? `${unreadCount} non lu${unreadCount > 1 ? "s" : ""}`
           : "Boite a jour";
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAdminNotificationCount() {
+      try {
+        const response = await fetchAdminMyNotifications({ limit: 1 });
+        if (!cancelled) {
+          setAdminUnreadCount(response.unreadCount);
+        }
+      } catch {
+        if (!cancelled) {
+          setAdminUnreadCount(0);
+        }
+      }
+    }
+
+    void loadAdminNotificationCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
+
   const navigationAlertItems = alertItems.map((item) =>
     item.href === "/inbox"
       ? {
           ...item,
           badge: inboxBadge,
         }
+      : item.href === "/alertes/notifications"
+        ? {
+            ...item,
+            badge: adminNotificationsBadge,
+          }
       : item,
   );
 
@@ -322,33 +358,29 @@ export default function AdminShell({
                 </Link>
 
                 <Link
-                  href="/inbox"
+                  href="/alertes/notifications"
                   className="relative rounded-xl border border-zinc-200 bg-white p-3 text-zinc-700 transition hover:bg-zinc-50"
-                  aria-label="Ouvrir la boite de reception"
+                  aria-label="Ouvrir les notifications internes"
                 >
                   <Bell className="h-5 w-5" />
-                  {inboxBadge ? (
+                  {adminNotificationsBadge ? (
                     <span className="absolute -right-1 -top-1 rounded-full bg-[#DA7756] px-1.5 py-0.5 text-[10px] font-bold text-white shadow-sm">
-                      {inboxBadge}
+                      {adminNotificationsBadge}
                     </span>
                   ) : null}
                   <span className="absolute right-2 top-2 flex h-2.5 w-2.5">
                     <span
                       className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                        sync?.lastError
-                          ? "bg-red-500"
-                          : unreadCount > 0
-                            ? "animate-ping bg-[#DA7756]"
-                            : "bg-emerald-500"
+                        adminUnreadCount > 0
+                          ? "animate-ping bg-[#DA7756]"
+                          : "bg-zinc-300"
                       }`}
                     />
                     <span
                       className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
-                        sync?.lastError
-                          ? "bg-red-500"
-                          : unreadCount > 0
-                            ? "bg-[#DA7756]"
-                            : "bg-emerald-500"
+                        adminUnreadCount > 0
+                          ? "bg-[#DA7756]"
+                          : "bg-zinc-300"
                       }`}
                     />
                   </span>

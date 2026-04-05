@@ -139,8 +139,10 @@ export type AdminNotification = {
   title: string;
   message: string;
   isRead: boolean;
+  readAt?: string | null;
   createdAt: string;
-  user: { id: number; name: string | null; email: string; role: string };
+  data?: Record<string, unknown> | null;
+  user?: { id: number; name: string | null; email: string; role: string };
 };
 
 export type PrivacyRequestKind = 'EXPORT' | 'DELETE';
@@ -407,8 +409,8 @@ export function fetchAppFeedbacks(
 
 // ── Admin Reviews ───────────────────────────────────────────────
 
-export function fetchAdminReviews(): Promise<{ reviews: UserReview[]; alerts: ReviewAlert[] }> {
-  return apiFetch('/api/admin/reviews');
+export function fetchAdminReviews(limit = 50): Promise<{ reviews: UserReview[]; alerts: ReviewAlert[] }> {
+  return apiFetch(`/api/admin/reviews?limit=${limit}`);
 }
 
 // ── Admin Inbox ─────────────────────────────────────────────────
@@ -515,6 +517,31 @@ export async function fetchAdminNotifications(params: { limit?: number; page?: n
   if (params.page) qs.set('page', String(params.page));
   const q = qs.toString();
   return apiFetch(`/api/admin/notifications${q ? `?${q}` : ''}`);
+}
+
+export async function fetchAdminMyNotifications(params: { limit?: number; page?: number; unreadOnly?: boolean } = {}): Promise<{
+  items: AdminNotification[];
+  unreadCount: number;
+  pagination: Pagination;
+}> {
+  const qs = new URLSearchParams();
+  if (params.limit) qs.set('limit', String(params.limit));
+  if (params.page) qs.set('page', String(params.page));
+  if (params.unreadOnly) qs.set('unreadOnly', 'true');
+  const q = qs.toString();
+  return apiFetch(`/api/admin/me/notifications${q ? `?${q}` : ''}`);
+}
+
+export async function markAdminNotificationRead(id: number): Promise<AdminNotification> {
+  return apiFetch(`/api/admin/me/notifications/${id}/read`, {
+    method: 'PATCH',
+  });
+}
+
+export async function markAllAdminNotificationsRead(): Promise<{ ok: boolean; updated: number }> {
+  return apiFetch('/api/admin/me/notifications/read-all', {
+    method: 'PATCH',
+  });
 }
 
 export async function fetchAdminPrivacyRequests(params: {

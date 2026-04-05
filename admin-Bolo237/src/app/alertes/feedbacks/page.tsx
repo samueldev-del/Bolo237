@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import { fetchAppFeedbacks, type AppFeedback } from "@/lib/api";
-import { Loader2, Star, MessageSquare } from "lucide-react";
+import { buildCsvContent, downloadCsvFile } from "@/lib/csv";
+import { Download, Loader2, Star, MessageSquare } from "lucide-react";
 
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("fr-FR", {
@@ -35,9 +36,11 @@ export default function FeedbacksPage() {
     count: number;
   } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
-    fetchAppFeedbacks()
+    fetchAppFeedbacks(200)
       .then((data) => {
         setFeedbacks(
           [...data.items].sort(
@@ -51,17 +54,69 @@ export default function FeedbacksPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  function showToast(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 3200);
+  }
+
+  function handleExportCsv() {
+    setIsExportingCsv(true);
+
+    try {
+      const csv = buildCsvContent(
+        ["feedbackId", "createdAt", "authorName", "userId", "rating", "comment"],
+        feedbacks.map((feedback) => [
+          feedback.id,
+          feedback.createdAt,
+          feedback.authorName || "",
+          feedback.userId || "",
+          feedback.rating,
+          feedback.comment,
+        ]),
+      );
+      const stamp = new Date().toISOString().slice(0, 10);
+
+      downloadCsvFile(csv, `bolo237-feedbacks-app-${stamp}.csv`);
+      showToast(`CSV exporte (${feedbacks.length} ligne${feedbacks.length > 1 ? "s" : ""})`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Erreur lors de l export CSV");
+    } finally {
+      setIsExportingCsv(false);
+    }
+  }
+
   return (
     <AdminShell
       title="Feedbacks App"
       description="Retours et avis des utilisateurs sur l'application."
     >
+      {toast && (
+        <div className="fixed right-6 top-6 z-[100] animate-fade-in rounded-xl border border-emerald-200 bg-emerald-700 px-5 py-3 text-sm font-medium text-white shadow-2xl">
+          {toast}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-green-600" />
         </div>
       ) : (
         <>
+          <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">Export produit des feedbacks</p>
+              <p className="mt-1 text-xs text-zinc-500">Le CSV reprend les retours charges pour archivage, tri et partage produit.</p>
+            </div>
+            <button
+              onClick={handleExportCsv}
+              disabled={isExportingCsv || feedbacks.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#8B4332] bg-[#FFF7F2] px-4 py-2.5 text-sm font-bold text-[#8B4332] transition hover:bg-[#FDEBDD] disabled:opacity-50"
+            >
+              {isExportingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExportingCsv ? "Export CSV..." : "Exporter CSV"}
+            </button>
+          </div>
+
           {/* Summary */}
           {summary && (
             <div className="rounded-2xl border border-zinc-200 bg-white p-6 flex items-center gap-6">

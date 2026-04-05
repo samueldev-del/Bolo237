@@ -7,7 +7,9 @@ import {
   type UserReview,
   type ReviewAlert,
 } from "@/lib/api";
+import { buildCsvContent, downloadCsvFile } from "@/lib/csv";
 import {
+  Download,
   Loader2,
   AlertTriangle,
   Star,
@@ -49,9 +51,11 @@ export default function ReviewsAlertsPage() {
   const [reviews, setReviews] = useState<UserReview[]>([]);
   const [alerts, setAlerts] = useState<ReviewAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [toast, setToast] = useState("");
 
   useEffect(() => {
-    fetchAdminReviews()
+    fetchAdminReviews(200)
       .then((data) => {
         setReviews(data.reviews);
         setAlerts(data.alerts);
@@ -60,17 +64,87 @@ export default function ReviewsAlertsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  function showToast(message: string) {
+    setToast(message);
+    window.setTimeout(() => setToast(""), 3200);
+  }
+
+  function handleExportCsv() {
+    setIsExportingCsv(true);
+
+    try {
+      const alertedUserIds = new Set(alerts.map((alert) => alert.userId));
+      const csv = buildCsvContent(
+        [
+          "reviewId",
+          "createdAt",
+          "rating",
+          "comment",
+          "reviewerName",
+          "reviewerEmail",
+          "reviewerRole",
+          "reviewedName",
+          "reviewedEmail",
+          "reviewedRole",
+          "reviewedUserFlagged",
+        ],
+        reviews.map((review) => [
+          review.id,
+          review.createdAt,
+          review.rating,
+          review.comment,
+          review.reviewer?.name || "",
+          review.reviewer?.email || "",
+          review.reviewer?.role || "",
+          review.reviewed?.name || "",
+          review.reviewed?.email || "",
+          review.reviewed?.role || "",
+          review.reviewed?.id ? (alertedUserIds.has(review.reviewed.id) ? "yes" : "no") : "unknown",
+        ]),
+      );
+      const stamp = new Date().toISOString().slice(0, 10);
+
+      downloadCsvFile(csv, `bolo237-avis-${stamp}.csv`);
+      showToast(`CSV exporte (${reviews.length} ligne${reviews.length > 1 ? "s" : ""})`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Erreur lors de l export CSV");
+    } finally {
+      setIsExportingCsv(false);
+    }
+  }
+
   return (
     <AdminShell
       title="Avis & Notes"
       description="Tous les avis utilisateurs et alertes de mauvaises notes."
     >
+      {toast && (
+        <div className="fixed right-6 top-6 z-[100] animate-fade-in rounded-xl border border-emerald-200 bg-emerald-700 px-5 py-3 text-sm font-medium text-white shadow-2xl">
+          {toast}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-green-600" />
         </div>
       ) : (
         <>
+          <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">Export moderation des avis</p>
+              <p className="mt-1 text-xs text-zinc-500">Le CSV reprend tous les avis charges et signale les comptes actuellement sous alerte de note faible.</p>
+            </div>
+            <button
+              onClick={handleExportCsv}
+              disabled={isExportingCsv || reviews.length === 0}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#8B4332] bg-[#FFF7F2] px-4 py-2.5 text-sm font-bold text-[#8B4332] transition hover:bg-[#FDEBDD] disabled:opacity-50"
+            >
+              {isExportingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              {isExportingCsv ? "Export CSV..." : "Exporter CSV"}
+            </button>
+          </div>
+
           {/* Alert banner */}
           {alerts.length > 0 && (
             <div className="rounded-2xl border border-red-200 bg-red-50 p-5">

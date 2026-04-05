@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import { fetchReports, updateReport, type Report } from "@/lib/api";
+import { buildCsvContent, downloadCsvFile } from "@/lib/csv";
 import {
   Loader2,
   CheckCircle,
@@ -11,6 +12,7 @@ import {
   Filter,
   Flag,
   Clock,
+  Download,
   ShieldCheck,
   ShieldX,
 } from "lucide-react";
@@ -38,6 +40,7 @@ export default function AlertesSignalementsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [actionId, setActionId] = useState<number | null>(null);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [toast, setToast] = useState("");
 
   useEffect(() => {
@@ -77,6 +80,33 @@ export default function AlertesSignalementsPage() {
     }
   }
 
+  function handleExportCsv() {
+    setIsExportingCsv(true);
+
+    try {
+      const csv = buildCsvContent(
+        ["reportId", "createdAt", "reason", "targetType", "targetId", "status"],
+        reports.map((report) => [
+          report.id,
+          report.createdAt,
+          report.reason,
+          report.targetType,
+          report.targetId,
+          report.status,
+        ]),
+      );
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filterPart = statusFilter === "all" ? "all-statuses" : statusFilter.toLowerCase();
+
+      downloadCsvFile(csv, `bolo237-signalements-${filterPart}-${stamp}.csv`);
+      showToast(`CSV exporte (${reports.length} ligne${reports.length > 1 ? "s" : ""})`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Erreur lors de l export CSV");
+    } finally {
+      setIsExportingCsv(false);
+    }
+  }
+
   const openCount = reports.filter((r) => r.status === "OPEN").length;
 
   return (
@@ -89,26 +119,43 @@ export default function AlertesSignalementsPage() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Filter className="h-4 w-4 text-zinc-400" />
-        {(["all", "OPEN", "RESOLVED", "DISMISSED"] as StatusFilter[]).map((s) => (
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <Filter className="h-4 w-4 text-zinc-400" />
+            {(["all", "OPEN", "RESOLVED", "DISMISSED"] as StatusFilter[]).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                  statusFilter === s
+                    ? "border-green-700 bg-green-700 text-white"
+                    : "border-zinc-200 bg-white text-zinc-600 hover:border-green-300 hover:text-green-700"
+                }`}
+              >
+                {s === "all" ? "Tous" : STATUS_CONFIG[s].label}
+              </button>
+            ))}
+          </div>
+
           <button
-            key={s}
-            onClick={() => setStatusFilter(s)}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-              statusFilter === s
-                ? "border-green-700 bg-green-700 text-white"
-                : "border-zinc-200 bg-white text-zinc-600 hover:border-green-300 hover:text-green-700"
-            }`}
+            onClick={handleExportCsv}
+            disabled={isExportingCsv || reports.length === 0 || loading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#8B4332] bg-[#FFF7F2] px-4 py-2.5 text-sm font-bold text-[#8B4332] transition hover:bg-[#FDEBDD] disabled:opacity-50"
           >
-            {s === "all" ? "Tous" : STATUS_CONFIG[s].label}
+            {isExportingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExportingCsv ? "Export CSV..." : "Exporter CSV"}
           </button>
-        ))}
-        {openCount > 0 && (
-          <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-red-50 border border-red-200 px-3 py-1 text-xs font-bold text-red-700">
-            <Flag className="h-3 w-3" /> {openCount} ouvert{openCount > 1 ? "s" : ""}
-          </span>
-        )}
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
+          <span>Le CSV reprend tous les signalements correspondant au filtre actif.</span>
+          {openCount > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 font-bold text-red-700">
+              <Flag className="h-3 w-3" /> {openCount} ouvert{openCount > 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* List */}

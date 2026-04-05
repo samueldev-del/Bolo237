@@ -2396,6 +2396,80 @@ app.get('/api/admin/notifications', requireAdminSession, async (req, res) => {
   }
 });
 
+// GET /api/admin/me/notifications — Notifications internes du compte admin connecte
+app.get('/api/admin/me/notifications', requireAdminSession, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
+    const skip = (page - 1) * limit;
+    const unreadOnly = String(req.query.unreadOnly || 'false') === 'true';
+
+    const where = unreadOnly
+      ? { userId: req.adminUserId, isRead: false }
+      : { userId: req.adminUserId };
+
+    const [items, total, unreadCount] = await Promise.all([
+      prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.notification.count({ where }),
+      prisma.notification.count({ where: { userId: req.adminUserId, isRead: false } }),
+    ]);
+
+    res.json({
+      items,
+      unreadCount,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
+    });
+  } catch (error) {
+    console.error('GET /api/admin/me/notifications error:', error);
+    res.status(500).json({ error: 'Erreur lors de la lecture des notifications admin.' });
+  }
+});
+
+// PATCH /api/admin/me/notifications/:id/read — Marquer une notification admin comme lue
+app.patch('/api/admin/me/notifications/:id/read', requireAdminSession, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: 'ID notification invalide.' });
+    }
+
+    const notif = await prisma.notification.updateMany({
+      where: { id, userId: req.adminUserId },
+      data: { isRead: true, readAt: new Date() },
+    });
+
+    if (notif.count === 0) {
+      return res.status(404).json({ error: 'Notification admin non trouvee.' });
+    }
+
+    const updated = await prisma.notification.findUnique({ where: { id } });
+    res.json(updated);
+  } catch (error) {
+    console.error('PATCH /api/admin/me/notifications/:id/read error:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise a jour de la notification admin.' });
+  }
+});
+
+// PATCH /api/admin/me/notifications/read-all — Marquer toutes les notifications admin comme lues
+app.patch('/api/admin/me/notifications/read-all', requireAdminSession, async (req, res) => {
+  try {
+    const result = await prisma.notification.updateMany({
+      where: { userId: req.adminUserId, isRead: false },
+      data: { isRead: true, readAt: new Date() },
+    });
+
+    res.json({ ok: true, updated: result.count });
+  } catch (error) {
+    console.error('PATCH /api/admin/me/notifications/read-all error:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise a jour des notifications admin.' });
+  }
+});
+
 // GET /api/admin/search?q=term — Recherche globale admin
 app.get('/api/admin/search', requireAdminSession, async (req, res) => {
   try {

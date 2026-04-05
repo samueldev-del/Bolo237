@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Footer from '@/components/Footer';
+import PrivacyRightsPanel from '@/components/PrivacyRightsPanel';
 import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
@@ -1714,6 +1715,20 @@ export default function DashboardEntreprise() {
                 </button>
               </div>
             )}
+
+            <section className="mt-6 space-y-3">
+              <div className="px-1">
+                <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">
+                  {isEn ? 'Privacy and account rights' : 'Confidentialite et droits du compte'}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  {isEn
+                    ? 'Export your company account data or submit a deletion request from this dashboard.'
+                    : 'Exportez les donnees de votre compte entreprise ou soumettez une demande de suppression depuis ce dashboard.'}
+                </p>
+              </div>
+              <PrivacyRightsPanel />
+            </section>
 
           </div>
         </main>

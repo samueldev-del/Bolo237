@@ -81,11 +81,11 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
 async function sendWhatsAppModerationAlert(messageBody) {
   if (!twilioClient) {
     console.log('📩 [WhatsApp SKIP - no client]', messageBody.split('\n')[0]);
-    return;
+    return { delivery: 'skipped', sent: 0 };
   }
   if (!process.env.TWILIO_WHATSAPP_FROM || !process.env.TWILIO_WHATSAPP_TO) {
     console.log('📩 [WhatsApp SKIP - no FROM/TO]', messageBody.split('\n')[0]);
-    return;
+    return { delivery: 'skipped', sent: 0 };
   }
 
   try {
@@ -95,9 +95,121 @@ async function sendWhatsAppModerationAlert(messageBody) {
       body: messageBody,
     });
     console.log('📩 [WhatsApp SENT]', messageBody.split('\n')[0]);
+    return { delivery: 'sent', sent: 1 };
   } catch (error) {
     console.error('📩 [WhatsApp ERROR]', error?.message || error);
+    return { delivery: 'error', sent: 0 };
   }
+}
+
+function parseCommaSeparatedValues(value) {
+  return String(value || '')
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+function normalizeWhatsAppTarget(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('whatsapp:')) return trimmed;
+  return `whatsapp:${trimmed.replace(/^\+?/, '+')}`;
+}
+
+function getInternalAlertWhatsAppTargets() {
+  const configuredTargets = parseCommaSeparatedValues(process.env.ADMIN_INTERNAL_ALERT_WHATSAPP_TO || process.env.TWILIO_WHATSAPP_TO);
+  return configuredTargets
+    .map((target) => normalizeWhatsAppTarget(target))
+    .filter(Boolean);
+}
+
+function getInternalAlertEmailRecipients(admins) {
+  const recipients = new Set(parseCommaSeparatedValues(process.env.ADMIN_INTERNAL_ALERT_EMAILS));
+
+  admins.forEach((admin) => {
+    if (admin?.email) {
+      recipients.add(String(admin.email).trim());
+    }
+  });
+
+  return Array.from(recipients).filter(Boolean);
+}
+
+async function sendWhatsAppAlertToTargets(messageBody, targets) {
+  if (!twilioClient) {
+    console.log('📩 [WhatsApp SKIP - no client]', messageBody.split('\n')[0]);
+    return { delivery: 'skipped', sent: 0 };
+  }
+  if (!process.env.TWILIO_WHATSAPP_FROM) {
+    console.log('📩 [WhatsApp SKIP - no FROM]', messageBody.split('\n')[0]);
+    return { delivery: 'skipped', sent: 0 };
+  }
+
+  const resolvedTargets = (Array.isArray(targets) ? targets : []).filter(Boolean);
+  if (resolvedTargets.length === 0) {
+    console.log('📩 [WhatsApp SKIP - no targets]', messageBody.split('\n')[0]);
+    return { delivery: 'skipped', sent: 0 };
+  }
+
+  try {
+    await Promise.all(
+      resolvedTargets.map((target) => twilioClient.messages.create({
+        from: process.env.TWILIO_WHATSAPP_FROM,
+        to: target,
+        body: messageBody,
+      }))
+    );
+    console.log('📩 [WhatsApp SENT]', messageBody.split('\n')[0]);
+    return { delivery: 'sent', sent: resolvedTargets.length };
+  } catch (error) {
+    console.error('📩 [WhatsApp ERROR]', error?.message || error);
+    return { delivery: 'error', sent: 0 };
+  }
+}
+
+async function sendInternalAlertEmail({ subject, text, admins, replyTo }) {
+  const recipients = getInternalAlertEmailRecipients(admins);
+
+  if (recipients.length === 0) {
+    console.log('[ADMIN ALERT EMAIL SKIP] No recipients configured');
+    return { delivery: 'skipped', sent: 0 };
+  }
+
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: recipients.join(','),
+      replyTo,
+      subject,
+      text,
+    });
+    console.log('[ADMIN ALERT EMAIL SENT]', subject);
+    return { delivery: 'sent', sent: recipients.length };
+  } catch (error) {
+    console.error('[ADMIN ALERT EMAIL ERROR]', error?.message || error);
+    return { delivery: 'error', sent: 0 };
+  }
+}
+
+function buildInternalAlertText({ title, message, type, data }) {
+  const lines = [
+    `[Bolo237] ${title}`,
+    `Type: ${type}`,
+    '',
+    message,
+  ];
+
+  if (data && typeof data === 'object') {
+    const entries = Object.entries(data)
+      .filter(([, value]) => value !== undefined && value !== null && value !== '')
+      .map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
+
+    if (entries.length > 0) {
+      lines.push('', 'Meta:', ...entries);
+    }
+  }
+
+  return lines.join('\n');
 }
 
 async function sendOtpWithTwilio(phone, code) {
@@ -492,18 +604,52 @@ async function createNotification({ userId, type, title, message, data }) {
   });
 }
 
-async function createAdminNotifications({ title, message, type = 'admin_alert', data, excludeUserIds = [] }) {
+function parseDateOnlyFilter(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return undefined;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
+
+  const date = new Date(`${raw}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function buildDateRangeFilter(fieldName, startDate, endDate) {
+  const range = {};
+
+  if (startDate) {
+    range.gte = startDate;
+  }
+
+  if (endDate) {
+    const nextDay = new Date(endDate);
+    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+    range.lt = nextDay;
+  }
+
+  return Object.keys(range).length > 0 ? { [fieldName]: range } : {};
+}
+
+async function createAdminNotifications({
+  title,
+  message,
+  type = 'admin_alert',
+  data,
+  excludeUserIds = [],
+  emailAlert = false,
+  whatsappAlert = false,
+  replyTo,
+}) {
   const admins = await prisma.user.findMany({
     where: {
       role: { in: ['ADMIN', 'SUPER_ADMIN'] },
       isBanned: false,
       ...(excludeUserIds.length ? { id: { notIn: excludeUserIds } } : {}),
     },
-    select: { id: true },
+    select: { id: true, email: true, name: true },
   });
 
   if (admins.length === 0) {
-    return { sent: 0 };
+    return { sent: 0, emailDelivery: 'skipped', whatsappDelivery: 'skipped' };
   }
 
   await Promise.all(
@@ -518,7 +664,17 @@ async function createAdminNotifications({ title, message, type = 'admin_alert', 
     )
   );
 
-  return { sent: admins.length };
+  const realtimeText = buildInternalAlertText({ title, message, type, data });
+  const [emailResult, whatsappResult] = await Promise.all([
+    emailAlert ? sendInternalAlertEmail({ subject: `[Bolo237] ${title}`, text: realtimeText, admins, replyTo }) : Promise.resolve({ delivery: 'skipped', sent: 0 }),
+    whatsappAlert ? sendWhatsAppAlertToTargets(realtimeText, getInternalAlertWhatsAppTargets()) : Promise.resolve({ delivery: 'skipped', sent: 0 }),
+  ]);
+
+  return {
+    sent: admins.length,
+    emailDelivery: emailResult.delivery,
+    whatsappDelivery: whatsappResult.delivery,
+  };
 }
 
 function buildDateBuckets(days) {
@@ -1875,6 +2031,9 @@ app.post('/api/privacy/delete-request', requireUserSession, privacyRequestLimite
         requesterRole: user.role,
         delivery,
       },
+      emailAlert: true,
+      whatsappAlert: true,
+      replyTo: user.email,
     });
 
     return res.status(202).json({
@@ -2045,8 +2204,11 @@ app.get('/api/admin/privacy-requests', requireAdminSession, async (req, res) => 
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
     const skip = (page - 1) * limit;
-    const rawStatus = req.query.status ? String(req.query.status) : '';
-    const rawKind = req.query.kind ? String(req.query.kind) : '';
+    const rawStatus = req.query.status ? String(req.query.status).trim() : '';
+    const rawKind = req.query.kind ? String(req.query.kind).trim() : '';
+    const rawQuery = String(req.query.query || req.query.q || '').trim().slice(0, 160);
+    const startDate = parseDateOnlyFilter(req.query.startDate);
+    const endDate = parseDateOnlyFilter(req.query.endDate);
     const status = rawStatus ? normalizePrivacyRequestStatus(rawStatus) : null;
     const kind = rawKind ? normalizePrivacyRequestKind(rawKind) : null;
 
@@ -2058,9 +2220,35 @@ app.get('/api/admin/privacy-requests', requireAdminSession, async (req, res) => 
       return res.status(400).json({ error: 'Type de demande de confidentialite invalide.' });
     }
 
+    if (req.query.startDate && startDate === null) {
+      return res.status(400).json({ error: 'Date de debut invalide. Format attendu: YYYY-MM-DD.' });
+    }
+
+    if (req.query.endDate && endDate === null) {
+      return res.status(400).json({ error: 'Date de fin invalide. Format attendu: YYYY-MM-DD.' });
+    }
+
+    if (startDate && endDate && startDate > endDate) {
+      return res.status(400).json({ error: 'La date de debut doit etre anterieure ou egale a la date de fin.' });
+    }
+
     const where = {};
     if (status) where.status = status;
     if (kind) where.kind = kind;
+    Object.assign(where, buildDateRangeFilter('requestedAt', startDate, endDate));
+
+    if (rawQuery) {
+      where.OR = [
+        { reference: { contains: rawQuery, mode: 'insensitive' } },
+        { requesterEmail: { contains: rawQuery, mode: 'insensitive' } },
+        { requesterName: { contains: rawQuery, mode: 'insensitive' } },
+        { requesterPhone: { contains: rawQuery, mode: 'insensitive' } },
+        { requesterRole: { contains: rawQuery, mode: 'insensitive' } },
+        { reason: { contains: rawQuery, mode: 'insensitive' } },
+        { notes: { contains: rawQuery, mode: 'insensitive' } },
+        { processedBy: { contains: rawQuery, mode: 'insensitive' } },
+      ];
+    }
 
     const [items, filteredTotal, total, pending, inReview, completed, rejected, exportsCount, deletionsCount] = await Promise.all([
       prisma.privacyRequest.findMany({
@@ -2179,6 +2367,9 @@ app.patch('/api/admin/privacy-requests/:reference', requireAdminSession, async (
           processedBy: adminLabel,
         },
         excludeUserIds: req.adminUserId ? [req.adminUserId] : [],
+        emailAlert: true,
+        whatsappAlert: true,
+        replyTo: current.requesterEmail,
       });
     }
 
@@ -2376,9 +2567,39 @@ app.get('/api/admin/notifications', requireAdminSession, async (req, res) => {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
     const skip = (page - 1) * limit;
+    const rawQuery = String(req.query.query || req.query.q || '').trim().slice(0, 160);
+    const startDate = parseDateOnlyFilter(req.query.startDate);
+    const endDate = parseDateOnlyFilter(req.query.endDate);
+
+    if (req.query.startDate && startDate === null) {
+      return res.status(400).json({ error: 'Date de debut invalide. Format attendu: YYYY-MM-DD.' });
+    }
+
+    if (req.query.endDate && endDate === null) {
+      return res.status(400).json({ error: 'Date de fin invalide. Format attendu: YYYY-MM-DD.' });
+    }
+
+    if (startDate && endDate && startDate > endDate) {
+      return res.status(400).json({ error: 'La date de debut doit etre anterieure ou egale a la date de fin.' });
+    }
+
+    const where = {
+      ...buildDateRangeFilter('createdAt', startDate, endDate),
+    };
+
+    if (rawQuery) {
+      where.OR = [
+        { title: { contains: rawQuery, mode: 'insensitive' } },
+        { message: { contains: rawQuery, mode: 'insensitive' } },
+        { type: { contains: rawQuery, mode: 'insensitive' } },
+        { user: { is: { name: { contains: rawQuery, mode: 'insensitive' } } } },
+        { user: { is: { email: { contains: rawQuery, mode: 'insensitive' } } } },
+      ];
+    }
 
     const [items, total] = await Promise.all([
       prisma.notification.findMany({
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
@@ -2386,7 +2607,7 @@ app.get('/api/admin/notifications', requireAdminSession, async (req, res) => {
           user: { select: { id: true, name: true, email: true, role: true } },
         },
       }),
-      prisma.notification.count(),
+      prisma.notification.count({ where }),
     ]);
 
     res.json({ items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
@@ -2403,10 +2624,35 @@ app.get('/api/admin/me/notifications', requireAdminSession, async (req, res) => 
     const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
     const skip = (page - 1) * limit;
     const unreadOnly = String(req.query.unreadOnly || 'false') === 'true';
+    const rawQuery = String(req.query.query || req.query.q || '').trim().slice(0, 160);
+    const startDate = parseDateOnlyFilter(req.query.startDate);
+    const endDate = parseDateOnlyFilter(req.query.endDate);
+
+    if (req.query.startDate && startDate === null) {
+      return res.status(400).json({ error: 'Date de debut invalide. Format attendu: YYYY-MM-DD.' });
+    }
+
+    if (req.query.endDate && endDate === null) {
+      return res.status(400).json({ error: 'Date de fin invalide. Format attendu: YYYY-MM-DD.' });
+    }
+
+    if (startDate && endDate && startDate > endDate) {
+      return res.status(400).json({ error: 'La date de debut doit etre anterieure ou egale a la date de fin.' });
+    }
 
     const where = unreadOnly
       ? { userId: req.adminUserId, isRead: false }
       : { userId: req.adminUserId };
+
+    Object.assign(where, buildDateRangeFilter('createdAt', startDate, endDate));
+
+    if (rawQuery) {
+      where.OR = [
+        { title: { contains: rawQuery, mode: 'insensitive' } },
+        { message: { contains: rawQuery, mode: 'insensitive' } },
+        { type: { contains: rawQuery, mode: 'insensitive' } },
+      ];
+    }
 
     const [items, total, unreadCount] = await Promise.all([
       prisma.notification.findMany({

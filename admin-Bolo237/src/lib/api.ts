@@ -511,15 +511,31 @@ export async function broadcastNotification(data: { title: string; message: stri
   return apiFetch('/api/admin/notifications/broadcast', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
 }
 
-export async function fetchAdminNotifications(params: { limit?: number; page?: number } = {}): Promise<{ items: AdminNotification[]; pagination: Pagination }> {
+export async function fetchAdminNotifications(params: {
+  limit?: number;
+  page?: number;
+  query?: string;
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<{ items: AdminNotification[]; pagination: Pagination }> {
   const qs = new URLSearchParams();
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.page) qs.set('page', String(params.page));
+  if (params.query) qs.set('query', params.query);
+  if (params.startDate) qs.set('startDate', params.startDate);
+  if (params.endDate) qs.set('endDate', params.endDate);
   const q = qs.toString();
   return apiFetch(`/api/admin/notifications${q ? `?${q}` : ''}`);
 }
 
-export async function fetchAdminMyNotifications(params: { limit?: number; page?: number; unreadOnly?: boolean } = {}): Promise<{
+export async function fetchAdminMyNotifications(params: {
+  limit?: number;
+  page?: number;
+  unreadOnly?: boolean;
+  query?: string;
+  startDate?: string;
+  endDate?: string;
+} = {}): Promise<{
   items: AdminNotification[];
   unreadCount: number;
   pagination: Pagination;
@@ -528,6 +544,9 @@ export async function fetchAdminMyNotifications(params: { limit?: number; page?:
   if (params.limit) qs.set('limit', String(params.limit));
   if (params.page) qs.set('page', String(params.page));
   if (params.unreadOnly) qs.set('unreadOnly', 'true');
+  if (params.query) qs.set('query', params.query);
+  if (params.startDate) qs.set('startDate', params.startDate);
+  if (params.endDate) qs.set('endDate', params.endDate);
   const q = qs.toString();
   return apiFetch(`/api/admin/me/notifications${q ? `?${q}` : ''}`);
 }
@@ -549,12 +568,18 @@ export async function fetchAdminPrivacyRequests(params: {
   status?: PrivacyRequestStatus;
   page?: number;
   limit?: number;
+  query?: string;
+  startDate?: string;
+  endDate?: string;
 } = {}): Promise<{ items: AdminPrivacyRequest[]; pagination: Pagination; summary: AdminPrivacyRequestSummary }> {
   const qs = new URLSearchParams();
   if (params.kind) qs.set('kind', params.kind);
   if (params.status) qs.set('status', params.status);
   if (params.page) qs.set('page', String(params.page));
   if (params.limit) qs.set('limit', String(params.limit));
+  if (params.query) qs.set('query', params.query);
+  if (params.startDate) qs.set('startDate', params.startDate);
+  if (params.endDate) qs.set('endDate', params.endDate);
   const q = qs.toString();
   return apiFetch(`/api/admin/privacy-requests${q ? `?${q}` : ''}`);
 }

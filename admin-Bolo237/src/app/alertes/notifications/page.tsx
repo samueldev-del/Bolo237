@@ -18,6 +18,7 @@ import {
   Clock3,
   Loader2,
   RefreshCw,
+  Search,
   SearchX,
 } from "lucide-react";
 
@@ -62,6 +63,12 @@ export default function AlertesNotificationsPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [queryInput, setQueryInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [startDateInput, setStartDateInput] = useState("");
+  const [endDateInput, setEndDateInput] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [actionId, setActionId] = useState<number | null>(null);
   const [markAllLoading, setMarkAllLoading] = useState(false);
   const [toast, setToast] = useState("");
@@ -69,7 +76,7 @@ export default function AlertesNotificationsPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, page]);
+  }, [filter, page, query, startDate, endDate]);
 
   function showToast(message: string) {
     setToast(message);
@@ -83,6 +90,9 @@ export default function AlertesNotificationsPage() {
         page,
         limit: 20,
         unreadOnly: filter === "unread",
+        query,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
       });
       setItems(response.items);
       setUnreadCount(response.unreadCount);
@@ -123,6 +133,28 @@ export default function AlertesNotificationsPage() {
     } finally {
       setMarkAllLoading(false);
     }
+  }
+
+  function applySearchFilters() {
+    if (startDateInput && endDateInput && startDateInput > endDateInput) {
+      showToast("La date de debut doit etre anterieure ou egale a la date de fin");
+      return;
+    }
+
+    setQuery(queryInput.trim());
+    setStartDate(startDateInput);
+    setEndDate(endDateInput);
+    setPage(1);
+  }
+
+  function resetSearchFilters() {
+    setQueryInput("");
+    setQuery("");
+    setStartDateInput("");
+    setEndDateInput("");
+    setStartDate("");
+    setEndDate("");
+    setPage(1);
   }
 
   return (
@@ -191,6 +223,58 @@ export default function AlertesNotificationsPage() {
             </button>
           </div>
         </div>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.6fr)_180px_180px_auto]">
+          <label className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="search"
+              value={queryInput}
+              onChange={(event) => setQueryInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  applySearchFilters();
+                }
+              }}
+              placeholder="Rechercher dans le titre, message ou type..."
+              className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+            />
+          </label>
+
+          <input
+            type="date"
+            value={startDateInput}
+            onChange={(event) => setStartDateInput(event.target.value)}
+            className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+          />
+
+          <input
+            type="date"
+            value={endDateInput}
+            onChange={(event) => setEndDateInput(event.target.value)}
+            className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+          />
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={applySearchFilters}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#8B4332] bg-[#8B4332] px-4 text-sm font-bold text-white transition hover:bg-[#723527]"
+            >
+              Appliquer
+            </button>
+            <button
+              onClick={resetSearchFilters}
+              disabled={!query && !startDate && !endDate && !queryInput && !startDateInput && !endDateInput}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Reinitialiser
+            </button>
+          </div>
+        </div>
+
+        <p className="mt-3 text-xs text-zinc-500">
+          Les filtres s&apos;appliquent a la pagination courante. La recherche couvre le titre, le message et le type de notification.
+        </p>
       </div>
 
       <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden">

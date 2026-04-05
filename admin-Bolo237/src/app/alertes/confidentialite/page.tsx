@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import AdminShell from "@/components/admin/admin-shell";
+import { buildCsvContent, downloadCsvFile } from "@/lib/csv";
 import {
   fetchAdminPrivacyRequests,
   updateAdminPrivacyRequest,
@@ -19,6 +20,7 @@ import {
   Filter,
   Loader2,
   Save,
+  Search,
   SearchX,
   ShieldCheck,
   Trash2,
@@ -87,20 +89,6 @@ function buildDrafts(items: AdminPrivacyRequest[]): DraftState {
   }, {});
 }
 
-function escapeCsvCell(value: unknown) {
-  const text = value == null
-    ? ""
-    : typeof value === "string"
-      ? value
-      : JSON.stringify(value);
-
-  if (/[";\n]/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
-  }
-
-  return text;
-}
-
 function buildCsv(items: AdminPrivacyRequest[]) {
   const headers = [
     "reference",
@@ -138,21 +126,7 @@ function buildCsv(items: AdminPrivacyRequest[]) {
     item.payload || null,
   ]);
 
-  return [headers, ...rows]
-    .map((row) => row.map((cell) => escapeCsvCell(cell)).join(";"))
-    .join("\n");
-}
-
-function downloadCsvFile(content: string, fileName: string) {
-  const blob = new Blob([`\uFEFF${content}`], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  return buildCsvContent(headers, rows);
 }
 
 export default function AlertesConfidentialitePage() {
@@ -163,6 +137,12 @@ export default function AlertesConfidentialitePage() {
   const [kindFilter, setKindFilter] = useState<KindFilter>("all");
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const [queryInput, setQueryInput] = useState("");
+  const [query, setQuery] = useState("");
+  const [startDateInput, setStartDateInput] = useState("");
+  const [endDateInput, setEndDateInput] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [actionReference, setActionReference] = useState<string | null>(null);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [drafts, setDrafts] = useState<DraftState>({});
@@ -171,7 +151,7 @@ export default function AlertesConfidentialitePage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, kindFilter, page]);
+  }, [statusFilter, kindFilter, page, query, startDate, endDate]);
 
   function showToast(message: string) {
     setToast(message);
@@ -186,6 +166,9 @@ export default function AlertesConfidentialitePage() {
         kind: kindFilter === "all" ? undefined : kindFilter,
         page,
         limit: 20,
+        query,
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
       });
       setItems(response.items);
       setSummary(response.summary);
@@ -248,6 +231,9 @@ export default function AlertesConfidentialitePage() {
           kind: kindFilter === "all" ? undefined : kindFilter,
           page: currentPage,
           limit: 200,
+          query,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined,
         });
 
         allItems.push(...response.items);
@@ -266,6 +252,28 @@ export default function AlertesConfidentialitePage() {
     } finally {
       setIsExportingCsv(false);
     }
+  }
+
+  function applySearchFilters() {
+    if (startDateInput && endDateInput && startDateInput > endDateInput) {
+      showToast("La date de debut doit etre anterieure ou egale a la date de fin");
+      return;
+    }
+
+    setQuery(queryInput.trim());
+    setStartDate(startDateInput);
+    setEndDate(endDateInput);
+    setPage(1);
+  }
+
+  function resetSearchFilters() {
+    setQueryInput("");
+    setQuery("");
+    setStartDateInput("");
+    setEndDateInput("");
+    setStartDate("");
+    setEndDate("");
+    setPage(1);
   }
 
   return (
@@ -326,6 +334,54 @@ export default function AlertesConfidentialitePage() {
           </button>
         </div>
 
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.6fr)_180px_180px_auto]">
+          <label className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="search"
+              value={queryInput}
+              onChange={(event) => setQueryInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  applySearchFilters();
+                }
+              }}
+              placeholder="Rechercher par reference, email, nom, notes..."
+              className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+            />
+          </label>
+
+          <input
+            type="date"
+            value={startDateInput}
+            onChange={(event) => setStartDateInput(event.target.value)}
+            className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+          />
+
+          <input
+            type="date"
+            value={endDateInput}
+            onChange={(event) => setEndDateInput(event.target.value)}
+            className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+          />
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={applySearchFilters}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#8B4332] bg-[#8B4332] px-4 text-sm font-bold text-white transition hover:bg-[#723527]"
+            >
+              Appliquer
+            </button>
+            <button
+              onClick={resetSearchFilters}
+              disabled={!query && !startDate && !endDate && !queryInput && !startDateInput && !endDateInput}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Reinitialiser
+            </button>
+          </div>
+        </div>
+
         <div className="flex flex-wrap items-center gap-2">
           {(["all", "EXPORT", "DELETE"] as KindFilter[]).map((value) => (
             <button
@@ -346,7 +402,7 @@ export default function AlertesConfidentialitePage() {
         </div>
 
         <p className="text-xs text-zinc-500">
-          L export CSV reprend tous les elements correspondant aux filtres actifs.
+          L export CSV reprend tous les elements correspondant aux filtres actifs, y compris la recherche texte et la plage de dates.
         </p>
       </div>
 

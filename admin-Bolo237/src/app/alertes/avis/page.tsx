@@ -7,11 +7,13 @@ import {
   type UserReview,
   type ReviewAlert,
 } from "@/lib/api";
+import { matchesDateRange, matchesTextQuery } from "@/lib/admin-filters";
 import { buildCsvContent, downloadCsvFile } from "@/lib/csv";
 import {
   Download,
   Loader2,
   AlertTriangle,
+  Search,
   Star,
   ArrowRight,
 } from "lucide-react";
@@ -52,6 +54,9 @@ export default function ReviewsAlertsPage() {
   const [alerts, setAlerts] = useState<ReviewAlert[]>([]);
   const [loading, setLoading] = useState(true);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [query, setQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [toast, setToast] = useState("");
 
   useEffect(() => {
@@ -88,7 +93,7 @@ export default function ReviewsAlertsPage() {
           "reviewedRole",
           "reviewedUserFlagged",
         ],
-        reviews.map((review) => [
+        filteredReviews.map((review) => [
           review.id,
           review.createdAt,
           review.rating,
@@ -105,13 +110,30 @@ export default function ReviewsAlertsPage() {
       const stamp = new Date().toISOString().slice(0, 10);
 
       downloadCsvFile(csv, `bolo237-avis-${stamp}.csv`);
-      showToast(`CSV exporte (${reviews.length} ligne${reviews.length > 1 ? "s" : ""})`);
+      showToast(`CSV exporte (${filteredReviews.length} ligne${filteredReviews.length > 1 ? "s" : ""})`);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Erreur lors de l export CSV");
     } finally {
       setIsExportingCsv(false);
     }
   }
+
+  const filteredReviews = reviews.filter((review) => (
+    matchesTextQuery(
+      [
+        review.id,
+        review.rating,
+        review.comment,
+        review.reviewer?.name,
+        review.reviewer?.email,
+        review.reviewer?.role,
+        review.reviewed?.name,
+        review.reviewed?.email,
+        review.reviewed?.role,
+      ],
+      query,
+    ) && matchesDateRange(review.createdAt, startDate || undefined, endDate || undefined)
+  ));
 
   return (
     <AdminShell
@@ -133,15 +155,51 @@ export default function ReviewsAlertsPage() {
           <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <p className="text-sm font-semibold text-zinc-900">Export moderation des avis</p>
-              <p className="mt-1 text-xs text-zinc-500">Le CSV reprend tous les avis charges et signale les comptes actuellement sous alerte de note faible.</p>
+              <p className="mt-1 text-xs text-zinc-500">Le CSV reprend les avis filtres ci-dessous et signale les comptes actuellement sous alerte de note faible.</p>
             </div>
             <button
               onClick={handleExportCsv}
-              disabled={isExportingCsv || reviews.length === 0}
+              disabled={isExportingCsv || filteredReviews.length === 0}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#8B4332] bg-[#FFF7F2] px-4 py-2.5 text-sm font-bold text-[#8B4332] transition hover:bg-[#FDEBDD] disabled:opacity-50"
             >
               {isExportingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               {isExportingCsv ? "Export CSV..." : "Exporter CSV"}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 rounded-2xl border border-zinc-200 bg-white p-5 xl:grid-cols-[minmax(0,1.6fr)_180px_180px_auto]">
+            <label className="relative">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+              <input
+                type="search"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Rechercher par auteur, cible, commentaire, note..."
+                className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+              />
+            </label>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(event) => setStartDate(event.target.value)}
+              className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+            />
+            <input
+              type="date"
+              value={endDate}
+              onChange={(event) => setEndDate(event.target.value)}
+              className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+            />
+            <button
+              onClick={() => {
+                setQuery("");
+                setStartDate("");
+                setEndDate("");
+              }}
+              disabled={!query && !startDate && !endDate}
+              className="inline-flex h-11 items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+            >
+              Reinitialiser
             </button>
           </div>
 
@@ -188,17 +246,17 @@ export default function ReviewsAlertsPage() {
           {/* All reviews */}
           <div className="space-y-3">
             <h2 className="text-base font-semibold text-zinc-800">
-              Tous les avis ({reviews.length})
+              Avis filtres ({filteredReviews.length})
             </h2>
 
-            {reviews.length === 0 ? (
+            {filteredReviews.length === 0 ? (
               <div className="rounded-2xl border border-zinc-200 bg-white p-10 text-center">
                 <Star className="mx-auto h-10 w-10 text-zinc-300 mb-3" />
-                <p className="text-sm text-zinc-500">Aucun avis pour le moment</p>
+                <p className="text-sm text-zinc-500">Aucun avis ne correspond aux filtres</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {reviews.map((review) => (
+                {filteredReviews.map((review) => (
                   <div
                     key={review.id}
                     className="rounded-2xl border border-zinc-200 bg-white p-5"

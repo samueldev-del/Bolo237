@@ -559,14 +559,42 @@ const privacyRequestLimiter = rateLimit({
 // In-memory store: Admin platform settings
 // =============================================
 const SETTINGS_PATH = path.join(__dirname, 'admin-settings.json');
+const DEFAULT_NOTIFICATION_PREFERENCES = {
+  emailOnNewReport: true,
+  whatsappOnNewJob: true,
+  emailOnInternalAdminAlert: true,
+  whatsappOnInternalAdminAlert: true,
+};
 const DEFAULT_SETTINGS = {
   platformName: 'Bolo237',
   maintenanceMode: false,
   moderationRules: { autoApproveAfterPosts: 3, blockedKeywords: ['frais de dossier', 'transfert mobile money', 'investissement'] },
-  notificationPreferences: { emailOnNewReport: true, whatsappOnNewJob: true }
+  notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
 };
+
+function normalizePlatformSettings(input = {}) {
+  const raw = input && typeof input === 'object' ? input : {};
+  const rawModerationRules = raw.moderationRules && typeof raw.moderationRules === 'object' ? raw.moderationRules : {};
+  const rawNotificationPreferences = raw.notificationPreferences && typeof raw.notificationPreferences === 'object'
+    ? raw.notificationPreferences
+    : {};
+
+  return {
+    ...DEFAULT_SETTINGS,
+    ...raw,
+    moderationRules: {
+      ...DEFAULT_SETTINGS.moderationRules,
+      ...rawModerationRules,
+    },
+    notificationPreferences: {
+      ...DEFAULT_NOTIFICATION_PREFERENCES,
+      ...rawNotificationPreferences,
+    },
+  };
+}
+
 let platformSettings = DEFAULT_SETTINGS;
-try { platformSettings = { ...DEFAULT_SETTINGS, ...JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8')) }; } catch { /* use defaults */ }
+try { platformSettings = normalizePlatformSettings(JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'))); } catch { /* use defaults */ }
 
 // candidateProfiles, userProfiles, savedJobs are now in the database (Prisma)
 
@@ -665,9 +693,14 @@ async function createAdminNotifications({
   );
 
   const realtimeText = buildInternalAlertText({ title, message, type, data });
+  const notificationPreferences = platformSettings?.notificationPreferences || DEFAULT_NOTIFICATION_PREFERENCES;
   const [emailResult, whatsappResult] = await Promise.all([
-    emailAlert ? sendInternalAlertEmail({ subject: `[Bolo237] ${title}`, text: realtimeText, admins, replyTo }) : Promise.resolve({ delivery: 'skipped', sent: 0 }),
-    whatsappAlert ? sendWhatsAppAlertToTargets(realtimeText, getInternalAlertWhatsAppTargets()) : Promise.resolve({ delivery: 'skipped', sent: 0 }),
+    emailAlert && notificationPreferences.emailOnInternalAdminAlert
+      ? sendInternalAlertEmail({ subject: `[Bolo237] ${title}`, text: realtimeText, admins, replyTo })
+      : Promise.resolve({ delivery: 'skipped', sent: 0 }),
+    whatsappAlert && notificationPreferences.whatsappOnInternalAdminAlert
+      ? sendWhatsAppAlertToTargets(realtimeText, getInternalAlertWhatsAppTargets())
+      : Promise.resolve({ delivery: 'skipped', sent: 0 }),
   ]);
 
   return {
@@ -2760,7 +2793,18 @@ app.get('/api/admin/settings', requireAdminSession, (_req, res) => {
 // PUT /api/admin/settings — Mettre a jour les parametres
 app.put('/api/admin/settings', requireAdminSession, (req, res) => {
   try {
-    platformSettings = { ...platformSettings, ...req.body };
+    platformSettings = normalizePlatformSettings({
+      ...platformSettings,
+      ...(req.body && typeof req.body === 'object' ? req.body : {}),
+      moderationRules: {
+        ...platformSettings.moderationRules,
+        ...(req.body?.moderationRules && typeof req.body.moderationRules === 'object' ? req.body.moderationRules : {}),
+      },
+      notificationPreferences: {
+        ...platformSettings.notificationPreferences,
+        ...(req.body?.notificationPreferences && typeof req.body.notificationPreferences === 'object' ? req.body.notificationPreferences : {}),
+      },
+    });
     fs.writeFileSync(SETTINGS_PATH, JSON.stringify(platformSettings, null, 2), 'utf8');
     res.json(platformSettings);
   } catch (error) {

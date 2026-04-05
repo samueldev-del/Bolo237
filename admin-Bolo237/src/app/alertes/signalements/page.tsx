@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import { fetchReports, updateReport, type Report } from "@/lib/api";
+import { matchesDateRange, matchesTextQuery } from "@/lib/admin-filters";
 import { buildCsvContent, downloadCsvFile } from "@/lib/csv";
 import {
   Loader2,
@@ -13,6 +14,7 @@ import {
   Flag,
   Clock,
   Download,
+  Search,
   ShieldCheck,
   ShieldX,
 } from "lucide-react";
@@ -41,6 +43,9 @@ export default function AlertesSignalementsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [actionId, setActionId] = useState<number | null>(null);
   const [isExportingCsv, setIsExportingCsv] = useState(false);
+  const [query, setQuery] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [toast, setToast] = useState("");
 
   useEffect(() => {
@@ -86,7 +91,7 @@ export default function AlertesSignalementsPage() {
     try {
       const csv = buildCsvContent(
         ["reportId", "createdAt", "reason", "targetType", "targetId", "status"],
-        reports.map((report) => [
+        filteredReports.map((report) => [
           report.id,
           report.createdAt,
           report.reason,
@@ -99,7 +104,7 @@ export default function AlertesSignalementsPage() {
       const filterPart = statusFilter === "all" ? "all-statuses" : statusFilter.toLowerCase();
 
       downloadCsvFile(csv, `bolo237-signalements-${filterPart}-${stamp}.csv`);
-      showToast(`CSV exporte (${reports.length} ligne${reports.length > 1 ? "s" : ""})`);
+      showToast(`CSV exporte (${filteredReports.length} ligne${filteredReports.length > 1 ? "s" : ""})`);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Erreur lors de l export CSV");
     } finally {
@@ -107,7 +112,14 @@ export default function AlertesSignalementsPage() {
     }
   }
 
-  const openCount = reports.filter((r) => r.status === "OPEN").length;
+  const filteredReports = reports.filter((report) => (
+    matchesTextQuery(
+      [report.id, report.reason, report.targetType, report.targetId, report.status],
+      query,
+    ) && matchesDateRange(report.createdAt, startDate || undefined, endDate || undefined)
+  ));
+
+  const openCount = filteredReports.filter((r) => r.status === "OPEN").length;
 
   return (
     <AdminShell title="Signalements" description="Suivi en temps reel des alertes fraude et abus.">
@@ -140,7 +152,7 @@ export default function AlertesSignalementsPage() {
 
           <button
             onClick={handleExportCsv}
-            disabled={isExportingCsv || reports.length === 0 || loading}
+            disabled={isExportingCsv || filteredReports.length === 0 || loading}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#8B4332] bg-[#FFF7F2] px-4 py-2.5 text-sm font-bold text-[#8B4332] transition hover:bg-[#FDEBDD] disabled:opacity-50"
           >
             {isExportingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -148,8 +160,44 @@ export default function AlertesSignalementsPage() {
           </button>
         </div>
 
+        <div className="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.6fr)_180px_180px_auto]">
+          <label className="relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Rechercher par motif, cible, statut..."
+              className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+            />
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(event) => setStartDate(event.target.value)}
+            className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+          />
+          <input
+            type="date"
+            value={endDate}
+            onChange={(event) => setEndDate(event.target.value)}
+            className="h-11 rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition focus:border-[#8B4332] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+          />
+          <button
+            onClick={() => {
+              setQuery("");
+              setStartDate("");
+              setEndDate("");
+            }}
+            disabled={!query && !startDate && !endDate}
+            className="inline-flex h-11 items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+          >
+            Reinitialiser
+          </button>
+        </div>
+
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-zinc-500">
-          <span>Le CSV reprend tous les signalements correspondant au filtre actif.</span>
+          <span>Le CSV reprend tous les signalements correspondant aux filtres actifs.</span>
           {openCount > 0 && (
             <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 font-bold text-red-700">
               <Flag className="h-3 w-3" /> {openCount} ouvert{openCount > 1 ? "s" : ""}
@@ -164,15 +212,15 @@ export default function AlertesSignalementsPage() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin text-green-600" />
           </div>
-        ) : reports.length === 0 ? (
+        ) : filteredReports.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <CheckCircle className="h-10 w-10 text-green-400 mb-3" />
-            <p className="text-sm font-medium text-zinc-600">Aucun signalement trouve</p>
-            <p className="text-xs text-zinc-400 mt-1">Tout est sain !</p>
+            <p className="text-sm font-medium text-zinc-600">Aucun signalement ne correspond aux filtres</p>
+            <p className="text-xs text-zinc-400 mt-1">Ajuste la recherche ou la plage de dates.</p>
           </div>
         ) : (
           <div className="divide-y divide-zinc-100">
-            {reports.map((report) => {
+            {filteredReports.map((report) => {
               const cfg = STATUS_CONFIG[report.status] || STATUS_CONFIG.OPEN;
               return (
                 <div key={report.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-4">

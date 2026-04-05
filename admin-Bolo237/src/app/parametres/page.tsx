@@ -77,6 +77,8 @@ export default function ParametresPage() {
   // Notifications
   const [emailOnNewReport, setEmailOnNewReport] = useState(false);
   const [whatsappOnNewJob, setWhatsappOnNewJob] = useState(false);
+  const [emailOnInternalAdminAlert, setEmailOnInternalAdminAlert] = useState(false);
+  const [whatsappOnInternalAdminAlert, setWhatsappOnInternalAdminAlert] = useState(false);
 
   // Health
   const [healthStatus, setHealthStatus] = useState<string | null>(null);
@@ -110,6 +112,8 @@ export default function ParametresPage() {
         setBlockedKeywords(s.moderationRules.blockedKeywords);
         setEmailOnNewReport(s.notificationPreferences.emailOnNewReport);
         setWhatsappOnNewJob(s.notificationPreferences.whatsappOnNewJob);
+        setEmailOnInternalAdminAlert(s.notificationPreferences.emailOnInternalAdminAlert);
+        setWhatsappOnInternalAdminAlert(s.notificationPreferences.whatsappOnInternalAdminAlert);
       })
       .catch(() => showToast("Impossible de charger les parametres", "error"))
       .finally(() => setLoading(false));
@@ -320,10 +324,40 @@ export default function ParametresPage() {
               <Toggle checked={whatsappOnNewJob} onChange={setWhatsappOnNewJob} />
             </div>
 
+            <div className="mt-2 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+              <p className="text-sm font-semibold text-zinc-900">Alertes internes admin</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Controle l&apos;escalade temps reel des notifications internes sensibles, en plus de leur affichage dans le back-office.
+              </p>
+
+              <div className="mt-4 space-y-4">
+                <div className="flex items-center justify-between max-w-md">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-700">Email sur alerte interne</p>
+                    <p className="text-xs text-zinc-400">Active l&apos;envoi email pour les demandes de suppression et autres alertes admin sensibles</p>
+                  </div>
+                  <Toggle checked={emailOnInternalAdminAlert} onChange={setEmailOnInternalAdminAlert} />
+                </div>
+
+                <div className="flex items-center justify-between max-w-md">
+                  <div>
+                    <p className="text-sm font-medium text-zinc-700">WhatsApp sur alerte interne</p>
+                    <p className="text-xs text-zinc-400">Active l&apos;escalade WhatsApp vers la cellule admin configuree</p>
+                  </div>
+                  <Toggle checked={whatsappOnInternalAdminAlert} onChange={setWhatsappOnInternalAdminAlert} />
+                </div>
+              </div>
+            </div>
+
             <button
               onClick={() =>
                 saveSection("notifications", {
-                  notificationPreferences: { emailOnNewReport, whatsappOnNewJob },
+                  notificationPreferences: {
+                    emailOnNewReport,
+                    whatsappOnNewJob,
+                    emailOnInternalAdminAlert,
+                    whatsappOnInternalAdminAlert,
+                  },
                 })
               }
               disabled={saving === "notifications"}

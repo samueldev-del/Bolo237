@@ -129,7 +129,12 @@ export type PlatformSettings = {
   platformName: string;
   maintenanceMode: boolean;
   moderationRules: { autoApproveAfterPosts: number; blockedKeywords: string[] };
-  notificationPreferences: { emailOnNewReport: boolean; whatsappOnNewJob: boolean };
+  notificationPreferences: {
+    emailOnNewReport: boolean;
+    whatsappOnNewJob: boolean;
+    emailOnInternalAdminAlert: boolean;
+    whatsappOnInternalAdminAlert: boolean;
+  };
 };
 
 export type AdminNotification = {

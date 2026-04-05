@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocale } from '@/components/LocaleProvider';
+import { createReport, fetchReportSummary, type ApiReportSummary } from '@/lib/api';
 
 type FraudReportButtonProps = {
   targetType: 'annonce' | 'artisan';
@@ -12,13 +13,13 @@ type FraudReportButtonProps = {
 
 type ReportReason = 'demande-argent' | 'fausse-identite' | 'artisan-injoignable';
 
-type ReportEntry = {
-  reporterId: string;
-  reason: ReportReason;
-  createdAt: string;
-};
-
 const REPORTER_KEY = 'bolo237-reporter-id';
+const REPORT_STORAGE_PREFIX = 'bolo237-report-submitted';
+
+function isPositiveInteger(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed > 0;
+}
 
 function getOrCreateReporterId() {
   if (typeof window === 'undefined') {
@@ -33,61 +34,97 @@ function getOrCreateReporterId() {
   return id;
 }
 
-function parseStoredReports(raw: string | null): ReportEntry[] {
-  if (!raw) {
-    return [];
+function hasLocalSubmission(storageKey: string) {
+  if (typeof window === 'undefined') {
+    return false;
   }
-
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return window.localStorage.getItem(storageKey) === '1';
 }
 
-function getReportSnapshot(raw: string | null) {
-  const reports = parseStoredReports(raw);
-  const reporterId = getOrCreateReporterId();
-
-  return {
-    uniqueReportCount: new Set(reports.map((item) => item.reporterId)).size,
-    alreadyReported: reports.some((item) => item.reporterId === reporterId),
-  };
+function rememberLocalSubmission(storageKey: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  window.localStorage.setItem(storageKey, '1');
 }
 
 export default function FraudReportButton({ targetType, targetId, compact = false, onAutoMaskedChange }: FraudReportButtonProps) {
-  const { t } = useLocale();
-  const storageKey = useMemo(() => `bolo237-reports-${targetType}-${targetId}`, [targetId, targetType]);
-  const reportsRaw = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem(storageKey),
-    () => null,
-  );
+  const { t, locale } = useLocale();
+  const storageKey = useMemo(() => `${REPORT_STORAGE_PREFIX}-${targetType}-${targetId}`, [targetId, targetType]);
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState<ReportReason>('demande-argent');
-  const { uniqueReportCount, alreadyReported } = useMemo(() => getReportSnapshot(reportsRaw), [reportsRaw]);
+  const [summary, setSummary] = useState<ApiReportSummary | null>(null);
+  const [alreadyReported, setAlreadyReported] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    onAutoMaskedChange?.(uniqueReportCount >= 3);
-  }, [onAutoMaskedChange, uniqueReportCount]);
+    getOrCreateReporterId();
+    setAlreadyReported(hasLocalSubmission(storageKey));
 
-  const submitReport = () => {
-    if (typeof window === 'undefined' || alreadyReported) {
-      return;
-    }
-    const reporterId = getOrCreateReporterId();
-    const reports = parseStoredReports(window.localStorage.getItem(storageKey));
-    if (reports.some((item) => item.reporterId === reporterId)) {
+    if (!isPositiveInteger(targetId)) {
+      setSummary(null);
       return;
     }
 
-    const next = [...reports, { reporterId, reason, createdAt: new Date().toISOString() }];
-    window.localStorage.setItem(storageKey, JSON.stringify(next));
-    const uniqueCount = new Set(next.map((item) => item.reporterId)).size;
-    setIsOpen(false);
-    onAutoMaskedChange?.(uniqueCount >= 3);
+    let cancelled = false;
+    fetchReportSummary(targetType, Number.parseInt(targetId, 10))
+      .then((nextSummary) => {
+        if (!cancelled) {
+          setSummary(nextSummary);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSummary(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey, targetId, targetType]);
+
+  useEffect(() => {
+    onAutoMaskedChange?.(Boolean(summary?.reviewThresholdReached));
+  }, [onAutoMaskedChange, summary?.reviewThresholdReached]);
+
+  const submitReport = async () => {
+    if (typeof window === 'undefined' || alreadyReported || isSubmitting || !isPositiveInteger(targetId)) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    setFeedback(null);
+
+    try {
+      getOrCreateReporterId();
+      const response = await createReport({
+        reason,
+        targetType,
+        targetId: Number.parseInt(targetId, 10),
+      });
+
+      rememberLocalSubmission(storageKey);
+      setAlreadyReported(true);
+      setSummary(response.summary);
+      setIsOpen(false);
+      setFeedback(t.security.reportSubmitted);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.toLowerCase().includes('already') || message.toLowerCase().includes('déjà')) {
+        rememberLocalSubmission(storageKey);
+        setAlreadyReported(true);
+      }
+      setErrorMessage(message || t.security.reportError);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  const openReports = summary?.openReports ?? 0;
 
   return (
     <div className="space-y-2">
@@ -112,16 +149,28 @@ export default function FraudReportButton({ targetType, targetId, compact = fals
           </select>
           <button
             onClick={submitReport}
-            disabled={alreadyReported}
+            disabled={alreadyReported || isSubmitting}
             className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white text-sm font-extrabold rounded-lg py-2"
           >
-            {alreadyReported ? t.security.alreadyReported : t.security.sendReport}
+            {alreadyReported ? t.security.alreadyReported : isSubmitting ? (locale === 'fr' ? 'Transmission...' : 'Submitting...') : t.security.sendReport}
           </button>
         </div>
       )}
 
+      {feedback && (
+        <p className="text-xs text-emerald-700 font-semibold bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+          {feedback}
+        </p>
+      )}
+
+      {errorMessage && (
+        <p className="text-xs text-red-700 font-semibold bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {errorMessage}
+        </p>
+      )}
+
       <p className="text-xs text-gray-500 font-medium">
-        {uniqueReportCount} {t.security.uniqueReports}
+        {openReports} {t.security.uniqueReports}
       </p>
     </div>
   );

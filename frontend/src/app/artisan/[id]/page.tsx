@@ -4,6 +4,7 @@ import { use, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
+import FraudReportButton from '@/components/FraudReportButton';
 import { fetchUserProfile, fetchUserReviews, type UserReview } from '@/lib/api';
 import RatingModal from '@/components/RatingModal';
 
@@ -18,7 +19,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   const { t, localizePath, locale } = useLocale();
   const isEn = locale === 'en';
   const [showQuoteForm, setShowQuoteForm] = useState(false);
-  const [maskedByReports] = useState(false);
+  const [maskedByReports, setMaskedByReports] = useState(false);
   const [reviews, setReviews] = useState<UserReview[]>([]);
   const [reviewAvg, setReviewAvg] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
@@ -248,6 +249,15 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
           <p className="text-amber-800 font-extrabold text-sm">
             {t.security.artisanWarning}
           </p>
+        </section>
+
+        <section className="bg-white border border-gray-200 rounded-2xl p-6">
+          <h2 className="text-lg md:text-xl font-extrabold mb-3">{t.security.antiFraudTitle}</h2>
+          <FraudReportButton
+            targetType="artisan"
+            targetId={id}
+            onAutoMaskedChange={setMaskedByReports}
+          />
         </section>
 
         {artisan.profile && (

@@ -125,7 +125,7 @@ export default function ConditionsPage() {
             {[
               isEn
                 ? 'You must be at least 18 years of age to create an account and use the platform.'
-                : 'Vous devez \u00eatre \u00e2g\u00e9(e) d\u2019au moins 18 ans pour cr\u00e9er un compte et utiliser la plateforme.',
+                : 'Vous devez être âgé(e) d’au moins 18 ans pour créer un compte et utiliser la plateforme.',
               isEn
                 ? 'Each individual may only create and maintain one single account. Duplicate accounts will be suspended.'
                 : 'Chaque personne ne peut cr\u00e9er et maintenir qu\u2019un seul compte. Les comptes en double seront suspendus.',
@@ -497,8 +497,8 @@ export default function ConditionsPage() {
                 ? 'Grounds for suspension include, but are not limited to: fraud, identity theft, harassment, posting illegal content, creating multiple accounts, or any behavior deemed harmful to the platform community.'
                 : 'Les motifs de suspension incluent, sans s\u2019y limiter : la fraude, l\u2019usurpation d\u2019identit\u00e9, le harc\u00e8lement, la publication de contenu ill\u00e9gal, la cr\u00e9ation de comptes multiples ou tout comportement jug\u00e9 nuisible \u00e0 la communaut\u00e9 de la plateforme.',
               isEn
-                ? 'Users may delete their own account at any time through the platform settings. Account deletion is permanent and irreversible.'
-                : 'Les utilisateurs peuvent supprimer leur propre compte \u00e0 tout moment via les param\u00e8tres de la plateforme. La suppression du compte est d\u00e9finitive et irr\u00e9versible.',
+                ? 'Users may request account deletion through the dedicated privacy process or by contacting support. Deletion is handled after identity verification and verification of legal retention obligations.'
+                : 'Les utilisateurs peuvent demander la suppression de leur compte via le processus dédié de confidentialité ou en contactant le support. La suppression est traitée après vérification d’identité et contrôle des obligations légales de conservation.',
               isEn
                 ? 'Upon account deletion or termination, Bolo237 may retain certain data for a reasonable period as required by law or for legitimate business purposes (e.g., fraud prevention), after which it will be permanently deleted.'
                 : 'Apr\u00e8s la suppression ou la r\u00e9siliation du compte, Bolo237 peut conserver certaines donn\u00e9es pendant une p\u00e9riode raisonnable conform\u00e9ment \u00e0 la loi ou pour des raisons commerciales l\u00e9gitimes (par ex. pr\u00e9vention de la fraude), apr\u00e8s quoi elles seront d\u00e9finitivement supprim\u00e9es.',
@@ -518,8 +518,8 @@ export default function ConditionsPage() {
       content: (
         <p className="text-gray-700 leading-relaxed">
           {isEn
-            ? 'Bolo237 reserves the right to modify these Terms of Use at any time to reflect changes in the law, platform features, or business practices. Users will be notified of significant changes via the platform or by email. The updated terms will indicate the new effective date. Continued use of the platform after the publication of modified terms constitutes acceptance of those changes. Users who do not agree with the updated terms must cease using the platform and delete their account.'
-            : 'Bolo237 se r\u00e9serve le droit de modifier les pr\u00e9sentes Conditions G\u00e9n\u00e9rales d\u2019Utilisation \u00e0 tout moment pour refl\u00e9ter les \u00e9volutions l\u00e9gislatives, les fonctionnalit\u00e9s de la plateforme ou les pratiques commerciales. Les utilisateurs seront inform\u00e9s des modifications significatives via la plateforme ou par e-mail. Les conditions mises \u00e0 jour indiqueront la nouvelle date d\u2019entr\u00e9e en vigueur. L\u2019utilisation continue de la plateforme apr\u00e8s la publication des conditions modifi\u00e9es vaut acceptation de ces modifications. Les utilisateurs qui n\u2019acceptent pas les conditions mises \u00e0 jour doivent cesser d\u2019utiliser la plateforme et supprimer leur compte.'}
+            ? 'Bolo237 reserves the right to modify these Terms of Use at any time to reflect changes in the law, platform features, or business practices. Users will be notified of significant changes via the platform or by email. The updated terms will indicate the new effective date. Continued use of the platform after the publication of modified terms constitutes acceptance of those changes. Users who do not agree with the updated terms must cease using the platform and may request account deletion through the privacy process.'
+            : 'Bolo237 se réserve le droit de modifier les présentes Conditions Générales d’Utilisation à tout moment pour refléter les évolutions législatives, les fonctionnalités de la plateforme ou les pratiques commerciales. Les utilisateurs seront informés des modifications significatives via la plateforme ou par e-mail. Les conditions mises à jour indiqueront la nouvelle date d’entrée en vigueur. L’utilisation continue de la plateforme après la publication des conditions modifiées vaut acceptation de ces modifications. Les utilisateurs qui n’acceptent pas les conditions mises à jour doivent cesser d’utiliser la plateforme et peuvent demander la suppression de leur compte via le processus de confidentialité.'}
         </p>
       ),
     },
@@ -530,13 +530,13 @@ export default function ConditionsPage() {
         <>
           <p className="text-gray-700 leading-relaxed mb-3">
             {isEn
-              ? 'These Terms of Use are governed by and construed in accordance with the laws of the Federal Republic of Germany, where the operating entity is registered.'
-              : 'Les pr\u00e9sentes Conditions G\u00e9n\u00e9rales d\u2019Utilisation sont r\u00e9gies et interpr\u00e9t\u00e9es conform\u00e9ment aux lois de la R\u00e9publique f\u00e9d\u00e9rale d\u2019Allemagne, o\u00f9 l\u2019entit\u00e9 exploitante est enregistr\u00e9e.'}
+              ? 'For services offered to users in Cameroon, these Terms of Use are interpreted first in light of the mandatory laws of the Republic of Cameroon applicable to the platform, without prejudice to the mandatory German and European rules applicable to the operating entity established in Germany.'
+              : 'Pour les services propos\u00e9s \u00e0 des utilisateurs au Cameroun, les pr\u00e9sentes Conditions G\u00e9n\u00e9rales d\u2019Utilisation s\u2019interpr\u00e8tent d\u2019abord \u00e0 la lumi\u00e8re des lois imp\u00e9ratives de la R\u00e9publique du Cameroun applicables \u00e0 la plateforme, sans pr\u00e9judice des r\u00e8gles imp\u00e9ratives allemandes et europ\u00e9ennes applicables \u00e0 l\u2019entit\u00e9 exploitante \u00e9tablie en Allemagne.'}
           </p>
           <p className="text-gray-700 leading-relaxed">
             {isEn
-              ? 'In the event of a dispute arising from or in connection with the use of the platform, the parties agree to first attempt to resolve the matter amicably through direct communication. If no amicable resolution is reached within thirty (30) days, the dispute shall be submitted to the competent courts of Germany.'
-              : 'En cas de litige d\u00e9coulant de ou li\u00e9 \u00e0 l\u2019utilisation de la plateforme, les parties conviennent de tenter d\u2019abord de r\u00e9soudre le diff\u00e9rend \u00e0 l\u2019amiable par communication directe. Si aucune r\u00e9solution amiable n\u2019est atteinte dans un d\u00e9lai de trente (30) jours, le litige sera soumis aux tribunaux comp\u00e9tents d\u2019Allemagne.'}
+              ? 'In the event of a dispute arising from or in connection with the use of the platform in Cameroon, the parties agree to first attempt an amicable resolution within thirty (30) days. Failing amicable resolution, the dispute shall be submitted to the competent courts of Douala, Cameroon, unless a mandatory rule requires another jurisdiction.'
+              : 'En cas de litige d\u00e9coulant de ou li\u00e9 \u00e0 l\u2019utilisation de la plateforme au Cameroun, les parties conviennent de tenter d\u2019abord une r\u00e9solution amiable dans un d\u00e9lai de trente (30) jours. \u00c0 d\u00e9faut de r\u00e9solution amiable, le litige sera soumis aux tribunaux comp\u00e9tents de Douala, Cameroun, sauf si une r\u00e8gle imp\u00e9rative impose une autre juridiction.'}
           </p>
         </>
       ),

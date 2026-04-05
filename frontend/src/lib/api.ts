@@ -33,6 +33,20 @@ export type ApiReport = {
   createdAt: string;
 };
 
+export type ApiReportSummary = {
+  targetType: string;
+  targetId: number;
+  totalReports: number;
+  openReports: number;
+  reviewThreshold: number;
+  reviewThresholdReached: boolean;
+};
+
+export type ApiReportSubmission = {
+  report: ApiReport;
+  summary: ApiReportSummary;
+};
+
 export type Pagination = {
   page: number;
   limit: number;
@@ -321,14 +335,33 @@ export async function fetchReports(status?: string): Promise<ApiReport[]> {
   return apiFetch<ApiReport[]>(`/api/reports${qs}`);
 }
 
+export async function fetchReportSummary(targetType: string, targetId: number): Promise<ApiReportSummary> {
+  const params = new URLSearchParams({
+    targetType,
+    targetId: String(targetId),
+  });
+  return apiFetch<ApiReportSummary>(`/api/reports/summary?${params.toString()}`);
+}
+
 export async function createReport(data: {
   reason: string;
   targetType: string;
   targetId: number;
-}): Promise<ApiReport> {
-  return apiFetch<ApiReport>('/api/reports', {
+}): Promise<ApiReportSubmission> {
+  return apiFetch<ApiReportSubmission>('/api/reports', {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+}
+
+export async function exportPrivacyData(): Promise<Record<string, unknown>> {
+  return apiFetch<Record<string, unknown>>('/api/privacy/export');
+}
+
+export async function requestAccountDeletion(reason?: string): Promise<{ ok: boolean; reference: string; delivery: string; message: string }> {
+  return apiFetch('/api/privacy/delete-request', {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
   });
 }
 

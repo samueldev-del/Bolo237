@@ -20,6 +20,9 @@ export default function Footer() {
               <li><Link href={localizePath('/a-propos')} className="hover:text-[#DA7756] hover:underline">{t.footer.about}</Link></li>
               <li><Link href={localizePath('/presse')} className="hover:text-[#DA7756] hover:underline">{t.footer.press}</Link></li>
               <li><Link href={localizePath('/conditions')} className="hover:text-[#DA7756] hover:underline">CGU</Link></li>
+              <li><Link href={localizePath('/mentions-legales')} className="hover:text-[#DA7756] hover:underline">{t.footer.legalNotice}</Link></li>
+              <li><Link href={localizePath('/confidentialite')} className="hover:text-[#DA7756] hover:underline">{t.footer.privacy}</Link></li>
+              <li><Link href={localizePath('/cookies')} className="hover:text-[#DA7756] hover:underline">{t.footer.cookies}</Link></li>
             </ul>
           </div>
 

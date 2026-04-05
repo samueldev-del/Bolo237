@@ -4,6 +4,7 @@ import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
+import FraudReportButton from '@/components/FraudReportButton';
 import { applyToJob, fetchJob, fetchUserProfile } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 
@@ -39,7 +40,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
   const numericId = parseInt(id, 10);
   const { t, localizePath, locale } = useLocale();
   const [translated, setTranslated] = useState(false);
-  const [maskedByReports] = useState(false);
+  const [maskedByReports, setMaskedByReports] = useState(false);
   const [applyMessage, setApplyMessage] = useState('');
   const [isApplying, setIsApplying] = useState(false);
   const [showApplicationReview, setShowApplicationReview] = useState(false);
@@ -393,6 +394,17 @@ export default function OffreEmploiPage({ params }: JobParams) {
             <p className="text-red-700 font-extrabold text-sm">
               {t.security.redJobWarning}
             </p>
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-2xl p-5">
+            <h2 className="text-base font-extrabold text-black mb-3">
+              {t.security.antiFraudTitle}
+            </h2>
+            <FraudReportButton
+              targetType="annonce"
+              targetId={id}
+              onAutoMaskedChange={setMaskedByReports}
+            />
           </div>
 
           <article className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8">

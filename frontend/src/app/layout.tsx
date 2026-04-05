@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import CookieConsentBanner from "@/components/CookieConsentBanner";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import AppFeedbackWidget from "@/components/AppFeedbackWidget";
 import { cookies } from "next/headers";
@@ -105,6 +106,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
             {children}
           </main>
           <AppFeedbackWidget />
+          <CookieConsentBanner />
         </LocaleProvider>
       </body>
     </html>

@@ -255,6 +255,146 @@ async function requireAdminSession(req, res, next) {
   }
 }
 
+async function requireUserSession(req, res, next) {
+  try {
+    const payload = readSessionToken(req);
+    if (!payload?.userId) {
+      return res.status(401).json({ error: 'Session requise.' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: Number(payload.userId) },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        phone: true,
+        photoUrl: true,
+        isVerified: true,
+        isBanned: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: 'Session invalide.' });
+    }
+
+    if (user.isBanned) {
+      return res.status(403).json({ error: 'Compte banni.' });
+    }
+
+    req.sessionUser = user;
+    return next();
+  } catch (error) {
+    console.error('requireUserSession error:', error);
+    return res.status(500).json({ error: 'Erreur de verification utilisateur.' });
+  }
+}
+
+const REPORT_TARGET_ALLOWLIST = new Set(['annonce', 'artisan']);
+const REPORT_REASON_ALLOWLIST = new Set(['demande-argent', 'fausse-identite', 'artisan-injoignable']);
+const REPORT_DEDUPE_WINDOW_MS = 12 * 60 * 60 * 1000;
+const REPORT_REVIEW_THRESHOLD = 3;
+const recentReportSubmissions = new Map();
+
+function parsePositiveInt(value) {
+  const parsed = parseInt(String(value), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function normalizeReportTargetType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return REPORT_TARGET_ALLOWLIST.has(normalized) ? normalized : null;
+}
+
+function normalizeReportReason(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return REPORT_REASON_ALLOWLIST.has(normalized) ? normalized : null;
+}
+
+function cleanupRecentReportSubmissions(now = Date.now()) {
+  for (const [key, expiresAt] of recentReportSubmissions.entries()) {
+    if (expiresAt <= now) {
+      recentReportSubmissions.delete(key);
+    }
+  }
+}
+
+function getRequestFingerprint(req) {
+  const ipPart = ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
+  const userAgent = String(req.get('user-agent') || 'unknown').slice(0, 180);
+  return crypto.createHash('sha256').update(`${ipPart}|${userAgent}`).digest('hex');
+}
+
+async function reportTargetExists(targetType, targetId) {
+  if (targetType === 'annonce') {
+    const count = await prisma.job.count({ where: { id: targetId } });
+    return count > 0;
+  }
+
+  const count = await prisma.userProfile.count({ where: { userId: targetId } });
+  return count > 0;
+}
+
+async function buildReportSummary(targetType, targetId) {
+  const [totalReports, openReports] = await prisma.$transaction([
+    prisma.report.count({ where: { targetType, targetId } }),
+    prisma.report.count({ where: { targetType, targetId, status: 'OPEN' } }),
+  ]);
+
+  return {
+    targetType,
+    targetId,
+    totalReports,
+    openReports,
+    reviewThreshold: REPORT_REVIEW_THRESHOLD,
+    reviewThresholdReached: openReports >= REPORT_REVIEW_THRESHOLD,
+  };
+}
+
+function buildPrivacyReference(prefix) {
+  return `${prefix}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+}
+
+async function notifyPrivacyTeam({ subject, text, replyTo }) {
+  const recipient = process.env.EMAIL_USER || 'contact@bolo237.com';
+
+  try {
+    await transporter.sendMail({
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: recipient,
+      replyTo,
+      subject,
+      text,
+    });
+    return 'email';
+  } catch (error) {
+    console.error('Privacy notification email error:', error?.message || error);
+    console.log(`[PRIVACY REQUEST] ${subject}\n${text}`);
+    return 'log';
+  }
+}
+
+const reportSubmissionLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
+  message: { error: 'Trop de signalements depuis cette IP. Reessayez plus tard.' },
+});
+
+const privacyRequestLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
+  message: { error: 'Trop de demandes de confidentialite pour le moment. Reessayez plus tard.' },
+});
+
 // Verification queue is persisted via Prisma VerificationSubmission model
 
 // =============================================
@@ -1544,8 +1684,100 @@ app.post('/api/auth/logout', (_req, res) => {
 });
 
 // =============================================
+// ROUTES: Privacy / Data Rights
+// =============================================
+
+app.get('/api/privacy/export', requireUserSession, async (req, res) => {
+  try {
+    const user = req.sessionUser;
+
+    const [profile, candidateProfile, jobs, notifications, reviewsGiven, reviewsReceived, savedJobs] = await prisma.$transaction([
+      prisma.userProfile.findUnique({ where: { userId: user.id } }),
+      prisma.candidateProfile.findFirst({ where: { userId: user.id } }),
+      prisma.job.findMany({ where: { authorId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.notification.findMany({ where: { userId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.userReview.findMany({ where: { reviewerId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.userReview.findMany({ where: { reviewedId: user.id }, orderBy: { createdAt: 'desc' } }),
+      prisma.savedJob.findMany({ where: { userId: user.id }, orderBy: { id: 'desc' } }),
+    ]);
+
+    const verificationSubmissions = user.phone
+      ? await prisma.verificationSubmission.findMany({ where: { phone: user.phone }, orderBy: { submittedAt: 'desc' } })
+      : [];
+
+    return res.json({
+      exportedAt: new Date().toISOString(),
+      user,
+      profile,
+      candidateProfile,
+      jobs,
+      notifications,
+      reviewsGiven,
+      reviewsReceived,
+      savedJobs,
+      verificationSubmissions,
+    });
+  } catch (error) {
+    console.error('GET /api/privacy/export error:', error);
+    return res.status(500).json({ error: 'Erreur lors de l\'export des donnees personnelles.' });
+  }
+});
+
+app.post('/api/privacy/delete-request', requireUserSession, privacyRequestLimiter, async (req, res) => {
+  try {
+    const user = req.sessionUser;
+    const reason = String(req.body?.reason || '').trim().slice(0, 1000);
+    const reference = buildPrivacyReference('DEL');
+    const lines = [
+      'Nouvelle demande de suppression de compte Bolo237',
+      `Reference: ${reference}`,
+      `User ID: ${user.id}`,
+      `Email: ${user.email}`,
+      `Phone: ${user.phone || 'non renseigne'}`,
+      `Role: ${user.role}`,
+      `Requested at: ${new Date().toISOString()}`,
+      `Reason: ${reason || 'Aucun motif fourni.'}`,
+    ];
+
+    const delivery = await notifyPrivacyTeam({
+      subject: `[Bolo237] Demande de suppression ${reference}`,
+      text: lines.join('\n'),
+      replyTo: user.email,
+    });
+
+    return res.status(202).json({
+      ok: true,
+      reference,
+      delivery,
+      message: 'Votre demande a ete enregistree et sera traitee apres verification d\'identite et controle des obligations legales.',
+    });
+  } catch (error) {
+    console.error('POST /api/privacy/delete-request error:', error);
+    return res.status(500).json({ error: 'Erreur lors de l\'enregistrement de la demande de suppression.' });
+  }
+});
+
+// =============================================
 // ROUTES: Reports (Signalements)
 // =============================================
+
+// GET /api/reports/summary — Synthese publique d'un contenu signale
+app.get('/api/reports/summary', async (req, res) => {
+  try {
+    const targetType = normalizeReportTargetType(req.query.targetType);
+    const targetId = parsePositiveInt(req.query.targetId);
+
+    if (!targetType || !targetId) {
+      return res.status(400).json({ error: 'Parametres invalides: targetType, targetId.' });
+    }
+
+    const summary = await buildReportSummary(targetType, targetId);
+    return res.json(summary);
+  } catch (error) {
+    console.error('GET /api/reports/summary error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la lecture de la synthese des signalements.' });
+  }
+});
 
 // GET /api/reports — Liste des signalements
 app.get('/api/reports', requireAdminSession, async (req, res) => {
@@ -1567,24 +1799,51 @@ app.get('/api/reports', requireAdminSession, async (req, res) => {
 });
 
 // POST /api/reports — Créer un signalement
-app.post('/api/reports', async (req, res) => {
+app.post('/api/reports', reportSubmissionLimiter, async (req, res) => {
   try {
-    const { reason, targetType, targetId } = req.body;
+    const reason = normalizeReportReason(req.body?.reason);
+    const targetType = normalizeReportTargetType(req.body?.targetType);
+    const targetId = parsePositiveInt(req.body?.targetId);
 
     if (!reason || !targetType || !targetId) {
       return res.status(400).json({ error: 'Champs obligatoires: reason, targetType, targetId.' });
     }
 
+    const targetExists = await reportTargetExists(targetType, targetId);
+    if (!targetExists) {
+      return res.status(404).json({ error: 'Cible introuvable pour ce signalement.' });
+    }
+
+    const now = Date.now();
+    cleanupRecentReportSubmissions(now);
+    const fingerprint = getRequestFingerprint(req);
+    const dedupeKey = `${fingerprint}:${targetType}:${targetId}:${reason}`;
+    const expiresAt = recentReportSubmissions.get(dedupeKey);
+
+    if (expiresAt && expiresAt > now) {
+      return res.status(409).json({ error: 'Un signalement identique a deja ete enregistre recemment depuis cet appareil.' });
+    }
+
+    recentReportSubmissions.set(dedupeKey, now + REPORT_DEDUPE_WINDOW_MS);
+
     const report = await prisma.report.create({
       data: {
-        reason: String(reason),
-        targetType: String(targetType),
-        targetId: parseInt(String(targetId), 10),
+        reason,
+        targetType,
+        targetId,
         status: 'OPEN',
       },
     });
 
-    res.status(201).json(report);
+    const summary = await buildReportSummary(targetType, targetId);
+
+    if (summary.reviewThresholdReached && summary.openReports === REPORT_REVIEW_THRESHOLD) {
+      await sendWhatsAppModerationAlert(
+        `🚩 Signalements eleves\nCible: ${targetType} #${targetId}\nSignalements ouverts: ${summary.openReports}\nAction recommandee: verification prioritaire dans l'admin Bolo237.`
+      );
+    }
+
+    res.status(201).json({ report, summary });
   } catch (error) {
     console.error('POST /api/reports error:', error);
     res.status(500).json({ error: 'Erreur lors de la création du signalement.' });

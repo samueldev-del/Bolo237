@@ -144,6 +144,76 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
     kind: 'article',
   },
   {
+    path: '/infos-salaires',
+    title: {
+      fr: 'Informations salariales | Bolo237',
+      en: 'Salary insights | Bolo237',
+    },
+    description: {
+      fr: 'Reperez les bons reflexes pour comparer une offre, evaluer un package et mieux negocier votre salaire.',
+      en: 'Learn how to compare an offer, evaluate a package, and negotiate salary with more clarity.',
+    },
+    priority: 0.62,
+    changeFrequency: 'monthly',
+    kind: 'article',
+  },
+  {
+    path: '/conseils-carriere',
+    title: {
+      fr: 'Conseils de carriere | Bolo237',
+      en: 'Career advice | Bolo237',
+    },
+    description: {
+      fr: 'Conseils pratiques pour rendre votre profil plus visible, renforcer la confiance et mieux suivre vos opportunites.',
+      en: 'Practical guidance to improve visibility, strengthen trust, and manage your opportunities better.',
+    },
+    priority: 0.64,
+    changeFrequency: 'monthly',
+    kind: 'article',
+  },
+  {
+    path: '/modele-cv',
+    title: {
+      fr: 'Modele de CV | Bolo237',
+      en: 'CV template | Bolo237',
+    },
+    description: {
+      fr: 'Structurez un CV lisible et utile avec les bonnes sections pour les recruteurs et clients sur Bolo237.',
+      en: 'Build a useful, readable CV with the sections recruiters and clients expect on Bolo237.',
+    },
+    priority: 0.63,
+    changeFrequency: 'monthly',
+    kind: 'article',
+  },
+  {
+    path: '/connaissance-rh',
+    title: {
+      fr: 'Connaissances RH | Bolo237',
+      en: 'HR knowledge | Bolo237',
+    },
+    description: {
+      fr: 'Retrouvez les bases RH utiles pour publier de meilleures annonces et fluidifier votre recrutement.',
+      en: 'Review practical HR basics to publish better listings and run a smoother hiring process.',
+    },
+    priority: 0.6,
+    changeFrequency: 'monthly',
+    kind: 'article',
+  },
+  {
+    path: '/categories-metiers',
+    title: {
+      fr: 'Categories de metiers | Bolo237',
+      en: 'Trade categories | Bolo237',
+    },
+    description: {
+      fr: 'Explorez les grandes categories de services et metiers artisanaux disponibles sur Bolo237.',
+      en: 'Explore the main service and artisan trade categories available on Bolo237.',
+    },
+    priority: 0.58,
+    changeFrequency: 'monthly',
+    kind: 'article',
+  },
+  {
     path: '/recherche',
     title: {
       fr: 'Recherche avancee d offres | Bolo237',
@@ -304,11 +374,21 @@ export function buildLocalizedMetadata(
       locale: OPEN_GRAPH_LOCALE[locale],
       alternateLocale: locale === 'fr' ? ['en_US'] : ['fr_CM'],
       url: localizedUrl(path, locale),
+      images: [
+        {
+          url: `${SITE_URL}/og-image.png`,
+          width: 1200,
+          height: 630,
+          alt: 'Bolo237 - Emplois et Services au Cameroun',
+          type: 'image/png',
+        },
+      ],
     },
     twitter: {
       card: 'summary_large_image',
       title,
       description,
+      images: [`${SITE_URL}/og-image.png`],
     },
     ...(options?.robots ? { robots: options.robots } : {}),
   };

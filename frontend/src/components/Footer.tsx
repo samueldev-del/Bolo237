@@ -30,9 +30,9 @@ export default function Footer() {
             <h4 className="font-extrabold text-black mb-4 text-[15px]">{t.footer.candidates}</h4>
             <ul className="space-y-2 text-sm font-medium">
               <li><Link href={localizePath('/dashboard')} className="hover:text-[#DA7756] hover:underline">{t.footer.my237}</Link></li>
-              <li><span className="text-gray-400 cursor-default">{t.footer.salaryInfo}</span></li>
-              <li><span className="text-gray-400 cursor-default">{t.footer.careerTips}</span></li>
-              <li><span className="text-gray-400 cursor-default">{t.footer.cvTemplate}</span></li>
+              <li><Link href={localizePath('/infos-salaires')} className="hover:text-[#DA7756] hover:underline">{t.footer.salaryInfo}</Link></li>
+              <li><Link href={localizePath('/conseils-carriere')} className="hover:text-[#DA7756] hover:underline">{t.footer.careerTips}</Link></li>
+              <li><Link href={localizePath('/modele-cv')} className="hover:text-[#DA7756] hover:underline">{t.footer.cvTemplate}</Link></li>
             </ul>
           </div>
 
@@ -41,7 +41,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm font-medium">
               <li><Link href={localizePath('/publier')} className="hover:text-[#DA7756] hover:underline">{t.footer.post}</Link></li>
               <li><Link href={localizePath('/dashboard-entreprise')} className="hover:text-[#DA7756] hover:underline">{t.footer.employerLogin}</Link></li>
-              <li><span className="text-gray-400 cursor-default">{t.footer.hrKnowledge}</span></li>
+              <li><Link href={localizePath('/connaissance-rh')} className="hover:text-[#DA7756] hover:underline">{t.footer.hrKnowledge}</Link></li>
             </ul>
           </div>
 
@@ -50,7 +50,7 @@ export default function Footer() {
             <ul className="space-y-2 text-sm font-medium">
               <li><Link href={localizePath('/petits-boulots')} className="hover:text-[#DA7756] hover:underline">{t.footer.findArtisan}</Link></li>
               <li><Link href={localizePath('/dashboard-artisan')} className="hover:text-[#DA7756] hover:underline">{t.footer.artisanLogin}</Link></li>
-              <li><span className="text-gray-400 cursor-default">{t.footer.artisanCategories}</span></li>
+              <li><Link href={localizePath('/categories-metiers')} className="hover:text-[#DA7756] hover:underline">{t.footer.artisanCategories}</Link></li>
               <li><Link href={localizePath('/connexion')} className="hover:text-[#DA7756] hover:underline">{t.footer.becomeArtisan}</Link></li>
             </ul>
           </div>

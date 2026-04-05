@@ -492,6 +492,35 @@ async function createNotification({ userId, type, title, message, data }) {
   });
 }
 
+async function createAdminNotifications({ title, message, type = 'admin_alert', data, excludeUserIds = [] }) {
+  const admins = await prisma.user.findMany({
+    where: {
+      role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+      isBanned: false,
+      ...(excludeUserIds.length ? { id: { notIn: excludeUserIds } } : {}),
+    },
+    select: { id: true },
+  });
+
+  if (admins.length === 0) {
+    return { sent: 0 };
+  }
+
+  await Promise.all(
+    admins.map((admin) =>
+      createNotification({
+        userId: admin.id,
+        type,
+        title,
+        message,
+        data,
+      })
+    )
+  );
+
+  return { sent: admins.length };
+}
+
 function buildDateBuckets(days) {
   const labels = [];
   const now = new Date();
@@ -1833,6 +1862,21 @@ app.post('/api/privacy/delete-request', requireUserSession, privacyRequestLimite
       data: { delivery },
     });
 
+    await createAdminNotifications({
+      type: 'privacy_delete_request',
+      title: 'Nouvelle demande de suppression',
+      message: `${user.email} a soumis la demande ${reference}.`,
+      data: {
+        area: 'privacy',
+        reference,
+        kind: 'DELETE',
+        status: 'PENDING',
+        requesterEmail: user.email,
+        requesterRole: user.role,
+        delivery,
+      },
+    });
+
     return res.status(202).json({
       ok: true,
       reference,
@@ -2119,6 +2163,24 @@ app.patch('/api/admin/privacy-requests/:reference', requireAdminSession, async (
       data: updateData,
       include: { user: { select: { id: true, name: true, email: true, role: true } } },
     });
+
+    if (current.kind === 'DELETE' && statusProvided && nextStatus !== current.status) {
+      await createAdminNotifications({
+        type: 'privacy_delete_status',
+        title: 'Statut de suppression mis a jour',
+        message: `${reference} est passe de ${current.status} a ${nextStatus} par ${adminLabel}.`,
+        data: {
+          area: 'privacy',
+          reference,
+          kind: current.kind,
+          previousStatus: current.status,
+          status: nextStatus,
+          requesterEmail: current.requesterEmail,
+          processedBy: adminLabel,
+        },
+        excludeUserIds: req.adminUserId ? [req.adminUserId] : [],
+      });
+    }
 
     res.json(updated);
   } catch (error) {

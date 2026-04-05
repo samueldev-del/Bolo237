@@ -87,6 +87,74 @@ function buildDrafts(items: AdminPrivacyRequest[]): DraftState {
   }, {});
 }
 
+function escapeCsvCell(value: unknown) {
+  const text = value == null
+    ? ""
+    : typeof value === "string"
+      ? value
+      : JSON.stringify(value);
+
+  if (/[";\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+
+  return text;
+}
+
+function buildCsv(items: AdminPrivacyRequest[]) {
+  const headers = [
+    "reference",
+    "kind",
+    "status",
+    "requesterEmail",
+    "requesterName",
+    "requesterRole",
+    "requesterPhone",
+    "requestedAt",
+    "processedAt",
+    "processedBy",
+    "delivery",
+    "sourceIp",
+    "reason",
+    "notes",
+    "payload",
+  ];
+
+  const rows = items.map((item) => [
+    item.reference,
+    item.kind,
+    item.status,
+    item.requesterEmail,
+    item.requesterName || "",
+    item.requesterRole || "",
+    item.requesterPhone || "",
+    item.requestedAt,
+    item.processedAt || "",
+    item.processedBy || "",
+    item.delivery || "",
+    item.sourceIp || "",
+    item.reason || "",
+    item.notes || "",
+    item.payload || null,
+  ]);
+
+  return [headers, ...rows]
+    .map((row) => row.map((cell) => escapeCsvCell(cell)).join(";"))
+    .join("\n");
+}
+
+function downloadCsvFile(content: string, fileName: string) {
+  const blob = new Blob([`\uFEFF${content}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
 export default function AlertesConfidentialitePage() {
   const [items, setItems] = useState<AdminPrivacyRequest[]>([]);
   const [summary, setSummary] = useState<AdminPrivacyRequestSummary>(EMPTY_SUMMARY);
@@ -96,6 +164,7 @@ export default function AlertesConfidentialitePage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [actionReference, setActionReference] = useState<string | null>(null);
+  const [isExportingCsv, setIsExportingCsv] = useState(false);
   const [drafts, setDrafts] = useState<DraftState>({});
   const [toast, setToast] = useState("");
 
@@ -165,6 +234,40 @@ export default function AlertesConfidentialitePage() {
     }
   }
 
+  async function handleExportCsv() {
+    setIsExportingCsv(true);
+
+    try {
+      let currentPage = 1;
+      let totalPages = 1;
+      const allItems: AdminPrivacyRequest[] = [];
+
+      do {
+        const response = await fetchAdminPrivacyRequests({
+          status: statusFilter === "all" ? undefined : statusFilter,
+          kind: kindFilter === "all" ? undefined : kindFilter,
+          page: currentPage,
+          limit: 200,
+        });
+
+        allItems.push(...response.items);
+        totalPages = response.pagination.totalPages;
+        currentPage += 1;
+      } while (currentPage <= totalPages);
+
+      const csv = buildCsv(allItems);
+      const stamp = new Date().toISOString().slice(0, 10);
+      const statusPart = statusFilter === "all" ? "all-statuses" : statusFilter.toLowerCase();
+      const kindPart = kindFilter === "all" ? "all-kinds" : kindFilter.toLowerCase();
+      downloadCsvFile(csv, `bolo237-privacy-requests-${kindPart}-${statusPart}-${stamp}.csv`);
+      showToast(`CSV exporte (${allItems.length} ligne${allItems.length > 1 ? "s" : ""})`);
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Erreur lors de l export CSV");
+    } finally {
+      setIsExportingCsv(false);
+    }
+  }
+
   return (
     <AdminShell title="Demandes confidentialite" description="Journal des exports de donnees et demandes de suppression avec suivi par reference.">
       {toast && (
@@ -192,26 +295,37 @@ export default function AlertesConfidentialitePage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          <Filter className="h-4 w-4 text-zinc-400" />
-          {(["all", "PENDING", "IN_REVIEW", "COMPLETED", "REJECTED"] as StatusFilter[]).map((value) => (
-            <button
-              key={value}
-              onClick={() => {
-                setStatusFilter(value);
-                setPage(1);
-              }}
-              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-                statusFilter === value
-                  ? "border-[#8B4332] bg-[#8B4332] text-white"
-                  : "border-zinc-200 bg-white text-zinc-600 hover:border-[#C4623F] hover:text-[#8B4332]"
-              }`}
-            >
-              {value === "all" ? "Tous statuts" : STATUS_CONFIG[value].label}
-            </button>
-          ))}
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            <Filter className="h-4 w-4 text-zinc-400" />
+            {(["all", "PENDING", "IN_REVIEW", "COMPLETED", "REJECTED"] as StatusFilter[]).map((value) => (
+              <button
+                key={value}
+                onClick={() => {
+                  setStatusFilter(value);
+                  setPage(1);
+                }}
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                  statusFilter === value
+                    ? "border-[#8B4332] bg-[#8B4332] text-white"
+                    : "border-zinc-200 bg-white text-zinc-600 hover:border-[#C4623F] hover:text-[#8B4332]"
+                }`}
+              >
+                {value === "all" ? "Tous statuts" : STATUS_CONFIG[value].label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => void handleExportCsv()}
+            disabled={isExportingCsv || loading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#8B4332] bg-[#FFF7F2] px-4 py-2.5 text-sm font-bold text-[#8B4332] transition hover:bg-[#FDEBDD] disabled:opacity-50"
+          >
+            {isExportingCsv ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {isExportingCsv ? "Export CSV..." : "Exporter CSV"}
+          </button>
         </div>
+
         <div className="flex flex-wrap items-center gap-2">
           {(["all", "EXPORT", "DELETE"] as KindFilter[]).map((value) => (
             <button
@@ -230,6 +344,10 @@ export default function AlertesConfidentialitePage() {
             </button>
           ))}
         </div>
+
+        <p className="text-xs text-zinc-500">
+          L export CSV reprend tous les elements correspondant aux filtres actifs.
+        </p>
       </div>
 
       <div className="rounded-2xl border border-zinc-200 bg-white overflow-hidden">

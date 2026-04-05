@@ -49,7 +49,7 @@ export default function Footer() {
             <h4 className="font-extrabold text-black mb-4 text-[15px]">{t.footer.artisans}</h4>
             <ul className="space-y-2 text-sm font-medium">
               <li><Link href={localizePath('/petits-boulots')} className="hover:text-[#DA7756] hover:underline">{t.footer.findArtisan}</Link></li>
-              <li><Link href={localizePath('/dashboard-artisan')} className="hover:text-[#DA7756] hover:underline">{t.footer.artisanLogin}</Link></li>
+              <li><Link href={`${localizePath('/connexion')}?role=artisan`} className="hover:text-[#DA7756] hover:underline">{t.footer.artisanLogin}</Link></li>
               <li><Link href={localizePath('/categories-metiers')} className="hover:text-[#DA7756] hover:underline">{t.footer.artisanCategories}</Link></li>
               <li><Link href={localizePath('/connexion')} className="hover:text-[#DA7756] hover:underline">{t.footer.becomeArtisan}</Link></li>
             </ul>

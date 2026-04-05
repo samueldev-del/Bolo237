@@ -111,6 +111,7 @@ export default function DashboardArtisan() {
   const isEn = locale === 'en';
 
   /* ---------- user info from localStorage ---------- */
+  const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed'>('checking');
   const [userName, setUserName] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
@@ -122,7 +123,7 @@ export default function DashboardArtisan() {
       return '';
     }
   });
-  const [userSpecialty] = useState(() => {
+  const [userSpecialty, setUserSpecialty] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
       const raw = localStorage.getItem('bolo237-user');
@@ -144,18 +145,6 @@ export default function DashboardArtisan() {
       return 0;
     }
   });
-
-  // Load isVerified + photo from localStorage
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('bolo237-user');
-      if (raw) {
-        const u = JSON.parse(raw);
-        if (u.isVerified) setIsVerifiedFromBackend(true);
-        if (u.photoUrl) setProfilePhotoPreview(u.photoUrl);
-      }
-    } catch { /* ignore */ }
-  }, []);
 
   /* ---------- state ---------- */
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
@@ -200,7 +189,7 @@ export default function DashboardArtisan() {
   const visibilityScore = Math.round(((completedSteps * 10) + (services.length > 0 ? 15 : 0) + (portfolioImages.length > 0 ? 15 : 0) + (userName ? 10 : 0) + 20) / 100 * 100);
 
   const loadMyAds = useCallback(async () => {
-    if (!userId) return;
+    if (accessStatus !== 'allowed' || !userId) return;
     setLoadingMyAds(true);
     try {
       const data = await fetchJobs({ authorId: userId, limit: 50 });
@@ -211,11 +200,12 @@ export default function DashboardArtisan() {
     } finally {
       setLoadingMyAds(false);
     }
-  }, [userId]);
+  }, [accessStatus, userId]);
 
   useEffect(() => {
+    if (accessStatus !== 'allowed') return;
     loadMyAds();
-  }, [loadMyAds]);
+  }, [accessStatus, loadMyAds]);
 
   useEffect(() => {
     try {
@@ -227,20 +217,56 @@ export default function DashboardArtisan() {
   }, []);
 
   useEffect(() => {
-    const ensureActiveUser = async () => {
-      if (!userId) return;
+    let active = true;
+
+    const applyUser = (user: Record<string, unknown>) => {
+      setUserName(String(user.name || user.fullName || ''));
+      setUserSpecialty(String(user.specialty || user.metier || ''));
+      setUserId(Number(user.id || 0));
+      setIsVerifiedFromBackend(Boolean(user.isVerified));
+      setProfilePhotoPreview(String(user.photoUrl || '') || null);
+    };
+
+    const getStoredArtisanUser = (): Record<string, unknown> | null => {
+      try {
+        const raw = localStorage.getItem('bolo237-user');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const storedRole = String(parsed.role || localStorage.getItem('bolo237-account-role') || '').toLowerCase();
+        if (storedRole !== 'artisan') return null;
+        return parsed;
+      } catch {
+        return null;
+      }
+    };
+
+    const redirectToArtisanLogin = async () => {
+      await logoutUser().catch(() => undefined);
+      clearStoredSession();
+      window.location.href = `${localizePath('/connexion')}?role=artisan`;
+    };
+
+    const ensureArtisanAccess = async () => {
+      const storedUser = getStoredArtisanUser();
+      if (storedUser) {
+        applyUser(storedUser);
+      }
+
       const recentAuth = hasRecentAuthSuccess();
       const maxAttempts = recentAuth ? 4 : 2;
+      let sawAuthFailure = false;
 
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         if (attempt > 0) {
-          await new Promise((r) => setTimeout(r, 700 * attempt));
+          await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
         } else {
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
 
         try {
           const sessionUser = await fetchSessionUser();
+          if (!active) return;
+
           const sessionRole = String(sessionUser.role || '').toUpperCase();
           if (sessionRole === 'CANDIDAT') {
             mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
@@ -257,30 +283,56 @@ export default function DashboardArtisan() {
             window.location.href = 'https://admin.bolo237.com';
             return;
           }
+          if (sessionRole !== 'ARTISAN') {
+            await redirectToArtisanLogin();
+            return;
+          }
 
           mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
-          if (Number(sessionUser.id) && Number(sessionUser.id) !== Number(userId)) {
-            setUserId(Number(sessionUser.id));
-          }
-          if (sessionUser.name) {
-            setUserName(String(sessionUser.name));
-          }
+          applyUser(sessionUser as unknown as Record<string, unknown>);
+          setAccessStatus('allowed');
           return;
         } catch (err) {
           const status = err instanceof ApiError ? err.status : 0;
-          if (status !== 401 && status !== 403) return;
+          if (status === 401 || status === 403) {
+            sawAuthFailure = true;
+            continue;
+          }
+
+          if (storedUser) {
+            setAccessStatus('allowed');
+          }
+          return;
         }
       }
 
-      await logoutUser().catch(() => undefined);
-      clearStoredSession();
-      window.location.href = localizePath('/');
+      if (!active) return;
+
+      if (sawAuthFailure) {
+        await redirectToArtisanLogin();
+        return;
+      }
+
+      if (storedUser) {
+        setAccessStatus('allowed');
+        return;
+      }
+
+      await redirectToArtisanLogin();
     };
 
-    ensureActiveUser();
-  }, [userId, localizePath]);
+    ensureArtisanAccess();
+
+    return () => {
+      active = false;
+    };
+  }, [localizePath]);
 
   useEffect(() => {
+    if (accessStatus !== 'allowed') {
+      setVerificationStatus('not_submitted');
+      return;
+    }
     const loadVerificationStatus = async () => {
       if (!accountKey) {
         setVerificationStatus('not_submitted');
@@ -299,7 +351,7 @@ export default function DashboardArtisan() {
     };
 
     loadVerificationStatus();
-  }, [accountKey]);
+  }, [accessStatus, accountKey]);
 
   const connectWhatsApp = () => {
     const intro = isEn
@@ -529,6 +581,19 @@ export default function DashboardArtisan() {
   /* ================================================================ */
   /*  RENDER                                                           */
   /* ================================================================ */
+  if (accessStatus !== 'allowed') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-amber-500 animate-spin" />
+          <p className="text-sm font-semibold text-gray-600">
+            {isEn ? 'Checking your artisan access...' : 'Verification de votre acces artisan...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-gray-50 font-sans text-gray-900 flex flex-col">
 

@@ -40,7 +40,7 @@ export default function Footer() {
             <h4 className="font-extrabold text-black mb-4 text-[15px]">{t.footer.employers}</h4>
             <ul className="space-y-2 text-sm font-medium">
               <li><Link href={localizePath('/publier')} className="hover:text-[#DA7756] hover:underline">{t.footer.post}</Link></li>
-              <li><Link href={localizePath('/dashboard-entreprise')} className="hover:text-[#DA7756] hover:underline">{t.footer.employerLogin}</Link></li>
+              <li><Link href={`${localizePath('/connexion')}?role=entreprise`} className="hover:text-[#DA7756] hover:underline">{t.footer.employerLogin}</Link></li>
               <li><Link href={localizePath('/connaissance-rh')} className="hover:text-[#DA7756] hover:underline">{t.footer.hrKnowledge}</Link></li>
             </ul>
           </div>

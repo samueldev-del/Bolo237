@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { createUser, loginUser } from '@/lib/api';
 import { markRecentAuthSuccess } from '@/lib/session';
@@ -49,6 +50,7 @@ const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
 
 export default function Connexion() {
   const { locale, localizePath } = useLocale();
+  const searchParams = useSearchParams();
   const isEn = locale === 'en';
 
   // Mode
@@ -90,6 +92,21 @@ export default function Connexion() {
   const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
   const cleanedLocalPhone = phone.replace(/\D/g, '');
   const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
+
+  useEffect(() => {
+    const requestedRole = searchParams.get('role');
+    if (requestedRole === 'chercheur' || requestedRole === 'entreprise' || requestedRole === 'artisan') {
+      setSelectedRole(requestedRole);
+    }
+
+    const requestedMode = searchParams.get('mode');
+    if (requestedMode === 'signup') {
+      setIsLogin(false);
+    }
+    if (requestedMode === 'login') {
+      setIsLogin(true);
+    }
+  }, [searchParams]);
 
   const getDashboardRoute = (role: Role) => {
     if (role === 'admin') return 'https://admin.bolo237.com';
@@ -547,7 +564,7 @@ export default function Connexion() {
                     type="text"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder={isEn ? 'e.g. TechCamer Solutions' : 'ex. TechCamer Solutions'}
+                    placeholder={isEn ? 'Your company name' : 'Nom de votre entreprise'}
                     className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-[15px] bg-blue-50/30"
                   />
                 </div>

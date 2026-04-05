@@ -61,6 +61,8 @@ type SidebarSection = 'dashboard' | 'post' | 'listings' | 'applications' | 'inte
 export default function DashboardEntreprise() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
+  const employerAccountLabel = isEn ? 'Employer account' : 'Compte entreprise';
+  const recruiterLabel = isEn ? 'Recruiter' : 'Recruteur';
 
   // Mobile sidebar
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -69,6 +71,7 @@ export default function DashboardEntreprise() {
   const [activeSection, setActiveSection] = useState<SidebarSection>('dashboard');
 
   // User info from localStorage
+  const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed'>('checking');
   const [userId, setUserId] = useState(0);
   const [userName, setUserName] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -107,39 +110,59 @@ export default function DashboardEntreprise() {
   const hasCompanyPhoto = Boolean(companyLogoPreview || companyLogoFile);
   const isEnterprisePublishingReady = hasCompanyPhoto;
   const isEnterpriseCertified = isVerifiedFromBackend || profileReviewStatus === 'approved';
+  const companyDisplayName = companyName || userName || employerAccountLabel;
 
-  // Load user info
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem('bolo237-user');
-      if (raw) {
-        const user = JSON.parse(raw);
-        setUserId(Number(user.id || 0));
-        setUserName(user.name || user.fullName || '');
-        setCompanyName(user.company || user.companyName || '');
-        setIsVerifiedFromBackend(Boolean(user.isVerified));
-        setCompanyLogoPreview(String(user.logoUrl || ''));
+    let active = true;
+
+    const applyUser = (user: Record<string, unknown>) => {
+      setUserId(Number(user.id || 0));
+      setUserName(String(user.name || user.fullName || ''));
+      setCompanyName(String(user.company || user.companyName || ''));
+      setIsVerifiedFromBackend(Boolean(user.isVerified));
+      setCompanyLogoPreview(String(user.logoUrl || ''));
+    };
+
+    const getStoredEnterpriseUser = (): Record<string, unknown> | null => {
+      try {
+        const raw = localStorage.getItem('bolo237-user');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as Record<string, unknown>;
+        const storedRole = String(parsed.role || localStorage.getItem('bolo237-account-role') || '').toLowerCase();
+        if (storedRole !== 'entreprise') return null;
+        return parsed;
+      } catch {
+        return null;
       }
-    } catch {
-      // silently ignore
-    }
-  }, []);
+    };
 
-  useEffect(() => {
-    const ensureActiveUser = async () => {
-      if (!userId) return;
+    const redirectToEmployerLogin = async () => {
+      await logoutUser().catch(() => undefined);
+      clearStoredSession();
+      window.location.href = `${localizePath('/connexion')}?role=entreprise`;
+    };
+
+    const ensureEnterpriseAccess = async () => {
+      const storedUser = getStoredEnterpriseUser();
+      if (storedUser) {
+        applyUser(storedUser);
+      }
+
       const recentAuth = hasRecentAuthSuccess();
       const maxAttempts = recentAuth ? 4 : 2;
+      let sawAuthFailure = false;
 
       for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
         if (attempt > 0) {
-          await new Promise((r) => setTimeout(r, 700 * attempt));
+          await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
         } else {
-          await new Promise((r) => setTimeout(r, 500));
+          await new Promise((resolve) => setTimeout(resolve, 500));
         }
 
         try {
           const sessionUser = await fetchSessionUser();
+          if (!active) return;
+
           const sessionRole = String(sessionUser.role || '').toUpperCase();
           if (sessionRole === 'CANDIDAT') {
             mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
@@ -156,30 +179,56 @@ export default function DashboardEntreprise() {
             window.location.href = 'https://admin.bolo237.com';
             return;
           }
+          if (sessionRole !== 'ENTREPRISE') {
+            await redirectToEmployerLogin();
+            return;
+          }
 
           mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
-          if (Number(sessionUser.id) && Number(sessionUser.id) !== Number(userId)) {
-            setUserId(Number(sessionUser.id));
-          }
-          if (sessionUser.name) {
-            setUserName(String(sessionUser.name));
-          }
+          applyUser(sessionUser as unknown as Record<string, unknown>);
+          setAccessStatus('allowed');
           return;
         } catch (err) {
           const status = err instanceof ApiError ? err.status : 0;
-          if (status !== 401 && status !== 403) return;
+          if (status === 401 || status === 403) {
+            sawAuthFailure = true;
+            continue;
+          }
+
+          if (storedUser) {
+            setAccessStatus('allowed');
+          }
+          return;
         }
       }
 
-      await logoutUser().catch(() => undefined);
-      clearStoredSession();
-      window.location.href = localizePath('/');
+      if (!active) return;
+
+      if (sawAuthFailure) {
+        await redirectToEmployerLogin();
+        return;
+      }
+
+      if (storedUser) {
+        setAccessStatus('allowed');
+        return;
+      }
+
+      await redirectToEmployerLogin();
     };
 
-    ensureActiveUser();
-  }, [userId, localizePath]);
+    ensureEnterpriseAccess();
+
+    return () => {
+      active = false;
+    };
+  }, [localizePath]);
 
   useEffect(() => {
+    if (accessStatus !== 'allowed') {
+      setProfileReviewStatus('not_submitted');
+      return;
+    }
     const loadVerificationStatus = async () => {
       if (!accountKey) {
         setProfileReviewStatus('not_submitted');
@@ -198,7 +247,7 @@ export default function DashboardEntreprise() {
     };
 
     loadVerificationStatus();
-  }, [accountKey]);
+  }, [accessStatus, accountKey]);
 
   useEffect(() => {
     if (!userId) return;
@@ -285,14 +334,13 @@ export default function DashboardEntreprise() {
 
   // Get company initials
   const getInitials = useCallback(() => {
-    const name = companyName || userName || (isEn ? 'My Company' : 'Mon Entreprise');
-    return name
+    return companyDisplayName
       .split(' ')
       .map((w: string) => w[0])
       .join('')
       .toUpperCase()
       .slice(0, 2);
-  }, [companyName, userName, isEn]);
+  }, [companyDisplayName]);
 
   const handleCompanyLogoUpload = async (file: File | null) => {
     setCompanyLogoFile(file);
@@ -324,7 +372,7 @@ export default function DashboardEntreprise() {
     await createVerificationSubmission({
       role: 'entreprise',
       accountKey,
-      displayName: companyName || userName || 'Entreprise',
+      displayName: companyDisplayName,
       phone: '',
       payload: {
         userId,
@@ -683,6 +731,19 @@ export default function DashboardEntreprise() {
   /* ────────────────────────────────────────────
      RENDER
      ──────────────────────────────────────────── */
+  if (accessStatus !== 'allowed') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-blue-600 animate-spin" />
+          <p className="text-sm font-semibold text-gray-600">
+            {isEn ? 'Checking your employer access...' : 'Verification de votre acces entreprise...'}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex flex-col">
 
@@ -740,8 +801,8 @@ export default function DashboardEntreprise() {
                 )}
               </div>
               <div className="hidden md:block">
-                <p className="text-sm font-bold text-gray-800 leading-tight">{companyName || (isEn ? 'My Company' : 'Mon Entreprise')}</p>
-                <p className="text-[11px] text-gray-400 font-medium leading-tight">{isEn ? 'Recruiter' : 'Recruteur'}</p>
+                <p className="text-sm font-bold text-gray-800 leading-tight">{companyDisplayName}</p>
+                <p className="text-[11px] text-gray-400 font-medium leading-tight">{recruiterLabel}</p>
               </div>
             </div>
           </div>
@@ -780,10 +841,10 @@ export default function DashboardEntreprise() {
                   )}
                 </div>
                 <p className="font-bold text-[15px] leading-tight truncate">
-                  {companyName || (isEn ? 'My Company' : 'Mon Entreprise')}
+                  {companyDisplayName}
                 </p>
                 <p className="text-white/70 text-xs font-medium mt-0.5">
-                  {userName || (isEn ? 'Recruiter' : 'Recruteur')}
+                  {userName || recruiterLabel}
                 </p>
                 <div className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full mt-3 ${
                   isEnterpriseCertified

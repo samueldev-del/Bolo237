@@ -64,12 +64,38 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "Bolo237",
+    alternateName: "Bolo237 - Emplois et Services au Cameroun",
     url: "https://www.bolo237.com",
-    logo: "https://www.bolo237.com/icon.svg",
+    logo: {
+      "@type": "ImageObject",
+      url: "https://www.bolo237.com/icons/icon-512.png",
+      width: 512,
+      height: 512,
+    },
+    image: "https://www.bolo237.com/icons/icon-512.png",
+    description: "Plateforme de mise en relation entre demandeurs d'emploi, employeurs et artisans au Cameroun.",
+    foundingDate: "2024",
+    founder: {
+      "@type": "Person",
+      name: "Samuel DJOMMOU THENGHO",
+    },
+    contactPoint: {
+      "@type": "ContactPoint",
+      telephone: "+49-151-24862693",
+      contactType: "customer service",
+      availableLanguage: ["French", "English"],
+      email: "contact@bolo237.com",
+    },
     sameAs: [
-      "https://www.bolo237.com/fr",
-      "https://www.bolo237.com/en",
+      "https://linkedin.com/company/bolo237",
+      "https://facebook.com/bolo237",
+      "https://instagram.com/bolo237",
+      "https://tiktok.com/@bolo237",
     ],
+    areaServed: {
+      "@type": "Country",
+      name: "Cameroon",
+    },
   };
 
   return (

@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bolo237 — Generateur Videos FR & EN</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: #111; color: white; display: flex; flex-direction: column; align-items: center; }
+        .panel { background: #1A1A1A; border-bottom: 2px solid #DA7756; padding: 15px 30px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 15px; flex-wrap: wrap; position: sticky; top: 0; z-index: 1000; }
+        .btn { color: white; border: none; padding: 12px 24px; border-radius: 10px; font-size: 15px; font-weight: 800; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 8px; }
+        .btn:hover { transform: scale(1.02); }
+        .btn:disabled { background: #555 !important; cursor: not-allowed; transform: none; }
+        .btn-fr { background: #1E3A5F; }
+        .btn-en { background: #14532D; }
+        .dot { width: 12px; height: 12px; background: #FF4444; border-radius: 50%; animation: pulse-dot 1s infinite; }
+        @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .status { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.5); }
+        .status.rec { color: #FF6B6B; }
+        .status.done { color: #4ADE80; }
+        canvas { border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.5); margin: 20px; }
+        .label { text-align: center; font-size: 12px; color: rgba(255,255,255,0.3); margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+<div class="panel">
+    <button class="btn btn-fr" id="btnFr" onclick="generateVideo('fr')">🇫🇷 Generer Video FRANCAIS</button>
+    <button class="btn btn-en" id="btnEn" onclick="generateVideo('en')">🇬🇧 Generer Video ANGLAIS</button>
+    <span class="status" id="status">Pret</span>
+    <span class="status" id="progress"></span>
+</div>
+<canvas id="c" width="1280" height="720"></canvas>
+<div class="label">1280x720 HD — Les videos sont generees sans audio (on fusionne apres avec ffmpeg)</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 1280, H = 720;
+
+// ===== SLIDES DATA =====
+const slidesFR = [
+    { bg:'#DA7756,#A8502F', emoji:'🇨🇲', title:['Comment utiliser','{gold}Bolo237 ?'], sub:'Tutoriel complet — étape par étape\nMême si tu n\'as jamais utilisé une application !', badge:'100% GRATUIT — 0 FCFA', dur:16 },
+    { bg:'#0A0A0A,#1A1915', title:['{orange}Bolo237{white} c\'est quoi ?'], sub:'Une application GRATUITE pour tout le Cameroun', list:['🔍  Tu cherches du travail ? Trouve et postule ici','🛠️  Tu es artisan ? Les clients te trouvent ici','🏢  Tu recrutes ? Publie tes offres ici','📞  Contact direct par WhatsApp','🛡️  Profils vérifiés — pas d\'arnaque','💰  Toujours GRATUIT — 0 FCFA'], dur:20 },
+    { bg:'#1A1915,#2D2A24', step:'1', title:['Ouvre {orange}Chrome','sur ton téléphone'], sub:'C\'est la petite icône ronde avec les couleurs\nrouge, jaune, vert et bleu.\nSi tu n\'as pas Chrome, utilise Opera Mini.', dur:16 },
+    { bg:'#0A0A0A,#1A1915', step:'2', title:['Tape {orange}bolo237.com'], sub:'En haut de l\'écran, appuie sur la barre blanche.\nÉcris : bolo237.com\nPuis appuie sur "Aller" ou "Entrée"', badge:'bolo237.com', dur:16 },
+    { bg:'#1A1915,#2D2A24', step:'3', title:['Installe l\'{orange}application'], sub:'Pour avoir Bolo237 sur ton écran d\'accueil\ncomme WhatsApp ou Facebook', list:['📱  Android : 3 points en haut > "Installer l\'application"','🍎  iPhone : Bouton partage > "Sur l\'écran d\'accueil"'], badge:'Pas besoin de Play Store !', dur:18 },
+    { bg:'#DA7756,#A8502F', step:'4', title:['Crée ton {gold}compte'], sub:'Appuie sur "Connexion" en haut à droite\nC\'est rapide — 30 secondes !', dur:12 },
+    { bg:'#0A0A0A,#1A1915', title:['Choisis {orange}ton profil'], sub:'Quel est ton objectif ?', threeCards:[{emoji:'🔍',label:'Je cherche\nun emploi',sub:'Pour les candidats'},{emoji:'🏢',label:'Je recrute',sub:'Pour les entreprises'},{emoji:'🛠️',label:'Je propose\nmes services',sub:'Pour les artisans'}], dur:22 },
+    { bg:'#1A1915,#2D2A24', title:['Remplis tes {orange}informations'], sub:'C\'est facile, suis bien', list:['1️⃣  Ton nom de famille','2️⃣  Ton prénom','3️⃣  Un nom d\'utilisateur','4️⃣  Ton numéro de téléphone 🇨🇲','5️⃣  Un mot de passe (6 caractères minimum)','6️⃣  Confirme le mot de passe'], badge:'Appuie sur "S\'inscrire" — C\'est fait !', dur:18 },
+    { bg:'#1E3A5F,#0F2744', emoji:'🔍', title:['Comment {orange}chercher','un emploi'], sub:'Trouve et postule facilement', list:['👆  Appuie sur "Emplois" dans le menu','📋  Regarde la liste des offres disponibles','👀  Appuie sur une offre pour voir les détails','✅  Appuie sur "Postuler" pour candidater'], dur:16 },
+    { bg:'#0A0A0A,#1A1915', emoji:'🛠️', title:['Tu es {orange}artisan ?'], sub:'Crée ta vitrine en ligne', list:['📸  Ajoute une belle photo de toi','🔧  Écris tes services et tes prix','🖼️  Montre tes réalisations en photo','✅  Fais-toi vérifier pour le badge vert','📞  Les clients te contactent par WhatsApp !'], dur:18 },
+    { bg:'#1A1915,#2D2A24', emoji:'🏢', title:['{orange}Entreprise :','publiez une offre'], sub:'Recrutez les meilleurs talents', list:['1️⃣  Ajoutez votre logo','2️⃣  Titre du poste','3️⃣  Description du travail','4️⃣  Ville et type de contrat','5️⃣  Publiez — l\'équipe Bolo237 vérifie'], badge:'L\'IA vous aide à écrire l\'annonce !', dur:16 },
+    { bg:'#14532D,#0A2E18', emoji:'📱', title:['Contact direct par','{green}WhatsApp'], sub:'Tu as trouvé un artisan ou un emploi ?\nAppuie sur le bouton vert WhatsApp.\nWhatsApp s\'ouvre directement avec le bon numéro !', dur:14 },
+    { bg:'#0A0A0A,#1A1915', emoji:'🛡️', title:['Ta {green}sécurité,','notre priorité'], compare:{bad:{title:'❌ Les arnaques',items:['"Payez 50 000 FCFA"','"Envoyez Mobile Money"','Faux profils','Personne ne vérifie']},good:{title:'✅ Bolo237',items:['100% GRATUIT','Zéro frais cachés','Identité vérifiée','Équipe 24/7']}}, dur:18 },
+    { bg:'#1A1915,#2D2A24', title:['{orange}5 étapes{white}, c\'est tout !'], sub:'Récapitulatif', fiveSteps:[{emoji:'🌐',label:'Chrome\nbolo237.com'},{emoji:'📲',label:'Installer\nl\'application'},{emoji:'✍️',label:'Compte\ngratuit'},{emoji:'🔍',label:'Emploi ou\nservices'},{emoji:'📞',label:'WhatsApp\ndirect'}], dur:18 },
+    { bg:'#DA7756,#A8502F', emoji:'🇨🇲', title:['Bienvenue sur','{gold}Bolo237 !'], sub:'C\'est gratuit. C\'est sécurisé. C\'est fait pour toi.\n\nPartage cette vidéo avec un ami\nqui cherche du travail.\n\nEnsemble, on avance !', badge:'bolo237.com', dur:16 }
+];
+
+const slidesEN = [
+    { bg:'#DA7756,#A8502F', emoji:'🇨🇲', title:['How to use','{gold}Bolo237 ?'], sub:'Complete tutorial — step by step\nEven if you\'ve never used an app before!', badge:'100% FREE — 0 FCFA', dur:14 },
+    { bg:'#0A0A0A,#1A1915', title:['{orange}Bolo237{white} — What is it?'], sub:'A FREE app for all of Cameroon', list:['🔍  Looking for a job? Find and apply here','🛠️  You\'re a craftsman? Clients find you here','🏢  Hiring? Post your jobs here','📞  Direct WhatsApp contact','🛡️  Verified profiles — no scams','💰  Always FREE — 0 FCFA'], dur:18 },
+    { bg:'#1A1915,#2D2A24', step:'1', title:['Open {orange}Chrome','on your phone'], sub:'It\'s the round icon with\nred, yellow, green, blue colors.\nIf you don\'t have Chrome, use Opera Mini.', dur:14 },
+    { bg:'#0A0A0A,#1A1915', step:'2', title:['Type {orange}bolo237.com'], sub:'At the top of the screen, tap the white bar.\nType: bolo237.com\nThen tap "Go" or "Enter"', badge:'bolo237.com', dur:14 },
+    { bg:'#1A1915,#2D2A24', step:'3', title:['Install the {orange}app'], sub:'To have Bolo237 on your home screen\nlike WhatsApp or Facebook', list:['📱  Android: 3 dots at top > "Install app"','🍎  iPhone: Share button > "Add to Home Screen"'], badge:'No Play Store needed!', dur:16 },
+    { bg:'#DA7756,#A8502F', step:'4', title:['Create your {gold}account'], sub:'Tap "Sign up" at the top right\nIt\'s quick — only 30 seconds!', dur:12 },
+    { bg:'#0A0A0A,#1A1915', title:['Choose {orange}your profile'], sub:'What is your goal?', threeCards:[{emoji:'🔍',label:'I\'m looking\nfor a job',sub:'For candidates'},{emoji:'🏢',label:'I\'m hiring',sub:'For companies'},{emoji:'🛠️',label:'I offer\nmy services',sub:'For craftsmen'}], dur:20 },
+    { bg:'#1A1915,#2D2A24', title:['Fill in your {orange}information'], sub:'It\'s easy, follow along', list:['1️⃣  Your last name','2️⃣  Your first name','3️⃣  A username','4️⃣  Your phone number 🇨🇲','5️⃣  A password (6 characters min.)','6️⃣  Confirm your password'], badge:'Tap "Sign up" — Done!', dur:16 },
+    { bg:'#1E3A5F,#0F2744', emoji:'🔍', title:['How to {orange}search','for a job'], sub:'Find and apply easily', list:['👆  Tap "Jobs" in the menu','📋  Browse the job listings','👀  Tap a job to see details','✅  Tap "Apply" in one click'], dur:14 },
+    { bg:'#0A0A0A,#1A1915', emoji:'🛠️', title:['Are you a {orange}craftsman?'], sub:'Create your online showcase', list:['📸  Add a nice profile photo','🔧  Write your services and prices','🖼️  Show your work in photos','✅  Get verified for the green badge','📞  Clients contact you via WhatsApp!'], dur:16 },
+    { bg:'#1A1915,#2D2A24', emoji:'🏢', title:['{orange}Companies:','post a job'], sub:'Recruit the best talent', list:['1️⃣  Add your company logo','2️⃣  Job title','3️⃣  Job description','4️⃣  City and contract type','5️⃣  Publish — Bolo237 team verifies'], badge:'AI helps you write the ad!', dur:14 },
+    { bg:'#14532D,#0A2E18', emoji:'📱', title:['Direct contact via','{green}WhatsApp'], sub:'Found a good craftsman or a job?\nTap the green WhatsApp button.\nWhatsApp opens directly with the right number!', dur:14 },
+    { bg:'#0A0A0A,#1A1915', emoji:'🛡️', title:['Your {green}security,','our priority'], compare:{bad:{title:'❌ Scams',items:['"Pay 50,000 FCFA"','"Send Mobile Money"','Fake profiles','No verification']},good:{title:'✅ Bolo237',items:['100% FREE','Zero hidden fees','Verified identity','Team 24/7']}}, dur:16 },
+    { bg:'#1A1915,#2D2A24', title:['{orange}5 steps{white}, that\'s all!'], sub:'Summary', fiveSteps:[{emoji:'🌐',label:'Chrome\nbolo237.com'},{emoji:'📲',label:'Install\nthe app'},{emoji:'✍️',label:'Free\naccount'},{emoji:'🔍',label:'Jobs or\nservices'},{emoji:'📞',label:'WhatsApp\ndirect'}], dur:16 },
+    { bg:'#DA7756,#A8502F', emoji:'🇨🇲', title:['Welcome to','{gold}Bolo237!'], sub:'It\'s free. It\'s secure. It\'s made for you.\n\nShare this video with a friend\nwho is looking for work.\n\nTogether, we move forward!', badge:'bolo237.com', dur:14 }
+];
+
+// ===== DRAWING =====
+function createGrad(s) { const p=s.split(','); const g=ctx.createLinearGradient(0,0,W,H); g.addColorStop(0,p[0]); g.addColorStop(1,p[1]); return g; }
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.roundRect(x,y,w,h,r); }
+
+function drawTitle(lines, y, fs) {
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    const lh=fs*1.25, sy=y-(lines.length-1)*lh/2;
+    lines.forEach((line,i)=>{
+        const yp=sy+i*lh;
+        const parts=line.split(/(\{(?:orange|gold|green|white)\})/);
+        let col='white', segs=[], full='';
+        parts.forEach(p=>{ if(p==='{orange}'){col='#DA7756';return;} if(p==='{gold}'){col='#FFE4B5';return;} if(p==='{green}'){col='#4ADE80';return;} if(p==='{white}'){col='white';return;} if(p){segs.push({t:p,c:col});full+=p;} });
+        ctx.font=`900 ${fs}px Inter, sans-serif`;
+        const tw=ctx.measureText(full).width; let xp=W/2-tw/2;
+        segs.forEach(s=>{ ctx.fillStyle=s.c; ctx.font=`900 ${fs}px Inter, sans-serif`; const w=ctx.measureText(s.t).width; ctx.fillText(s.t,xp+w/2,yp); xp+=w; });
+    });
+    return sy+lines.length*lh;
+}
+
+function drawSlide(slide, progress, slideIndex, totalSlides) {
+    ctx.fillStyle=createGrad(slide.bg); ctx.fillRect(0,0,W,H);
+    let y=130;
+    if(slide.step){ ctx.beginPath();ctx.arc(W/2,y,32,0,Math.PI*2);ctx.fillStyle=slide.bg.includes('#DA7756')?'rgba(0,0,0,0.3)':'#DA7756';ctx.fill();ctx.fillStyle='white';ctx.font='900 28px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(slide.step,W/2,y);y+=55; }
+    if(slide.emoji){ ctx.font='72px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(slide.emoji,W/2,y);y+=65; }
+    if(slide.title){ y=drawTitle(slide.title,y,slide.step?42:48)+12; }
+    if(slide.sub){ ctx.textAlign='center';ctx.textBaseline='top';ctx.font='600 18px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,0.7)';slide.sub.split('\n').forEach((l,i)=>{ctx.fillText(l,W/2,y+i*28);}); y+=slide.sub.split('\n').length*28+12; }
+    if(slide.list){ ctx.textAlign='left';ctx.textBaseline='middle';const lx=W/2-250;slide.list.forEach((item,i)=>{const a=Math.max(0,Math.min(1,(progress*slide.dur-0.8-i*0.3)/0.4));ctx.globalAlpha=a;ctx.fillStyle='rgba(255,255,255,0.85)';ctx.font='600 18px Inter,sans-serif';ctx.fillText(item,lx,y+i*34);});ctx.globalAlpha=1;y+=slide.list.length*34+10; }
+    if(slide.threeCards){ const cw=210,ch=130,gap=25,sx=W/2-(cw*3+gap*2)/2; slide.threeCards.forEach((c,i)=>{const x=sx+i*(cw+gap);ctx.fillStyle='rgba(255,255,255,0.06)';rr(x,y,cw,ch,12);ctx.fill();ctx.strokeStyle='rgba(255,255,255,0.12)';ctx.lineWidth=1;ctx.stroke();ctx.font='36px serif';ctx.textAlign='center';ctx.fillText(c.emoji,x+cw/2,y+32);ctx.font='700 14px Inter,sans-serif';ctx.fillStyle='white';c.label.split('\n').forEach((l,li)=>ctx.fillText(l,x+cw/2,y+65+li*18));ctx.font='600 12px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,0.5)';ctx.fillText(c.sub,x+cw/2,y+ch-12);}); y+=ch+15; }
+    if(slide.fiveSteps){ const cw=160,ch=90,gap=16,r1x=W/2-(cw*3+gap*2)/2;for(let i=0;i<3;i++){const s=slide.fiveSteps[i],x=r1x+i*(cw+gap);ctx.fillStyle='rgba(255,255,255,0.06)';rr(x,y,cw,ch,10);ctx.fill();ctx.font='28px serif';ctx.textAlign='center';ctx.fillText(s.emoji,x+cw/2,y+28);ctx.font='700 12px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,0.8)';s.label.split('\n').forEach((l,li)=>ctx.fillText(l,x+cw/2,y+50+li*16));}const r2x=W/2-(cw*2+gap)/2;for(let i=0;i<2;i++){const s=slide.fiveSteps[3+i],x=r2x+i*(cw+gap),y2=y+ch+12;ctx.fillStyle='rgba(255,255,255,0.06)';rr(x,y2,cw,ch,10);ctx.fill();ctx.font='28px serif';ctx.textAlign='center';ctx.fillText(s.emoji,x+cw/2,y2+28);ctx.font='700 12px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,0.8)';s.label.split('\n').forEach((l,li)=>ctx.fillText(l,x+cw/2,y2+50+li*16));} }
+    if(slide.compare){ const bw=270,bh=180,gap=30,sx=W/2-(bw*2+gap)/2; ctx.fillStyle='rgba(239,68,68,0.1)';rr(sx,y,bw,bh,14);ctx.fill();ctx.strokeStyle='rgba(239,68,68,0.3)';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#FCA5A5';ctx.font='800 16px Inter,sans-serif';ctx.textAlign='center';ctx.fillText(slide.compare.bad.title,sx+bw/2,y+28);ctx.font='600 14px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,0.65)';slide.compare.bad.items.forEach((it,i)=>ctx.fillText(it,sx+bw/2,y+58+i*28)); const gx=sx+bw+gap;ctx.fillStyle='rgba(74,222,128,0.1)';rr(gx,y,bw,bh,14);ctx.fill();ctx.strokeStyle='rgba(74,222,128,0.3)';ctx.lineWidth=2;ctx.stroke();ctx.fillStyle='#86EFAC';ctx.font='800 16px Inter,sans-serif';ctx.textAlign='center';ctx.fillText(slide.compare.good.title,gx+bw/2,y+28);ctx.font='600 14px Inter,sans-serif';ctx.fillStyle='rgba(255,255,255,0.65)';slide.compare.good.items.forEach((it,i)=>ctx.fillText(it,gx+bw/2,y+58+i*28)); }
+    if(slide.badge){ const by=Math.min(y+10,H-80);ctx.font='800 17px Inter,sans-serif';const bw=ctx.measureText(slide.badge).width+50;ctx.fillStyle=slide.bg.includes('#DA7756')?'rgba(0,0,0,0.3)':'#DA7756';rr(W/2-bw/2,by,bw,42,21);ctx.fill();ctx.fillStyle='white';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(slide.badge,W/2,by+21); }
+    // Progress bar
+    ctx.fillStyle='rgba(255,255,255,0.06)';ctx.fillRect(0,H-4,W,4);
+    ctx.fillStyle='#DA7756';
+    const total=totalSlides; let el=slideIndex; el+=progress;
+    ctx.fillRect(0,H-4,(el/total)*W,4);
+    // Counter
+    ctx.fillStyle='rgba(255,255,255,0.35)';ctx.font='600 13px Inter,sans-serif';ctx.textAlign='right';ctx.textBaseline='top';ctx.fillText(`${slideIndex+1} / ${total}`,W-18,14);
+    // Logo
+    ctx.fillStyle='rgba(255,255,255,0.12)';ctx.font='700 14px Inter,sans-serif';ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('bolo237.com',18,14);
+}
+
+// ===== GENERATE VIDEO =====
+async function generateVideo(lang) {
+    const btnFr=document.getElementById('btnFr'), btnEn=document.getElementById('btnEn');
+    const status=document.getElementById('status'), progress=document.getElementById('progress');
+    btnFr.disabled=true; btnEn.disabled=true;
+    status.className='status rec';
+
+    const slides = lang==='fr' ? slidesFR : slidesEN;
+    const filename = lang==='fr' ? 'Bolo237-Video-FR.webm' : 'Bolo237-Video-EN.webm';
+    const flag = lang==='fr' ? '🇫🇷' : '🇬🇧';
+
+    status.textContent = `${flag} Generation en cours...`;
+
+    // Calculate total duration to match audio
+    const audioDur = lang==='fr' ? 238 : 223;
+    const totalSlideDur = slides.reduce((s,sl)=>s+sl.dur, 0);
+    const scale = audioDur / totalSlideDur;
+
+    const stream = canvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, { mimeType:'video/webm;codecs=vp9', videoBitsPerSecond:5000000 });
+    const chunks=[];
+    recorder.ondataavailable = e => { if(e.data.size>0) chunks.push(e.data); };
+    recorder.onstop = () => {
+        const blob = new Blob(chunks, {type:'video/webm'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        btnFr.disabled=false; btnEn.disabled=false;
+        status.textContent = `${flag} Video telechargee : ${filename}`;
+        status.className='status done';
+    };
+
+    recorder.start();
+    const FPS=30, FADE=18;
+
+    for(let si=0; si<slides.length; si++){
+        const slide = slides[si];
+        const slideDurSec = slide.dur * scale;
+        const totalFrames = Math.round(slideDurSec * FPS);
+        progress.textContent = `Slide ${si+1}/${slides.length}`;
+
+        for(let f=0; f<totalFrames; f++){
+            const p = f/totalFrames;
+            drawSlide(slide, p, si, slides.length);
+            if(f<FADE){ ctx.fillStyle=`rgba(0,0,0,${1-f/FADE})`; ctx.fillRect(0,0,W,H); }
+            if(f>totalFrames-FADE){ ctx.fillStyle=`rgba(0,0,0,${(f-(totalFrames-FADE))/FADE})`; ctx.fillRect(0,0,W,H); }
+            await new Promise(r=>setTimeout(r,1000/FPS));
+        }
+    }
+    // Black end
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+    await new Promise(r=>setTimeout(r,500));
+    recorder.stop();
+}
+
+// Preview first slide
+drawSlide(slidesFR[0], 0, 0, slidesFR.length);
+</script>
+</body>
+</html>

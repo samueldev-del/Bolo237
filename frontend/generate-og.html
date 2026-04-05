@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Generate OG Image - Bolo237</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap');
+  </style>
+</head>
+<body style="margin:0;background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;">
+<canvas id="c" width="1200" height="630"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = 1200, H = 630;
+
+// ── Background: warm cream with subtle radial glow ──
+ctx.fillStyle = '#FDF8F4';
+ctx.fillRect(0, 0, W, H);
+
+// Subtle radial glow behind center
+const glow = ctx.createRadialGradient(W / 2, H / 2 - 40, 80, W / 2, H / 2, 500);
+glow.addColorStop(0, 'rgba(218,119,86,0.07)');
+glow.addColorStop(1, 'rgba(218,119,86,0)');
+ctx.fillStyle = glow;
+ctx.fillRect(0, 0, W, H);
+
+// ── Top accent stripe ──
+const topBar = ctx.createLinearGradient(0, 0, W, 0);
+topBar.addColorStop(0, '#DA7756');
+topBar.addColorStop(0.5, '#E8926E');
+topBar.addColorStop(1, '#C4623F');
+ctx.fillStyle = topBar;
+ctx.fillRect(0, 0, W, 6);
+
+// ── Bottom accent stripe ──
+ctx.fillStyle = topBar;
+ctx.fillRect(0, H - 6, W, 6);
+
+// ── Decorative geometric shapes (subtle) ──
+// Top-right circle
+ctx.beginPath();
+ctx.arc(W - 80, 80, 160, 0, Math.PI * 2);
+ctx.fillStyle = 'rgba(218,119,86,0.04)';
+ctx.fill();
+
+// Bottom-left circle
+ctx.beginPath();
+ctx.arc(100, H - 60, 120, 0, Math.PI * 2);
+ctx.fillStyle = 'rgba(218,119,86,0.03)';
+ctx.fill();
+
+// ── Pill logo (B 237) ──
+const pillX = 100, pillY = 140, pillW = 130, pillH = 58, pillR = 29;
+ctx.beginPath();
+ctx.roundRect(pillX, pillY, pillW, pillH, pillR);
+const pillGrad = ctx.createLinearGradient(pillX, pillY, pillX + pillW, pillY + pillH);
+pillGrad.addColorStop(0, '#DA7756');
+pillGrad.addColorStop(1, '#C4623F');
+ctx.fillStyle = pillGrad;
+ctx.fill();
+
+// Shadow under pill
+ctx.save();
+ctx.shadowColor = 'rgba(196,98,63,0.25)';
+ctx.shadowBlur = 18;
+ctx.shadowOffsetY = 6;
+ctx.beginPath();
+ctx.roundRect(pillX, pillY, pillW, pillH, pillR);
+ctx.fillStyle = pillGrad;
+ctx.fill();
+ctx.restore();
+
+// B in pill
+ctx.font = '900 36px Inter, system-ui, sans-serif';
+ctx.fillStyle = '#ffffff';
+ctx.textAlign = 'center';
+ctx.textBaseline = 'middle';
+ctx.fillText('B', pillX + 38, pillY + 30);
+
+// 237 in pill
+ctx.font = '800 26px Inter, system-ui, sans-serif';
+ctx.fillStyle = 'rgba(255,255,255,0.92)';
+ctx.fillText('237', pillX + 90, pillY + 30);
+
+// ── "Bolo237" large brand text ──
+ctx.textAlign = 'left';
+ctx.textBaseline = 'alphabetic';
+ctx.font = '800 56px Inter, system-ui, sans-serif';
+ctx.fillStyle = '#1A1915';
+const boloX = 250;
+const boloY = 182;
+ctx.fillText('Bolo', boloX, boloY);
+const boloW = ctx.measureText('Bolo').width;
+ctx.fillStyle = '#DA7756';
+ctx.fillText('237', boloX + boloW, boloY);
+
+// ── Main tagline FR ──
+ctx.font = '700 38px Inter, system-ui, sans-serif';
+ctx.fillStyle = '#1A1915';
+ctx.fillText('Emplois et Services', 100, 280);
+ctx.fillText('au Cameroun', 100, 328);
+
+// ── Divider line ──
+const divGrad = ctx.createLinearGradient(100, 0, 500, 0);
+divGrad.addColorStop(0, '#DA7756');
+divGrad.addColorStop(1, 'rgba(218,119,86,0.1)');
+ctx.strokeStyle = divGrad;
+ctx.lineWidth = 3;
+ctx.beginPath();
+ctx.moveTo(100, 355);
+ctx.lineTo(500, 355);
+ctx.stroke();
+
+// ── Subtitle EN ──
+ctx.font = '500 22px Inter, system-ui, sans-serif';
+ctx.fillStyle = '#777777';
+ctx.fillText('Jobs & Services in Cameroon', 100, 395);
+
+// ── Feature pills ──
+const features = [
+  { label: 'Emplois', color: '#DA7756' },
+  { label: 'Artisans', color: '#C4623F' },
+  { label: 'Vérifié KYC', color: '#2E7D32' },
+  { label: 'Cameroun', color: '#007A5E' },
+];
+
+let featureX = 100;
+const featureY = 450;
+
+features.forEach((f) => {
+  ctx.font = '600 18px Inter, system-ui, sans-serif';
+  const tw = ctx.measureText(f.label).width;
+  const dotSize = 8;
+  const dotGap = 12;
+  const pw = dotSize + dotGap + tw + 36;
+  const ph = 42;
+  const pr = 21;
+
+  // Pill background
+  ctx.beginPath();
+  ctx.roundRect(featureX, featureY, pw, ph, pr);
+  ctx.fillStyle = 'rgba(218,119,86,0.08)';
+  ctx.fill();
+
+  // Pill border
+  ctx.beginPath();
+  ctx.roundRect(featureX, featureY, pw, ph, pr);
+  ctx.strokeStyle = 'rgba(218,119,86,0.2)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Colored dot
+  ctx.beginPath();
+  ctx.arc(featureX + 22, featureY + 21, dotSize / 2, 0, Math.PI * 2);
+  ctx.fillStyle = f.color;
+  ctx.fill();
+
+  // Label text
+  ctx.fillStyle = '#4A3A30';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(f.label, featureX + 22 + dotSize / 2 + dotGap, featureY + 21);
+
+  featureX += pw + 16;
+});
+
+// ── URL bottom-left ──
+ctx.textBaseline = 'alphabetic';
+ctx.font = '600 20px Inter, system-ui, sans-serif';
+ctx.fillStyle = '#DA7756';
+ctx.fillText('www.bolo237.com', 100, H - 40);
+
+// ── Cameroon flag colors: small vertical bars bottom-right ──
+const flagColors = ['#007A5E', '#CE1126', '#FCD116'];
+const barW = 8, barH = 40, barGap = 6;
+let barX = W - 100 - (barW * 3 + barGap * 2);
+const barY = H - 60;
+flagColors.forEach((color) => {
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barW, barH, 4);
+  ctx.fillStyle = color;
+  ctx.fill();
+  barX += barW + barGap;
+});
+
+// ── Right side: decorative large "B" watermark ──
+ctx.save();
+ctx.font = '900 400px Inter, system-ui, sans-serif';
+ctx.fillStyle = 'rgba(218,119,86,0.04)';
+ctx.textAlign = 'center';
+ctx.textBaseline = 'middle';
+ctx.fillText('B', W - 200, H / 2 + 20);
+ctx.restore();
+
+// ── Download ──
+setTimeout(() => {
+  const link = document.createElement('a');
+  link.download = 'og-image.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  document.body.innerHTML = '<h1 style="color:#DA7756;font-family:Inter,sans-serif;text-align:center;margin-top:100px;">✅ og-image.png downloaded!<br><span style="font-size:20px;color:#999;">Place it in frontend/public/</span></h1>';
+}, 500);
+</script>
+</body>
+</html>

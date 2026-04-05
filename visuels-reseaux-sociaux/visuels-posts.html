@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bolo237 — Visuels Réseaux Sociaux</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #F5F0EB;
+            color: #1A1915;
+            padding: 40px 20px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 10px;
+            color: #DA7756;
+        }
+        .instructions {
+            text-align: center;
+            color: #666;
+            margin-bottom: 40px;
+            font-size: 14px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .instructions strong { color: #1A1915; }
+        .section-title {
+            text-align: center;
+            font-size: 20px;
+            font-weight: 800;
+            margin: 50px 0 20px;
+            color: #1A1915;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #DA7756;
+            display: inline-block;
+        }
+        .section-wrapper { text-align: center; }
+        .cards-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .card-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .card-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .card-size {
+            font-size: 11px;
+            color: #aaa;
+        }
+        .download-btn {
+            background: #DA7756;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .download-btn:hover { background: #C4623F; transform: scale(1.05); }
+
+        /* ======== CARD STYLES ======== */
+
+        /* YouTube Thumbnail 1280x720 */
+        .yt-thumb {
+            width: 640px;
+            height: 360px;
+            background: linear-gradient(135deg, #DA7756 0%, #C4623F 50%, #A8502F 100%);
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 30px rgba(218,119,86,0.3);
+        }
+        .yt-thumb .bg-pattern {
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 20% 80%, rgba(255,255,255,0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255,255,255,0.06) 0%, transparent 50%);
+        }
+        .yt-thumb .content {
+            position: relative;
+            z-index: 2;
+            text-align: center;
+            padding: 30px;
+        }
+        .yt-thumb .main-text {
+            font-size: 42px;
+            font-weight: 900;
+            color: white;
+            line-height: 1.1;
+            text-shadow: 0 3px 20px rgba(0,0,0,0.3);
+            margin-bottom: 12px;
+        }
+        .yt-thumb .sub-text {
+            font-size: 20px;
+            font-weight: 700;
+            color: #FFE4B5;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+        .yt-thumb .badge {
+            display: inline-block;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 700;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .yt-thumb .logo-area {
+            position: absolute;
+            bottom: 20px;
+            right: 25px;
+            z-index: 3;
+        }
+        .yt-thumb .logo-pill {
+            background: rgba(255,255,255,0.15);
+            border: 2px solid rgba(255,255,255,0.4);
+            border-radius: 25px;
+            padding: 6px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .yt-thumb .logo-pill span {
+            color: white;
+            font-weight: 800;
+            font-size: 18px;
+        }
+        .yt-thumb .logo-pill .num { color: #F5C5A3; }
+        .yt-thumb .phone-mockup {
+            position: absolute;
+            right: 40px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 130px;
+            height: 250px;
+            background: #1A1915;
+            border-radius: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            z-index: 2;
+        }
+        .yt-thumb .phone-screen {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(180deg, #FFF5EE 0%, #FFF 100%);
+            padding: 12px 8px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+        }
+        .yt-thumb .phone-screen .p-logo {
+            font-weight: 900;
+            font-size: 11px;
+            color: #DA7756;
+            margin-top: 15px;
+        }
+        .yt-thumb .phone-screen .p-bar {
+            width: 80%;
+            height: 6px;
+            background: #eee;
+            border-radius: 3px;
+            margin-top: 8px;
+        }
+        .yt-thumb .phone-screen .p-card {
+            width: 85%;
+            height: 22px;
+            background: #FFF5EE;
+            border-radius: 6px;
+            border: 1px solid #F0D5C5;
+        }
+        .yt-thumb .play-icon {
+            position: absolute;
+            bottom: 20px;
+            left: 25px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3;
+        }
+        .yt-thumb .play-icon::after {
+            content: '';
+            width: 0;
+            height: 0;
+            border-left: 18px solid #DA7756;
+            border-top: 11px solid transparent;
+            border-bottom: 11px solid transparent;
+            margin-left: 4px;
+        }
+
+        /* Facebook / Instagram Square 1080x1080 */
+        .fb-square {
+            width: 400px;
+            height: 400px;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        .fb-square .top-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            text-align: center;
+        }
+        .fb-square .bottom-bar {
+            background: rgba(0,0,0,0.15);
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .fb-square .bottom-bar .url {
+            color: white;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        /* Variant 1 - Chercher emploi */
+        .fb-emploi {
+            background: linear-gradient(135deg, #1A1915 0%, #2D2A24 100%);
+        }
+        .fb-emploi .emoji { font-size: 50px; margin-bottom: 15px; }
+        .fb-emploi .title {
+            font-size: 28px;
+            font-weight: 900;
+            color: white;
+            line-height: 1.2;
+            margin-bottom: 12px;
+        }
+        .fb-emploi .title .highlight { color: #DA7756; }
+        .fb-emploi .features {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .fb-emploi .features .feat {
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .fb-emploi .features .check {
+            color: #4ADE80;
+            font-size: 16px;
+        }
+        .fb-emploi .gratuit-badge {
+            display: inline-block;
+            background: #DA7756;
+            color: white;
+            padding: 8px 24px;
+            border-radius: 50px;
+            font-weight: 800;
+            font-size: 16px;
+            margin-top: 15px;
+        }
+
+        /* Variant 2 - Artisan */
+        .fb-artisan {
+            background: linear-gradient(135deg, #DA7756 0%, #B85A3C 100%);
+        }
+        .fb-artisan .icon-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .fb-artisan .icon-item {
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        .fb-artisan .icon-item .ico { font-size: 28px; }
+        .fb-artisan .icon-item .lbl {
+            color: white;
+            font-size: 11px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+        .fb-artisan .title {
+            font-size: 24px;
+            font-weight: 900;
+            color: white;
+            line-height: 1.2;
+        }
+        .fb-artisan .subtitle {
+            color: rgba(255,255,255,0.85);
+            font-size: 14px;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+
+        /* Variant 3 - Entreprise */
+        .fb-entreprise {
+            background: linear-gradient(135deg, #1E3A5F 0%, #0F2744 100%);
+        }
+        .fb-entreprise .title {
+            font-size: 26px;
+            font-weight: 900;
+            color: white;
+            line-height: 1.2;
+            margin-bottom: 8px;
+        }
+        .fb-entreprise .title .highlight { color: #F5C5A3; }
+        .fb-entreprise .stats-row {
+            display: flex;
+            gap: 15px;
+            margin: 15px 0;
+        }
+        .fb-entreprise .stat {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            text-align: center;
+            flex: 1;
+        }
+        .fb-entreprise .stat .num {
+            font-size: 26px;
+            font-weight: 900;
+            color: #DA7756;
+        }
+        .fb-entreprise .stat .lbl {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .fb-entreprise .subtitle {
+            color: rgba(255,255,255,0.8);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* Variant 4 - Anti-arnaque */
+        .fb-securite {
+            background: linear-gradient(135deg, #14532D 0%, #0A2E18 100%);
+        }
+        .fb-securite .shield { font-size: 60px; margin-bottom: 10px; }
+        .fb-securite .title {
+            font-size: 24px;
+            font-weight: 900;
+            color: white;
+            line-height: 1.2;
+            margin-bottom: 15px;
+        }
+        .fb-securite .title .highlight { color: #4ADE80; }
+        .fb-securite .compare {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+        .fb-securite .compare .col {
+            flex: 1;
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+        }
+        .fb-securite .col-bad {
+            background: rgba(239,68,68,0.2);
+            border: 1px solid rgba(239,68,68,0.4);
+        }
+        .fb-securite .col-good {
+            background: rgba(74,222,128,0.2);
+            border: 1px solid rgba(74,222,128,0.4);
+        }
+        .fb-securite .col .hd {
+            font-size: 12px;
+            font-weight: 800;
+            margin-bottom: 6px;
+        }
+        .fb-securite .col-bad .hd { color: #FCA5A5; }
+        .fb-securite .col-good .hd { color: #86EFAC; }
+        .fb-securite .col .item {
+            font-size: 11px;
+            color: rgba(255,255,255,0.75);
+            margin: 3px 0;
+            font-weight: 600;
+        }
+
+        /* TikTok / Reels 1080x1920 */
+        .tiktok-card {
+            width: 240px;
+            height: 426px;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+        }
+        .tiktok-card .content {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            padding: 20px 16px;
+            z-index: 2;
+        }
+        .tiktok-card .tiktok-title {
+            font-size: 20px;
+            font-weight: 900;
+            color: white;
+            line-height: 1.15;
+            text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            margin-bottom: 8px;
+        }
+        .tiktok-card .tiktok-sub {
+            font-size: 11px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.85);
+            text-shadow: 0 1px 5px rgba(0,0,0,0.5);
+        }
+        .tiktok-card .tiktok-badge {
+            display: inline-block;
+            background: #DA7756;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 800;
+            margin-top: 10px;
+            width: fit-content;
+        }
+        .tiktok-1 {
+            background: linear-gradient(180deg, #DA7756 0%, #8B3A1D 100%);
+        }
+        .tiktok-2 {
+            background: linear-gradient(180deg, #1E3A5F 0%, #0A1628 100%);
+        }
+        .tiktok-3 {
+            background: linear-gradient(180deg, #14532D 0%, #052E16 100%);
+        }
+        .tiktok-card .big-emoji {
+            font-size: 60px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* WhatsApp Status Card */
+        .wa-card {
+            width: 240px;
+            height: 426px;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+        }
+        .wa-card-1 { background: linear-gradient(180deg, #075E54 0%, #043D36 100%); }
+        .wa-card-2 { background: linear-gradient(180deg, #DA7756 0%, #A8502F 100%); }
+        .wa-card .wa-title {
+            font-size: 18px;
+            font-weight: 900;
+            color: white;
+            line-height: 1.2;
+            margin-bottom: 10px;
+        }
+        .wa-card .wa-steps {
+            text-align: left;
+            width: 100%;
+        }
+        .wa-card .wa-step {
+            color: rgba(255,255,255,0.9);
+            font-size: 12px;
+            font-weight: 600;
+            margin: 6px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .wa-card .wa-step .num-circle {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 800;
+            color: white;
+            flex-shrink: 0;
+        }
+        .wa-card .wa-url {
+            margin-top: 15px;
+            background: rgba(255,255,255,0.15);
+            padding: 8px 16px;
+            border-radius: 20px;
+            color: white;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        /* LinkedIn Banner */
+        .linkedin-card {
+            width: 640px;
+            height: 320px;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            background: linear-gradient(135deg, #1A1915 0%, #2D2A24 60%, #DA7756 100%);
+            display: flex;
+            align-items: center;
+            padding: 40px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+        }
+        .linkedin-card .left {
+            flex: 1;
+        }
+        .linkedin-card .li-title {
+            font-size: 28px;
+            font-weight: 900;
+            color: white;
+            line-height: 1.2;
+            margin-bottom: 12px;
+        }
+        .linkedin-card .li-title .highlight { color: #DA7756; }
+        .linkedin-card .li-desc {
+            color: rgba(255,255,255,0.7);
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 18px;
+            line-height: 1.5;
+        }
+        .linkedin-card .li-stats {
+            display: flex;
+            gap: 20px;
+        }
+        .linkedin-card .li-stat {
+            text-align: center;
+        }
+        .linkedin-card .li-stat .num {
+            font-size: 22px;
+            font-weight: 900;
+            color: #DA7756;
+        }
+        .linkedin-card .li-stat .lbl {
+            font-size: 10px;
+            font-weight: 700;
+            color: rgba(255,255,255,0.5);
+            text-transform: uppercase;
+        }
+        .linkedin-card .right {
+            width: 160px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .linkedin-card .right .emoji-big { font-size: 60px; }
+        .linkedin-card .right .url-badge {
+            background: #DA7756;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Visuels Réseaux Sociaux — Bolo237</h1>
+<p class="instructions">
+    <strong>Comment exporter ces images :</strong><br>
+    Clic droit sur le visuel > "Inspecter" > clic droit sur l'element > "Capture node screenshot"<br>
+    OU utilise l'extension Chrome <strong>"GoFullPage"</strong> pour capturer<br>
+    OU fais simplement une <strong>capture d'ecran</strong> de chaque visuel
+</p>
+
+<!-- ==================== YOUTUBE ==================== -->
+<div class="section-wrapper">
+    <div class="section-title">YOUTUBE — Miniature (1280x720)</div>
+</div>
+<div class="cards-grid">
+    <div class="card-wrapper">
+        <div class="card-label">Miniature principale</div>
+        <div class="card-size">1280 x 720 px (ratio 16:9)</div>
+        <div class="yt-thumb" id="yt-thumb-1">
+            <div class="bg-pattern"></div>
+            <div class="content" style="text-align: left; padding-left: 40px;">
+                <div class="main-text">TROUVE DU<br>TRAVAIL AU<br>CAMEROUN</div>
+                <div class="sub-text">Tutoriel complet — pas a pas</div>
+                <div class="badge">100% GRATUIT — 0 FCFA</div>
+            </div>
+            <div class="phone-mockup">
+                <div class="phone-screen">
+                    <div class="p-logo">Bolo237</div>
+                    <div class="p-bar"></div>
+                    <div class="p-card"></div>
+                    <div class="p-card"></div>
+                    <div class="p-card"></div>
+                    <div class="p-card"></div>
+                    <div class="p-card"></div>
+                </div>
+            </div>
+            <div class="play-icon"></div>
+            <div class="logo-area">
+                <div class="logo-pill">
+                    <span>Bolo<span class="num">237</span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== FACEBOOK / INSTAGRAM ==================== -->
+<div class="section-wrapper" style="margin-top: 60px;">
+    <div class="section-title">FACEBOOK / INSTAGRAM — Posts carres (1080x1080)</div>
+</div>
+<div class="cards-grid">
+
+    <!-- Post 1 : Chercher emploi -->
+    <div class="card-wrapper">
+        <div class="card-label">Post 1 — Chercher un emploi</div>
+        <div class="card-size">1080 x 1080 px</div>
+        <div class="fb-square fb-emploi" id="fb-emploi">
+            <div class="top-section">
+                <div class="emoji">🔍</div>
+                <div class="title">Tu cherches du <span class="highlight">travail</span> au Cameroun ?</div>
+                <div class="features">
+                    <div class="feat"><span class="check">✅</span> Postule en 2 clics</div>
+                    <div class="feat"><span class="check">✅</span> Offres verifiees, pas d'arnaque</div>
+                    <div class="feat"><span class="check">✅</span> Contact direct par WhatsApp</div>
+                    <div class="feat"><span class="check">✅</span> CV cree automatiquement</div>
+                </div>
+                <div class="gratuit-badge">GRATUIT — 0 FCFA</div>
+            </div>
+            <div class="bottom-bar">
+                <div class="url">bolo237.com</div>
+                <div class="logo-pill" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 20px; padding: 4px 12px;">
+                    <span style="color: white; font-weight: 800; font-size: 14px;">Bolo<span style="color: #F5C5A3;">237</span></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Post 2 : Artisan -->
+    <div class="card-wrapper">
+        <div class="card-label">Post 2 — Artisans</div>
+        <div class="card-size">1080 x 1080 px</div>
+        <div class="fb-square fb-artisan" id="fb-artisan">
+            <div class="top-section">
+                <div class="icon-grid">
+                    <div class="icon-item"><div class="ico">🔧</div><div class="lbl">Plombier</div></div>
+                    <div class="icon-item"><div class="ico">⚡</div><div class="lbl">Electricien</div></div>
+                    <div class="icon-item"><div class="ico">🪚</div><div class="lbl">Menuisier</div></div>
+                    <div class="icon-item"><div class="ico">✂️</div><div class="lbl">Couturier</div></div>
+                </div>
+                <div class="title">Artisan ?<br>Tes clients te cherchent !</div>
+                <div class="subtitle">Cree ton profil GRATUIT sur Bolo237<br>et recois des clients par WhatsApp</div>
+            </div>
+            <div class="bottom-bar">
+                <div class="url" style="color: white;">bolo237.com</div>
+                <div style="color: white; font-weight: 800; font-size: 14px;">Bolo<span style="color: #FFE4B5;">237</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Post 3 : Entreprise -->
+    <div class="card-wrapper">
+        <div class="card-label">Post 3 — Entreprises</div>
+        <div class="card-size">1080 x 1080 px</div>
+        <div class="fb-square fb-entreprise" id="fb-entreprise">
+            <div class="top-section">
+                <div class="title">Vous <span class="highlight">recrutez</span> ?<br>Publiez votre offre<br>en 5 minutes</div>
+                <div class="stats-row">
+                    <div class="stat">
+                        <div class="num">10</div>
+                        <div class="lbl">Regions</div>
+                    </div>
+                    <div class="stat">
+                        <div class="num">0</div>
+                        <div class="lbl">FCFA</div>
+                    </div>
+                    <div class="stat">
+                        <div class="num">24/7</div>
+                        <div class="lbl">Support</div>
+                    </div>
+                </div>
+                <div class="subtitle">CVtheque + IA + Candidats verifies</div>
+            </div>
+            <div class="bottom-bar" style="background: rgba(218,119,86,0.3);">
+                <div class="url" style="color: white;">bolo237.com</div>
+                <div style="color: white; font-weight: 800; font-size: 14px;">Bolo<span style="color: #F5C5A3;">237</span></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Post 4 : Securite -->
+    <div class="card-wrapper">
+        <div class="card-label">Post 4 — Securite / Anti-arnaque</div>
+        <div class="card-size">1080 x 1080 px</div>
+        <div class="fb-square fb-securite" id="fb-securite">
+            <div class="top-section">
+                <div class="shield">🛡️</div>
+                <div class="title">Fini les <span class="highlight">arnaques</span> !</div>
+                <div class="compare">
+                    <div class="col col-bad">
+                        <div class="hd">❌ Arnaques</div>
+                        <div class="item">"Payez 50 000 FCFA"</div>
+                        <div class="item">"Envoyez Mobile Money"</div>
+                        <div class="item">Faux profils</div>
+                        <div class="item">Pas de verification</div>
+                    </div>
+                    <div class="col col-good">
+                        <div class="hd">✅ Bolo237</div>
+                        <div class="item">100% GRATUIT</div>
+                        <div class="item">Zero frais caches</div>
+                        <div class="item">Identite verifiee</div>
+                        <div class="item">Equipe qui surveille</div>
+                    </div>
+                </div>
+            </div>
+            <div class="bottom-bar" style="background: rgba(74,222,128,0.15);">
+                <div class="url" style="color: white;">bolo237.com</div>
+                <div style="color: white; font-weight: 800; font-size: 14px;">Bolo<span style="color: #86EFAC;">237</span></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== TIKTOK / REELS ==================== -->
+<div class="section-wrapper" style="margin-top: 60px;">
+    <div class="section-title">TIKTOK / REELS — Stories verticales (1080x1920)</div>
+</div>
+<div class="cards-grid">
+
+    <div class="card-wrapper">
+        <div class="card-label">TikTok 1 — Emploi</div>
+        <div class="card-size">1080 x 1920 px</div>
+        <div class="tiktok-card tiktok-1" id="tiktok-1">
+            <div class="content">
+                <div class="big-emoji">💼</div>
+                <div class="tiktok-title">Comment trouver du travail au Cameroun en 2026</div>
+                <div class="tiktok-sub">Tutoriel complet — etape par etape</div>
+                <div class="tiktok-badge">GRATUIT — bolo237.com</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-wrapper">
+        <div class="card-label">TikTok 2 — Artisan</div>
+        <div class="card-size">1080 x 1920 px</div>
+        <div class="tiktok-card tiktok-2" id="tiktok-2">
+            <div class="content">
+                <div class="big-emoji">🛠️</div>
+                <div class="tiktok-title">Artisan : 0 client a 10 clients par mois</div>
+                <div class="tiktok-sub">Cree ton profil gratuit et recois des appels WhatsApp</div>
+                <div class="tiktok-badge">bolo237.com</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card-wrapper">
+        <div class="card-label">TikTok 3 — Anti-arnaque</div>
+        <div class="card-size">1080 x 1920 px</div>
+        <div class="tiktok-card tiktok-3" id="tiktok-3">
+            <div class="content">
+                <div class="big-emoji">🛡️</div>
+                <div class="tiktok-title">Arnaques emploi vs Bolo237</div>
+                <div class="tiktok-sub">Eux demandent ton argent. Nous on te donne du travail. GRATUITEMENT.</div>
+                <div class="tiktok-badge">Profils verifies</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== WHATSAPP STATUS ==================== -->
+<div class="section-wrapper" style="margin-top: 60px;">
+    <div class="section-title">WHATSAPP STATUS (1080x1920)</div>
+</div>
+<div class="cards-grid">
+
+    <div class="card-wrapper">
+        <div class="card-label">Status 1 — C'est quoi Bolo237</div>
+        <div class="wa-card wa-card-1" id="wa-1">
+            <div style="font-size: 50px; margin-bottom: 15px;">🇨🇲</div>
+            <div class="wa-title">Bolo237 c'est quoi ?</div>
+            <div class="wa-steps">
+                <div class="wa-step"><span class="num-circle">1</span> Trouve du travail</div>
+                <div class="wa-step"><span class="num-circle">2</span> Trouve un artisan</div>
+                <div class="wa-step"><span class="num-circle">3</span> Recrute des talents</div>
+            </div>
+            <div class="wa-url">bolo237.com — GRATUIT</div>
+        </div>
+    </div>
+
+    <div class="card-wrapper">
+        <div class="card-label">Status 2 — Comment s'inscrire</div>
+        <div class="wa-card wa-card-2" id="wa-2">
+            <div style="font-size: 50px; margin-bottom: 15px;">📱</div>
+            <div class="wa-title">Inscription en 30 secondes</div>
+            <div class="wa-steps">
+                <div class="wa-step"><span class="num-circle">1</span> Va sur bolo237.com</div>
+                <div class="wa-step"><span class="num-circle">2</span> Appuie "Connexion"</div>
+                <div class="wa-step"><span class="num-circle">3</span> Choisis ton profil</div>
+                <div class="wa-step"><span class="num-circle">4</span> Remplis tes infos</div>
+                <div class="wa-step"><span class="num-circle">5</span> C'est fait !</div>
+            </div>
+            <div class="wa-url">0 FCFA — Toujours gratuit</div>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== LINKEDIN ==================== -->
+<div class="section-wrapper" style="margin-top: 60px;">
+    <div class="section-title">LINKEDIN — Banniere (1200x627)</div>
+</div>
+<div class="cards-grid">
+    <div class="card-wrapper">
+        <div class="card-label">LinkedIn — Post professionnel</div>
+        <div class="card-size">1200 x 627 px (ratio ~2:1)</div>
+        <div class="linkedin-card" id="linkedin-1">
+            <div class="left">
+                <div class="li-title">Democratiser l'acces<br>a l'<span class="highlight">emploi</span><br>au Cameroun</div>
+                <div class="li-desc">Plateforme gratuite connectant candidats,<br>artisans et entreprises dans les 10 regions</div>
+                <div class="li-stats">
+                    <div class="li-stat">
+                        <div class="num">10</div>
+                        <div class="lbl">Regions</div>
+                    </div>
+                    <div class="li-stat">
+                        <div class="num">3</div>
+                        <div class="lbl">Profils</div>
+                    </div>
+                    <div class="li-stat">
+                        <div class="num">0</div>
+                        <div class="lbl">FCFA</div>
+                    </div>
+                    <div class="li-stat">
+                        <div class="num">24/7</div>
+                        <div class="lbl">Support</div>
+                    </div>
+                </div>
+            </div>
+            <div class="right">
+                <div class="emoji-big">🇨🇲</div>
+                <div class="url-badge">bolo237.com</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div style="height: 60px;"></div>
+
+</body>
+</html>

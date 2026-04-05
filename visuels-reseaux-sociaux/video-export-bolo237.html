@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bolo237 — Video Tutoriel Bilingue avec Voix</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #111;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .control-panel {
+            background: #1A1A1A;
+            border-bottom: 2px solid #DA7756;
+            padding: 15px 30px;
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        .record-btn {
+            background: #DA7756;
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .record-btn:hover { background: #C4623F; transform: scale(1.02); }
+        .record-btn:disabled { background: #555; cursor: not-allowed; transform: none; }
+        .record-btn .dot {
+            width: 12px; height: 12px;
+            background: #FF4444;
+            border-radius: 50%;
+            animation: pulse-dot 1s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .status {
+            font-size: 14px;
+            font-weight: 600;
+            color: rgba(255,255,255,0.6);
+        }
+        .status.recording { color: #FF6B6B; }
+        .status.done { color: #4ADE80; }
+        .progress-info {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+        }
+        .voice-select {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .voice-select label {
+            font-size: 13px;
+            color: rgba(255,255,255,0.5);
+        }
+        .voice-select select {
+            background: #2A2A2A;
+            color: white;
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .canvas-wrapper {
+            margin: 20px auto;
+            position: relative;
+        }
+        canvas {
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+        }
+        .preview-label {
+            text-align: center;
+            font-size: 13px;
+            color: rgba(255,255,255,0.4);
+            margin-top: 10px;
+        }
+        .instructions-panel {
+            max-width: 900px;
+            margin: 20px auto 40px;
+            padding: 25px 30px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .instructions-panel h3 {
+            color: #DA7756;
+            margin-bottom: 10px;
+        }
+        .instructions-panel p {
+            color: rgba(255,255,255,0.6);
+            font-size: 14px;
+            line-height: 1.8;
+        }
+        .instructions-panel strong { color: white; }
+        .instructions-panel .method {
+            background: rgba(218,119,86,0.1);
+            border: 1px solid rgba(218,119,86,0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin: 10px 0;
+        }
+        .instructions-panel .method h4 {
+            color: #DA7756;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="control-panel">
+    <button class="record-btn" id="playVoiceBtn" onclick="playWithVoice()">
+        🔊 Lancer avec voix (preview)
+    </button>
+    <button class="record-btn" id="recordBtn" onclick="startRecording()" style="background: #14532D;">
+        🎬 Telecharger la video (avec sous-titres)
+    </button>
+    <span class="status" id="status">Pret</span>
+    <span class="progress-info" id="progressInfo"></span>
+</div>
+
+<div class="canvas-wrapper">
+    <canvas id="videoCanvas" width="1280" height="720"></canvas>
+    <div class="preview-label">Apercu video 1280x720 — Sous-titres bilingues FR/EN integres</div>
+</div>
+
+<div class="instructions-panel">
+    <h3>2 facons d'obtenir ta video :</h3>
+    <div class="method">
+        <h4>Methode 1 — Video avec voix de femme (recommande)</h4>
+        <p>
+            1. Appuie sur <strong>"Lancer avec voix"</strong> — la presentation joue avec une voix de femme bilingue<br>
+            2. Enregistre ton ecran avec <strong>OBS Studio</strong> (gratuit) ou <strong>Loom</strong> — ca capture la video ET la voix<br>
+            3. Exporte en MP4 — ta video est prete !
+        </p>
+    </div>
+    <div class="method">
+        <h4>Methode 2 — Video silencieuse avec sous-titres (telechargement direct)</h4>
+        <p>
+            1. Appuie sur <strong>"Telecharger la video"</strong><br>
+            2. La video .webm se genere avec des sous-titres bilingues FR/EN integres<br>
+            3. Poste-la directement — les sous-titres remplacent la voix !
+        </p>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('videoCanvas');
+const ctx = canvas.getContext('2d');
+const W = 1280;
+const H = 720;
+
+// ============================================================
+// SLIDE DATA — Bilingual with voice scripts
+// ============================================================
+const slides = [
+    {
+        bg: '#DA7756,#A8502F',
+        emoji: '🇨🇲',
+        title: ['Comment utiliser', '{gold}Bolo237 ?'],
+        subtitle_fr: 'Tutoriel complet — étape par étape',
+        subtitle_en: 'Complete tutorial — step by step',
+        badge: '100% GRATUIT — 0 FCFA',
+        voice_fr: "Bonjour à toi ! Tu veux trouver du travail ? Tu veux trouver un bon plombier ou un bon électricien ? Alors cette vidéo est pour toi ! Je vais te montrer comment utiliser Bolo237. C'est gratuit, tu ne payes rien du tout.",
+        voice_en: "Hello! Are you looking for a job? Or looking for a good plumber or electrician? Then this video is for you! I will show you how to use Bolo237. It's completely free.",
+        duration: 12000
+    },
+    {
+        bg: '#0A0A0A,#1A1915',
+        title: ['{orange}Bolo237{white} c\'est quoi ?'],
+        subtitle_fr: 'Une application GRATUITE pour le Cameroun',
+        subtitle_en: 'A FREE app for Cameroon',
+        list: [
+            '🔍  Trouve du travail / Find a job',
+            '🛠️  Trouve un artisan / Find a craftsman',
+            '🏢  Recrute des talents / Recruit talent',
+            '📞  Contact WhatsApp direct',
+            '🛡️  Profils vérifiés / Verified profiles',
+            '💰  GRATUIT — 0 FCFA / FREE'
+        ],
+        voice_fr: "Bolo237, c'est quoi ? C'est une application gratuite pour tout le Cameroun. Tu peux chercher du travail, trouver un artisan, ou recruter des employés. Le contact se fait directement par WhatsApp. Tous les profils sont vérifiés, pas d'arnaque. Et c'est gratuit, zéro franc.",
+        voice_en: "What is Bolo237? It's a free application for all of Cameroon. You can search for jobs, find craftsmen, or recruit employees. Contact is made directly through WhatsApp. All profiles are verified, no scams. And it's free, zero francs.",
+        duration: 14000
+    },
+    {
+        bg: '#1A1915,#2D2A24',
+        step: '1',
+        title: ['Ouvre {orange}Chrome', 'sur ton téléphone'],
+        subtitle_fr: 'L\'icône ronde avec les couleurs rouge, jaune, vert, bleu',
+        subtitle_en: 'The round icon with red, yellow, green, blue colors',
+        voice_fr: "Première étape. Prends ton téléphone. Tu vois la petite icône ronde avec les couleurs rouge, jaune, vert et bleu ? C'est Chrome. Appuie dessus. Si tu n'as pas Chrome, tu peux utiliser Opera Mini.",
+        voice_en: "First step. Take your phone. You see the small round icon with red, yellow, green and blue colors? That's Chrome. Tap on it. If you don't have Chrome, you can use Opera Mini.",
+        duration: 12000
+    },
+    {
+        bg: '#0A0A0A,#1A1915',
+        step: '2',
+        title: ['Tape {orange}bolo237.com'],
+        subtitle_fr: 'En haut de l\'écran, dans la barre blanche',
+        subtitle_en: 'At the top of the screen, in the white bar',
+        badge: 'bolo237.com',
+        voice_fr: "Deuxième étape. En haut de l'écran, tu vois une barre blanche. Appuie dessus. Maintenant, écris : B-O-L-O-2-3-7 point com. Puis appuie sur Aller ou Entrée.",
+        voice_en: "Second step. At the top of the screen, you see a white bar. Tap on it. Now type: B-O-L-O-2-3-7 dot com. Then tap Go or Enter.",
+        duration: 12000
+    },
+    {
+        bg: '#1A1915,#2D2A24',
+        step: '3',
+        title: ['Installe l\'{orange}application'],
+        subtitle_fr: 'Comme WhatsApp, sur ton écran d\'accueil',
+        subtitle_en: 'Like WhatsApp, on your home screen',
+        list: [
+            '📱  Android : Menu ⋮ > "Installer l\'appli"',
+            '🍎  iPhone : Partage □↑ > "Ecran d\'accueil"'
+        ],
+        badge: 'Pas besoin de Play Store !',
+        voice_fr: "Troisième étape. On va installer l'application sur ton téléphone, comme WhatsApp. Sur Android, appuie sur les trois petits points en haut, puis Installer l'application. Sur iPhone, appuie sur le carré avec la flèche, puis Sur l'écran d'accueil. Et voilà, Bolo237 est sur ton téléphone !",
+        voice_en: "Third step. We will install the app on your phone, like WhatsApp. On Android, tap the three dots at the top, then Install the app. On iPhone, tap the share button, then Add to Home Screen. There you go, Bolo237 is on your phone!",
+        duration: 14000
+    },
+    {
+        bg: '#DA7756,#A8502F',
+        step: '4',
+        title: ['Crée ton {gold}compte'],
+        subtitle_fr: 'Appuie sur "Connexion" en haut à droite',
+        subtitle_en: 'Tap "Sign up" at the top right',
+        voice_fr: "Quatrième étape. Crée ton compte. Appuie sur le bouton Connexion en haut à droite de l'écran. C'est rapide, ça prend 30 secondes !",
+        voice_en: "Fourth step. Create your account. Tap the Sign up button at the top right of the screen. It's quick, only 30 seconds!",
+        duration: 10000
+    },
+    {
+        bg: '#0A0A0A,#1A1915',
+        title: ['Choisis {orange}ton profil'],
+        subtitle_fr: 'Quel est ton objectif ?',
+        subtitle_en: 'What is your goal?',
+        threeCards: [
+            { emoji: '🔍', label: 'Je cherche\nun emploi', sub: 'I\'m looking for a job' },
+            { emoji: '🏢', label: 'Je recrute', sub: 'I\'m hiring' },
+            { emoji: '🛠️', label: 'Je propose\nmes services', sub: 'I offer my services' }
+        ],
+        voice_fr: "Tu as trois choix. Premier choix : Je cherche un emploi. C'est pour toi si tu veux trouver du travail. Deuxième choix : Je recrute. C'est pour les entreprises et les patrons. Troisième choix : Je propose mes services. C'est pour les artisans, les plombiers, les électriciens, les coiffeurs, les couturiers. Appuie sur celui qui te correspond.",
+        voice_en: "You have three choices. First: I'm looking for a job. That's for you if you want to find work. Second: I'm hiring. That's for companies and employers. Third: I offer my services. That's for craftsmen, plumbers, electricians, hairdressers, tailors. Tap the one that matches you.",
+        duration: 16000
+    },
+    {
+        bg: '#1A1915,#2D2A24',
+        title: ['Remplis tes {orange}informations'],
+        subtitle_fr: 'C\'est facile, suis bien',
+        subtitle_en: 'It\'s easy, follow along',
+        list: [
+            '1️⃣  Nom / Last name',
+            '2️⃣  Prénom / First name',
+            '3️⃣  Nom d\'utilisateur / Username',
+            '4️⃣  Numéro de téléphone 🇨🇲 / Phone number',
+            '5️⃣  Mot de passe (6 min.) / Password',
+            '6️⃣  Confirmer / Confirm password'
+        ],
+        badge: 'Appuie "S\'inscrire" — C\'est fait !',
+        voice_fr: "Maintenant, remplis tes informations. Ton nom de famille, ton prénom, un nom d'utilisateur, ton numéro de téléphone avec le drapeau du Cameroun, puis un mot de passe d'au moins 6 caractères, et confirme-le. Quand tout est rempli, appuie sur S'inscrire. Bravo, ton compte est créé !",
+        voice_en: "Now fill in your information. Your last name, first name, a username, your phone number with the Cameroon flag, then a password of at least 6 characters, and confirm it. When everything is filled in, tap Sign up. Congratulations, your account is created!",
+        duration: 14000
+    },
+    {
+        bg: '#1E3A5F,#0F2744',
+        emoji: '🔍',
+        title: ['Chercher un {orange}emploi'],
+        subtitle_fr: 'Trouve et postule facilement',
+        subtitle_en: 'Find and apply easily',
+        list: [
+            '👆  Appuie "Emplois" / Tap "Jobs"',
+            '📋  Liste des offres / Job listings',
+            '👀  Détails de l\'offre / Job details',
+            '✅  "Postuler" en 1 clic / Apply in 1 tap'
+        ],
+        voice_fr: "Si tu cherches du travail, appuie sur Emplois dans le menu. Tu vas voir la liste des offres disponibles. Appuie sur celle qui t'intéresse pour voir les détails. Puis appuie sur Postuler. C'est tout ! L'entreprise reçoit ta candidature.",
+        voice_en: "If you're looking for work, tap Jobs in the menu. You'll see the list of available positions. Tap the one you're interested in to see details. Then tap Apply. That's it! The company receives your application.",
+        duration: 12000
+    },
+    {
+        bg: '#0A0A0A,#1A1915',
+        emoji: '🛠️',
+        title: ['Tu es {orange}artisan ?'],
+        subtitle_fr: 'Crée ta vitrine en ligne',
+        subtitle_en: 'Create your online showcase',
+        list: [
+            '📸  Photo de profil / Profile photo',
+            '🔧  Tes services + prix / Services + prices',
+            '🖼️  Photos de tes travaux / Work photos',
+            '✅  Badge vérifié / Verified badge',
+            '📞  Clients via WhatsApp / Clients via WhatsApp'
+        ],
+        voice_fr: "Si tu es artisan, plombier, électricien, menuisier, coiffeur ou couturier, écoute bien. Ajoute une belle photo de toi. Écris tes services et tes prix. Montre tes réalisations en photo. Fais-toi vérifier pour avoir le badge vert. Et les clients te contactent directement par WhatsApp !",
+        voice_en: "If you're a craftsman, plumber, electrician, carpenter, hairdresser or tailor, listen carefully. Add a nice photo of yourself. Write your services and prices. Show your work in photos. Get verified for the green badge. And clients contact you directly through WhatsApp!",
+        duration: 14000
+    },
+    {
+        bg: '#1A1915,#2D2A24',
+        emoji: '🏢',
+        title: ['{orange}Entreprises :', 'publiez une offre'],
+        subtitle_fr: 'Recrutez les meilleurs talents',
+        subtitle_en: 'Recruit the best talent',
+        list: [
+            '1️⃣  Logo / Company logo',
+            '2️⃣  Titre du poste / Job title',
+            '3️⃣  Description / Job description',
+            '4️⃣  Ville + contrat / City + contract',
+            '5️⃣  Publier / Publish'
+        ],
+        badge: 'L\'IA vous aide ! / AI helps you!',
+        voice_fr: "Pour les entreprises. Ajoutez votre logo, le titre du poste, une description du travail, la ville et le type de contrat. Puis publiez. L'équipe Bolo237 vérifie votre annonce. Vous pouvez même utiliser l'intelligence artificielle pour écrire une meilleure annonce !",
+        voice_en: "For companies. Add your logo, the job title, a job description, the city and contract type. Then publish. The Bolo237 team verifies your posting. You can even use artificial intelligence to write a better job ad!",
+        duration: 13000
+    },
+    {
+        bg: '#14532D,#0A2E18',
+        emoji: '📱',
+        title: ['Contact par', '{green}WhatsApp'],
+        subtitle_fr: 'Un clic, WhatsApp s\'ouvre',
+        subtitle_en: 'One tap, WhatsApp opens',
+        voice_fr: "Tu as trouvé un bon artisan ou un emploi ? Appuie sur le gros bouton vert WhatsApp. WhatsApp s'ouvre directement avec le bon numéro. C'est comme si un ami te donnait le contact d'un bon artisan qu'il connaît.",
+        voice_en: "Found a good craftsman or a job? Tap the big green WhatsApp button. WhatsApp opens directly with the right number. It's like a friend giving you the contact of a good craftsman they know.",
+        duration: 12000
+    },
+    {
+        bg: '#0A0A0A,#1A1915',
+        emoji: '🛡️',
+        title: ['Ta {green}sécurité,', 'notre priorité'],
+        subtitle_fr: '',
+        subtitle_en: '',
+        compare: {
+            bad: { title: '❌ Arnaques / Scams', items: ['"Payez 50 000 FCFA"', '"Send Mobile Money"', 'Faux profils / Fake profiles', 'Aucune vérification'] },
+            good: { title: '✅ Bolo237', items: ['100% GRATUIT / FREE', 'Zéro frais / Zero fees', 'Identité vérifiée / Verified ID', 'Équipe 24/7 / Team 24/7'] }
+        },
+        voice_fr: "Ta sécurité, c'est notre priorité. Les arnaques te demandent de payer des frais de dossier ou d'envoyer du mobile money. Chez Bolo237, c'est 100 pourcent gratuit. Zéro frais cachés. Chaque identité est vérifiée. Et notre équipe surveille 24 heures sur 24.",
+        voice_en: "Your security is our priority. Scams ask you to pay fees or send mobile money. At Bolo237, it's 100 percent free. Zero hidden fees. Every identity is verified. And our team monitors 24 hours a day.",
+        duration: 13000
+    },
+    {
+        bg: '#1A1915,#2D2A24',
+        title: ['{orange}5 étapes{white}, c\'est tout !'],
+        subtitle_fr: 'Récapitulatif / Summary',
+        subtitle_en: '',
+        fiveSteps: [
+            { emoji: '🌐', label: 'Chrome\nbolo237.com' },
+            { emoji: '📲', label: 'Installer\nInstall' },
+            { emoji: '✍️', label: 'Compte gratuit\nFree account' },
+            { emoji: '🔍', label: 'Emploi/Services\nJobs/Services' },
+            { emoji: '📞', label: 'WhatsApp\nDirect' }
+        ],
+        voice_fr: "On récapitule ! 5 étapes, c'est tout. Un : ouvre Chrome et tape bolo237.com. Deux : installe l'application. Trois : crée ton compte gratuit. Quatre : cherche un emploi ou ajoute tes services. Cinq : contacte directement par WhatsApp.",
+        voice_en: "Let's recap! 5 steps, that's all. One: open Chrome and type bolo237.com. Two: install the app. Three: create your free account. Four: search for a job or add your services. Five: contact directly through WhatsApp.",
+        duration: 14000
+    },
+    {
+        bg: '#DA7756,#A8502F',
+        emoji: '🇨🇲',
+        title: ['Bienvenue sur', '{gold}Bolo237 !'],
+        subtitle_fr: 'C\'est gratuit. C\'est sécurisé. C\'est fait pour toi.',
+        subtitle_en: 'It\'s free. It\'s secure. It\'s made for you.',
+        badge: 'bolo237.com',
+        voice_fr: "Bolo237, c'est gratuit, c'est sécurisé, c'est fait pour toi. Partage cette vidéo avec un ami, un frère, une sœur qui cherche du travail. Ensemble, on avance. Merci et bienvenue sur Bolo237 !",
+        voice_en: "Bolo237 is free, secure, and made for you. Share this video with a friend, a brother, a sister who is looking for work. Together, we move forward. Thank you and welcome to Bolo237!",
+        duration: 12000
+    }
+];
+
+// ============================================================
+// DRAWING HELPERS
+// ============================================================
+function createGrad(bgStr) {
+    const parts = bgStr.split(',');
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, parts[0]);
+    grad.addColorStop(1, parts[1]);
+    return grad;
+}
+
+function drawRoundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, r);
+}
+
+function drawStyledTitle(lines, y, fontSize) {
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const lh = fontSize * 1.25;
+    const startY = y - (lines.length - 1) * lh / 2;
+
+    lines.forEach((line, i) => {
+        const yPos = startY + i * lh;
+        const parts = line.split(/(\{(?:orange|gold|green|white)\})/);
+        let color = 'white';
+        let segs = [];
+        let full = '';
+        parts.forEach(p => {
+            if (p === '{orange}') { color = '#DA7756'; return; }
+            if (p === '{gold}') { color = '#FFE4B5'; return; }
+            if (p === '{green}') { color = '#4ADE80'; return; }
+            if (p === '{white}') { color = 'white'; return; }
+            if (p) { segs.push({ text: p, color }); full += p; }
+        });
+
+        ctx.font = `900 ${fontSize}px Inter, sans-serif`;
+        const tw = ctx.measureText(full).width;
+        let xPos = W / 2 - tw / 2;
+        segs.forEach(s => {
+            ctx.fillStyle = s.color;
+            ctx.font = `900 ${fontSize}px Inter, sans-serif`;
+            const w = ctx.measureText(s.text).width;
+            ctx.fillText(s.text, xPos + w / 2, yPos);
+            xPos += w;
+        });
+    });
+    return startY + lines.length * lh;
+}
+
+// ============================================================
+// DRAW A COMPLETE SLIDE FRAME
+// ============================================================
+function drawSlide(slide, progress, currentSubFr, currentSubEn) {
+    // Background
+    ctx.fillStyle = createGrad(slide.bg);
+    ctx.fillRect(0, 0, W, H);
+
+    let y = 120;
+
+    // Step circle
+    if (slide.step) {
+        ctx.beginPath();
+        ctx.arc(W / 2, y, 32, 0, Math.PI * 2);
+        ctx.fillStyle = slide.bg.includes('#DA7756') ? 'rgba(0,0,0,0.3)' : '#DA7756';
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.font = '900 28px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(slide.step, W / 2, y);
+        y += 55;
+    }
+
+    // Emoji
+    if (slide.emoji) {
+        ctx.font = '72px serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(slide.emoji, W / 2, y);
+        y += 65;
+    }
+
+    // Title
+    if (slide.title) {
+        y = drawStyledTitle(slide.title, y, slide.step ? 42 : 48) + 12;
+    }
+
+    // Bilingual subtitle line
+    if (slide.subtitle_fr || slide.subtitle_en) {
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.font = '600 18px Inter, sans-serif';
+        if (slide.subtitle_fr) {
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.fillText(slide.subtitle_fr, W / 2, y);
+            y += 25;
+        }
+        if (slide.subtitle_en) {
+            ctx.fillStyle = 'rgba(255,255,255,0.45)';
+            ctx.font = '600 16px Inter, sans-serif';
+            ctx.fillText(slide.subtitle_en, W / 2, y);
+            y += 25;
+        }
+        y += 8;
+    }
+
+    // List with animation
+    if (slide.list) {
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        const lx = W / 2 - 240;
+        slide.list.forEach((item, i) => {
+            const itemAlpha = Math.max(0, Math.min(1, (progress * slide.duration - 800 - i * 300) / 400));
+            ctx.globalAlpha = itemAlpha;
+            ctx.fillStyle = 'rgba(255,255,255,0.85)';
+            ctx.font = '600 18px Inter, sans-serif';
+            ctx.fillText(item, lx, y + i * 34);
+        });
+        ctx.globalAlpha = 1;
+        y += slide.list.length * 34 + 10;
+    }
+
+    // Three cards
+    if (slide.threeCards) {
+        const cw = 210, ch = 130, gap = 25;
+        const sx = W / 2 - (cw * 3 + gap * 2) / 2;
+        slide.threeCards.forEach((c, i) => {
+            const x = sx + i * (cw + gap);
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            drawRoundRect(x, y, cw, ch, 12);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.font = '36px serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(c.emoji, x + cw / 2, y + 32);
+            ctx.font = '700 14px Inter, sans-serif';
+            ctx.fillStyle = 'white';
+            c.label.split('\n').forEach((l, li) => ctx.fillText(l, x + cw / 2, y + 65 + li * 18));
+            ctx.font = '600 12px Inter, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.5)';
+            ctx.fillText(c.sub, x + cw / 2, y + ch - 12);
+        });
+        y += ch + 15;
+    }
+
+    // Five steps
+    if (slide.fiveSteps) {
+        const cw = 160, ch = 90, gap = 16;
+        const r1x = W / 2 - (cw * 3 + gap * 2) / 2;
+        for (let i = 0; i < 3; i++) {
+            const s = slide.fiveSteps[i];
+            const x = r1x + i * (cw + gap);
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            drawRoundRect(x, y, cw, ch, 10); ctx.fill();
+            ctx.font = '28px serif'; ctx.textAlign = 'center';
+            ctx.fillText(s.emoji, x + cw / 2, y + 28);
+            ctx.font = '700 12px Inter, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            s.label.split('\n').forEach((l, li) => ctx.fillText(l, x + cw / 2, y + 50 + li * 16));
+        }
+        const r2x = W / 2 - (cw * 2 + gap) / 2;
+        for (let i = 0; i < 2; i++) {
+            const s = slide.fiveSteps[3 + i];
+            const x = r2x + i * (cw + gap);
+            const y2 = y + ch + 12;
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            drawRoundRect(x, y2, cw, ch, 10); ctx.fill();
+            ctx.font = '28px serif'; ctx.textAlign = 'center';
+            ctx.fillText(s.emoji, x + cw / 2, y2 + 28);
+            ctx.font = '700 12px Inter, sans-serif';
+            ctx.fillStyle = 'rgba(255,255,255,0.8)';
+            s.label.split('\n').forEach((l, li) => ctx.fillText(l, x + cw / 2, y2 + 50 + li * 16));
+        }
+    }
+
+    // Compare boxes
+    if (slide.compare) {
+        const bw = 270, bh = 180, gap = 30;
+        const sx = W / 2 - (bw * 2 + gap) / 2;
+        // Bad
+        ctx.fillStyle = 'rgba(239,68,68,0.1)';
+        drawRoundRect(sx, y, bw, bh, 14); ctx.fill();
+        ctx.strokeStyle = 'rgba(239,68,68,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#FCA5A5'; ctx.font = '800 16px Inter, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(slide.compare.bad.title, sx + bw / 2, y + 28);
+        ctx.font = '600 14px Inter, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.65)';
+        slide.compare.bad.items.forEach((it, i) => ctx.fillText(it, sx + bw / 2, y + 58 + i * 28));
+        // Good
+        const gx = sx + bw + gap;
+        ctx.fillStyle = 'rgba(74,222,128,0.1)';
+        drawRoundRect(gx, y, bw, bh, 14); ctx.fill();
+        ctx.strokeStyle = 'rgba(74,222,128,0.3)'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.fillStyle = '#86EFAC'; ctx.font = '800 16px Inter, sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText(slide.compare.good.title, gx + bw / 2, y + 28);
+        ctx.font = '600 14px Inter, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,0.65)';
+        slide.compare.good.items.forEach((it, i) => ctx.fillText(it, gx + bw / 2, y + 58 + i * 28));
+    }
+
+    // Badge
+    if (slide.badge) {
+        const by = Math.min(y + 10, H - 120);
+        ctx.font = '800 17px Inter, sans-serif';
+        const bw = ctx.measureText(slide.badge).width + 50;
+        ctx.fillStyle = slide.bg.includes('#DA7756') ? 'rgba(0,0,0,0.3)' : '#DA7756';
+        drawRoundRect(W / 2 - bw / 2, by, bw, 42, 21); ctx.fill();
+        ctx.fillStyle = 'white'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(slide.badge, W / 2, by + 21);
+    }
+
+    // ========== SUBTITLES BAR ==========
+    const subText = currentSubFr || currentSubEn || '';
+    if (subText) {
+        // Semi-transparent background bar
+        ctx.fillStyle = 'rgba(0,0,0,0.75)';
+        ctx.fillRect(0, H - 90, W, 90);
+
+        // FR subtitle
+        if (currentSubFr) {
+            ctx.fillStyle = 'white';
+            ctx.font = '700 18px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Wrap text if too long
+            const words = currentSubFr.split(' ');
+            let lines = [''];
+            words.forEach(w => {
+                const test = lines[lines.length - 1] + (lines[lines.length - 1] ? ' ' : '') + w;
+                if (ctx.measureText(test).width > W - 100) lines.push(w);
+                else lines[lines.length - 1] = test;
+            });
+            const frY = currentSubEn ? H - 65 : H - 45;
+            lines.forEach((l, i) => ctx.fillText(l, W / 2, frY + i * 22));
+        }
+
+        // EN subtitle
+        if (currentSubEn) {
+            ctx.fillStyle = 'rgba(255,255,255,0.55)';
+            ctx.font = '600 15px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            const words = currentSubEn.split(' ');
+            let lines = [''];
+            words.forEach(w => {
+                const test = lines[lines.length - 1] + (lines[lines.length - 1] ? ' ' : '') + w;
+                if (ctx.measureText(test).width > W - 100) lines.push(w);
+                else lines[lines.length - 1] = test;
+            });
+            lines.forEach((l, i) => ctx.fillText(l, W / 2, H - 30 + i * 20));
+        }
+    }
+
+    // Progress bar
+    ctx.fillStyle = 'rgba(255,255,255,0.06)';
+    ctx.fillRect(0, H - 4, W, 4);
+    ctx.fillStyle = '#DA7756';
+    const total = slides.reduce((s, sl) => s + sl.duration, 0);
+    let elapsed = 0;
+    for (let i = 0; i < slides.indexOf(slide); i++) elapsed += slides[i].duration;
+    elapsed += progress * slide.duration;
+    ctx.fillRect(0, H - 4, (elapsed / total) * W, 4);
+
+    // Counter
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '600 13px Inter, sans-serif';
+    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+    ctx.fillText(`${slides.indexOf(slide) + 1} / ${slides.length}`, W - 18, 14);
+
+    // Watermark
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.font = '700 14px Inter, sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText('bolo237.com', 18, 14);
+}
+
+// Draw initial preview
+drawSlide(slides[0], 0, slides[0].voice_fr.substring(0, 80) + '...', slides[0].voice_en.substring(0, 70) + '...');
+
+// ============================================================
+// TEXT-TO-SPEECH — Female voice, bilingual
+// ============================================================
+function getVoice(lang) {
+    const voices = speechSynthesis.getVoices();
+    // Prefer female voices
+    const preferred = voices.filter(v =>
+        v.lang.startsWith(lang) &&
+        (v.name.toLowerCase().includes('female') ||
+         v.name.toLowerCase().includes('femme') ||
+         v.name.includes('Amelie') ||
+         v.name.includes('Marie') ||
+         v.name.includes('Audrey') ||
+         v.name.includes('Thomas') === false)
+    );
+    return preferred[0] || voices.find(v => v.lang.startsWith(lang)) || null;
+}
+
+function speak(text, lang = 'fr-FR') {
+    return new Promise((resolve) => {
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = lang;
+        utter.rate = 0.9;
+        utter.pitch = 1.1;
+        const voice = getVoice(lang.substring(0, 2));
+        if (voice) utter.voice = voice;
+        utter.onend = resolve;
+        utter.onerror = resolve;
+        speechSynthesis.speak(utter);
+    });
+}
+
+// Load voices
+speechSynthesis.getVoices();
+if (speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
+}
+
+// ============================================================
+// PLAY WITH VOICE (preview — use screen recorder to capture)
+// ============================================================
+async function playWithVoice() {
+    const btn = document.getElementById('playVoiceBtn');
+    const status = document.getElementById('status');
+    const progressInfo = document.getElementById('progressInfo');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="dot"></span> Lecture en cours...';
+    status.textContent = 'Lecture avec voix...';
+    status.className = 'status recording';
+
+    // Make sure voices are loaded
+    speechSynthesis.getVoices();
+    await new Promise(r => setTimeout(r, 500));
+
+    const FPS = 30;
+    const FADE = 15;
+
+    for (let si = 0; si < slides.length; si++) {
+        const slide = slides[si];
+        progressInfo.textContent = `Slide ${si + 1} / ${slides.length}`;
+
+        // Start speaking French
+        const frPromise = speak(slide.voice_fr, 'fr-FR');
+
+        // Animate slide while French voice plays
+        const frFrames = Math.round((slide.duration * 0.5) / (1000 / FPS));
+        for (let f = 0; f < frFrames; f++) {
+            const p = f / (frFrames * 2);
+            drawSlide(slide, p, slide.voice_fr.substring(0, 100), '');
+            if (f < FADE) {
+                ctx.fillStyle = `rgba(0,0,0,${1 - f / FADE})`;
+                ctx.fillRect(0, 0, W, H);
+            }
+            await new Promise(r => setTimeout(r, 1000 / FPS));
+        }
+
+        // Wait for French voice to finish
+        await frPromise;
+        await new Promise(r => setTimeout(r, 300));
+
+        // Speak English
+        const enPromise = speak(slide.voice_en, 'en-US');
+
+        const enFrames = Math.round((slide.duration * 0.5) / (1000 / FPS));
+        for (let f = 0; f < enFrames; f++) {
+            const p = 0.5 + f / (enFrames * 2);
+            drawSlide(slide, p, '', slide.voice_en.substring(0, 100));
+            await new Promise(r => setTimeout(r, 1000 / FPS));
+        }
+
+        await enPromise;
+        await new Promise(r => setTimeout(r, 400));
+
+        // Fade out
+        for (let f = 0; f < FADE; f++) {
+            drawSlide(slide, 1, '', '');
+            ctx.fillStyle = `rgba(0,0,0,${f / FADE})`;
+            ctx.fillRect(0, 0, W, H);
+            await new Promise(r => setTimeout(r, 1000 / FPS));
+        }
+    }
+
+    btn.disabled = false;
+    btn.innerHTML = '🔊 Lancer avec voix (preview)';
+    status.textContent = 'Lecture terminée !';
+    status.className = 'status done';
+}
+
+// ============================================================
+// DOWNLOAD VIDEO (with bilingual subtitles, no voice)
+// ============================================================
+async function startRecording() {
+    const btn = document.getElementById('recordBtn');
+    const status = document.getElementById('status');
+    const progressInfo = document.getElementById('progressInfo');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="dot"></span> Generation en cours...';
+    status.textContent = 'Creation de la video...';
+    status.className = 'status recording';
+
+    const stream = canvas.captureStream(30);
+    const recorder = new MediaRecorder(stream, {
+        mimeType: 'video/webm;codecs=vp9',
+        videoBitsPerSecond: 5000000
+    });
+    const chunks = [];
+    recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'Bolo237-Tutoriel-Bilingue.webm';
+        a.click();
+        btn.disabled = false;
+        btn.innerHTML = '🎬 Telecharger la video (avec sous-titres)';
+        status.textContent = 'Video telechargee !';
+        status.className = 'status done';
+        progressInfo.textContent = 'Bolo237-Tutoriel-Bilingue.webm';
+    };
+
+    recorder.start();
+
+    const FPS = 30;
+    const FADE = 18;
+
+    for (let si = 0; si < slides.length; si++) {
+        const slide = slides[si];
+        const totalFrames = Math.round((slide.duration / 1000) * FPS);
+        progressInfo.textContent = `Slide ${si + 1} / ${slides.length}`;
+
+        // Split duration: first half FR, second half EN
+        const halfFrames = Math.floor(totalFrames / 2);
+
+        for (let f = 0; f < totalFrames; f++) {
+            const p = f / totalFrames;
+            const isFrPart = f < halfFrames;
+
+            // Pick subtitle chunk based on timing
+            const voiceFr = isFrPart ? slide.voice_fr : '';
+            const voiceEn = !isFrPart ? slide.voice_en : '';
+
+            // Break long text into readable chunks based on progress within half
+            let subFr = '', subEn = '';
+            if (isFrPart && slide.voice_fr) {
+                const frWords = slide.voice_fr.split(' ');
+                const frProgress = f / halfFrames;
+                const startWord = Math.floor(frProgress * frWords.length * 0.8);
+                const endWord = Math.min(startWord + 12, frWords.length);
+                subFr = frWords.slice(startWord, endWord).join(' ');
+            }
+            if (!isFrPart && slide.voice_en) {
+                const enWords = slide.voice_en.split(' ');
+                const enProgress = (f - halfFrames) / halfFrames;
+                const startWord = Math.floor(enProgress * enWords.length * 0.8);
+                const endWord = Math.min(startWord + 12, enWords.length);
+                subEn = enWords.slice(startWord, endWord).join(' ');
+            }
+
+            // Language indicator
+            if (isFrPart) subEn = '🇫🇷 Français';
+            else subFr = '🇬🇧 English';
+
+            drawSlide(slide, p, subFr, subEn);
+
+            // Fade transitions
+            if (f < FADE) {
+                ctx.fillStyle = `rgba(0,0,0,${1 - f / FADE})`;
+                ctx.fillRect(0, 0, W, H);
+            }
+            if (f > totalFrames - FADE) {
+                ctx.fillStyle = `rgba(0,0,0,${(f - (totalFrames - FADE)) / FADE})`;
+                ctx.fillRect(0, 0, W, H);
+            }
+
+            await new Promise(r => setTimeout(r, 1000 / FPS));
+        }
+    }
+
+    // Black end
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    await new Promise(r => setTimeout(r, 500));
+
+    recorder.stop();
+}
+</script>
+
+</body>
+</html>

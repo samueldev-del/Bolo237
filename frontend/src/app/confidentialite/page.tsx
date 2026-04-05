@@ -3,6 +3,7 @@
 import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import PrivacyRightsPanel from '@/components/PrivacyRightsPanel';
 import { useLocale } from '@/components/LocaleProvider';
 
 export default function ConfidentialitePage() {
@@ -479,6 +480,8 @@ export default function ConfidentialitePage() {
               {s.content}
             </div>
           ))}
+
+          <PrivacyRightsPanel />
 
           {/* Contact Box */}
           <div className="bg-[#FFF5EF] border border-[#E8C4B0] rounded-xl p-8 text-center space-y-4">

@@ -67,7 +67,7 @@ function validateSecurityConfiguration(databaseUrl) {
   const sessionSecret = String(process.env.SESSION_JWT_SECRET || '').trim();
   const masterOtp = String(process.env.MASTER_OTP || '').trim();
   if (!sessionSecret || sessionSecret === 'change-me-in-production' || sessionSecret === masterOtp) {
-    throw new Error('SESSION_JWT_SECRET must be set to a dedicated strong secret in production.');
+    throw new Error('SESSION_JWT_SECRET must be set in production and must be different from MASTER_OTP.');
   }
 
   const configuredOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '').trim();
@@ -92,7 +92,7 @@ const prisma = new PrismaClient({ adapter });
 const app = express();
 app.set('trust proxy', 1);
 const SESSION_COOKIE_NAME = 'bolo237_session';
-const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET || process.env.MASTER_OTP || 'change-me-in-production';
+const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET || 'change-me-in-production';
 const revokedSessionTokens = new Map(); // token -> expiresAtMs
 
 const uploadsRoot = path.join(__dirname, 'uploads');

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import PrivacyRightsPanel from '@/components/PrivacyRightsPanel';
 import { useLocale } from '@/components/LocaleProvider';
 import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, ApiError, type ApiJob, type UserApplication } from '@/lib/api';
 import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser } from '@/lib/session';
@@ -75,7 +74,7 @@ export default function DashboardCandidat() {
         setIsVerified(Boolean(parsed?.isVerified));
 
         // Redirect to role-specific dashboard
-        const role = parsed?.role || localStorage.getItem('bolo237-account-role') || '';
+        const role = String(parsed?.role || localStorage.getItem('bolo237-account-role') || '').toUpperCase();
         if (role === 'ENTREPRISE') {
           router.replace(localizePath('/dashboard-entreprise'));
           return;
@@ -151,6 +150,7 @@ export default function DashboardCandidat() {
   useEffect(() => {
     const ensureActiveUser = async () => {
       if (!userId) return;
+      const storedUser = getStoredUser();
       const recentAuth = hasRecentAuthSuccess();
       const maxAttempts = recentAuth ? 4 : 2;
 
@@ -194,6 +194,10 @@ export default function DashboardCandidat() {
           // Keep user on page for transient backend/network issues.
           if (status !== 401 && status !== 403) return;
         }
+      }
+
+      if (storedUser?.id) {
+        return;
       }
 
       await logoutUser().catch(() => undefined);
@@ -1325,20 +1329,6 @@ export default function DashboardCandidat() {
               {isEn ? 'Enable alert' : 'Activer l alerte'}
             </button>
           </div>
-        </section>
-
-        <section className="space-y-3">
-          <div className="px-1">
-            <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold text-gray-900">
-              {isEn ? 'Privacy and account rights' : 'Confidentialite et droits du compte'}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {isEn
-                ? 'Export your data or submit a deletion request directly from your dashboard.'
-                : 'Exportez vos donnees ou soumettez une demande de suppression directement depuis votre tableau de bord.'}
-            </p>
-          </div>
-          <PrivacyRightsPanel />
         </section>
 
       </main>

@@ -1,10 +1,9 @@
-const CACHE_NAME = 'Bolo237-v1';
+const CACHE_NAME = 'Bolo237-v2';
+const OFFLINE_URL = '/offline.html';
 
-// Pages et assets essentiels à mettre en cache
+// Assets legers et page hors ligne uniquement.
 const PRECACHE_URLS = [
-  '/',
-  '/connexion',
-  '/emplois',
+  OFFLINE_URL,
   '/manifest.json',
   '/logo.svg',
   '/logo-white.svg',
@@ -37,43 +36,57 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch : stratégie Network-First avec fallback cache
-// (idéal pour les connexions instables au Cameroun)
+function isStaticAssetRequest(request) {
+  const destination = request.destination;
+  return destination === 'script' || destination === 'style' || destination === 'image' || destination === 'font';
+}
+
+function shouldHandleRequest(request) {
+  const url = new URL(request.url);
+
+  if (request.method !== 'GET') return false;
+  if (url.origin !== self.location.origin) return false;
+  if (url.pathname.startsWith('/api/')) return false;
+
+  return true;
+}
+
+// Fetch : navigations en reseau prioritaire sans cache HTML stale.
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // Ignorer les requêtes non-GET et les API calls
-  if (request.method !== 'GET') return;
-  if (request.url.includes('/api/')) return;
+  if (!shouldHandleRequest(request)) return;
+
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request).catch(async () => {
+        const offline = await caches.match(OFFLINE_URL);
+        return offline || Response.error();
+      })
+    );
+    return;
+  }
+
+  if (!isStaticAssetRequest(request)) {
+    return;
+  }
 
   event.respondWith(
-    fetch(request)
-      .then((response) => {
-        // Si la réponse est valide, la mettre en cache
-        if (response.ok) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, clone);
-          });
-        }
-        return response;
-      })
-      .catch(() => {
-        // Pas de réseau → servir depuis le cache
-        return caches.match(request).then((cached) => {
-          if (cached) return cached;
-
-          // Si c'est une navigation, montrer la page d'accueil en cache
-          if (request.mode === 'navigate') {
-            return caches.match('/');
+    caches.match(request).then((cached) => {
+      const networkRequest = fetch(request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(request, clone);
+            });
           }
 
-          // Rien en cache → réponse offline
-          return new Response(
-            '<html><body style="font-family:sans-serif;text-align:center;padding:60px 20px"><h1>Bolo237</h1><p>Pas de connexion internet.<br>Vérifiez votre réseau et réessayez.</p><button onclick="location.reload()" style="margin-top:20px;padding:12px 24px;background:#DA7756;color:white;border:none;border-radius:12px;font-weight:bold;font-size:16px;cursor:pointer">Réessayer</button></body></html>',
-            { headers: { 'Content-Type': 'text/html; charset=utf-8' } }
-          );
-        });
-      })
+          return response;
+        })
+        .catch(() => cached || Response.error());
+
+      return cached || networkRequest;
+    })
   );
 });

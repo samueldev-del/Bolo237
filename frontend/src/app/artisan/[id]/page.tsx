@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
 import { fetchUserProfile, fetchUserReviews, type UserReview } from '@/lib/api';
+import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import RatingModal from '@/components/RatingModal';
 
 type ArtisanParams = {
@@ -29,8 +30,8 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
 
   // Check if user is logged in for contact actions
   const userSnapshot = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem('bolo237-user'),
+    subscribeToSessionStorage,
+    () => getSessionStorageValue('bolo237-user'),
     () => null,
   );
   const isLoggedIn = Boolean(userSnapshot);

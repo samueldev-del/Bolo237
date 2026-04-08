@@ -481,7 +481,19 @@ export default function ConfidentialitePage() {
             </div>
           ))}
 
-          <PrivacyRightsPanel />
+          <section id="account-rights" className="scroll-mt-28 space-y-3">
+            <div>
+              <h2 className="text-xl font-extrabold text-gray-900 mb-2">
+                {isEn ? 'Privacy and account rights' : 'Confidentialite et droits du compte'}
+              </h2>
+              <p className="text-gray-600 leading-relaxed">
+                {isEn
+                  ? 'Use the secure self-service area below to export your data or submit an account deletion request.'
+                  : 'Utilisez l espace securise ci-dessous pour exporter vos donnees ou soumettre une demande de suppression de compte.'}
+              </p>
+            </div>
+            <PrivacyRightsPanel />
+          </section>
 
           {/* Contact Box */}
           <div className="bg-[#FFF5EF] border border-[#E8C4B0] rounded-xl p-8 text-center space-y-4">

@@ -7,6 +7,7 @@ import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchJobs, fetchUserSavedJobs, removeUserSavedJob, saveUserJob, type ApiJob } from '@/lib/api';
+import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import { useApi } from '@/lib/useApi';
 
 // ── Types ─────────────────────────────────────────────────────────
@@ -112,8 +113,8 @@ function FilterCheckbox({ label, count, color = '#7C3AED' }: { label: string; co
 export default function EmploisFormels() {
   const { localizePath } = useLocale();
   const userSnapshot = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem('bolo237-user'),
+    subscribeToSessionStorage,
+    () => getSessionStorageValue('bolo237-user'),
     () => null,
   );
   const userId = useMemo(() => {

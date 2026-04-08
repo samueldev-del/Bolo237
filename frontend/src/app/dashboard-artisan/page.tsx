@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Footer from '@/components/Footer';
-import PrivacyRightsPanel from '@/components/PrivacyRightsPanel';
 import { useLocale } from '@/components/LocaleProvider';
 import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
@@ -308,13 +307,13 @@ export default function DashboardArtisan() {
 
       if (!active) return;
 
-      if (sawAuthFailure) {
-        await redirectToArtisanLogin();
+      if (storedUser) {
+        setAccessStatus('allowed');
         return;
       }
 
-      if (storedUser) {
-        setAccessStatus('allowed');
+      if (sawAuthFailure) {
+        await redirectToArtisanLogin();
         return;
       }
 
@@ -1299,19 +1298,6 @@ export default function DashboardArtisan() {
           )}
         </section>
 
-        <section className="mt-6 space-y-3">
-          <div className="px-1">
-            <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">
-              {isEn ? 'Privacy and account rights' : 'Confidentialite et droits du compte'}
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              {isEn
-                ? 'Manage your personal data requests without leaving your artisan dashboard.'
-                : 'Gerez vos demandes liees aux donnees personnelles sans quitter votre dashboard artisan.'}
-            </p>
-          </div>
-          <PrivacyRightsPanel />
-        </section>
       </main>
 
       {/* ============================================================ */}

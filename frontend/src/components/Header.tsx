@@ -5,14 +5,22 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
-import { clearStoredSession } from '@/lib/session';
+import { clearStoredSession, getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import { logoutUser } from '@/lib/api';
 import { PRIMARY_NAV_ITEMS } from '@/lib/seo';
 
 const USER_KEY = 'bolo237-user';
 const ROLE_KEY = 'bolo237-account-role';
 
-type UserData = { id: number; name?: string; role?: string; email?: string; isVerified?: boolean } | null;
+type UserData = {
+  id: number;
+  name?: string | null;
+  role?: string;
+  email?: string | null;
+  isVerified?: boolean;
+  photoUrl?: string | null;
+  logoUrl?: string | null;
+} | null;
 
 function normalizeRole(role: string | null | undefined): string {
   return String(role || '').toLowerCase();
@@ -32,6 +40,13 @@ function getDashboard(role: string | undefined, localizePath: (p: string) => str
   return localizePath('/dashboard');
 }
 
+function getProfileLink(role: string | undefined, localizePath: (p: string) => string) {
+  const normalized = normalizeRole(role);
+  if (normalized === 'entreprise') return localizePath('/dashboard-entreprise?section=profile');
+  if (normalized === 'artisan') return localizePath('/dashboard-artisan');
+  return localizePath('/profil');
+}
+
 function getRoleLabel(role: string | null | undefined, isEn: boolean): string {
   switch (role) {
     case 'entreprise': return isEn ? 'Company' : 'Entreprise';
@@ -49,14 +64,6 @@ function getRoleColor(role: string | null | undefined): string {
   }
 }
 
-function getRoleBadgeColor(role: string | null | undefined): string {
-  switch (role) {
-    case 'entreprise': return 'bg-blue-600 hover:bg-blue-700';
-    case 'artisan': return 'bg-orange-500 hover:bg-orange-600';
-    default: return 'bg-[#DA7756] hover:bg-[#C4623F]';
-  }
-}
-
 function getRoleIcon(role: string | null | undefined): string {
   switch (role) {
     case 'entreprise': return '🏢';
@@ -65,19 +72,59 @@ function getRoleIcon(role: string | null | undefined): string {
   }
 }
 
+function getUserDisplayName(name: string | null | undefined, role: string | null | undefined, isEn: boolean): string {
+  const normalizedName = String(name || '')
+    .replace(/\s*\(@[^)]*\)\s*$/u, '')
+    .trim();
+
+  if (!normalizedName) {
+    return isEn ? 'My account' : 'Mon compte';
+  }
+
+  if (normalizeRole(role) === 'entreprise') {
+    const companyName = normalizedName.split('—')[0]?.trim();
+    return companyName || normalizedName;
+  }
+
+  return normalizedName;
+}
+
+function getUserVisualUrl(user: UserData, role: string | null | undefined): string {
+  if (!user) return '';
+  if (normalizeRole(role) === 'entreprise') {
+    return String(user.logoUrl || user.photoUrl || '');
+  }
+
+  return String(user.photoUrl || user.logoUrl || '');
+}
+
+function getUserInitials(name: string, role: string | null | undefined): string {
+  const parts = name
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+
+  if (parts.length > 0) {
+    return parts.map((part) => part[0]).join('').toUpperCase();
+  }
+
+  return getRoleIcon(role);
+}
+
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { locale, setLocale, t, localizePath } = useLocale();
   const pathname = usePathname();
   const menuRef = useRef<HTMLDivElement>(null);
   const userRaw = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem(USER_KEY),
+    subscribeToSessionStorage,
+    () => getSessionStorageValue(USER_KEY),
     () => null,
   );
   const storedRole = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem(ROLE_KEY),
+    subscribeToSessionStorage,
+    () => getSessionStorageValue(ROLE_KEY),
     () => null,
   );
   const user = useMemo(() => parseUserFromStorage(userRaw), [userRaw]);
@@ -106,6 +153,10 @@ export default function Header() {
 
   const localRole = storedRole || user?.role || null;
   const localRoleNormalized = normalizeRole(localRole);
+  const displayName = getUserDisplayName(user?.name, localRoleNormalized, isEn);
+  const userVisualUrl = getUserVisualUrl(user, localRoleNormalized);
+  const userInitials = getUserInitials(displayName, localRoleNormalized);
+  const privacyRightsLink = localizePath('/confidentialite#account-rights');
 
   const handleLogout = async () => {
     await logoutUser().catch(() => undefined);
@@ -155,13 +206,26 @@ export default function Header() {
           {user ? (
             <Link
               href={getDashboard(localRole || undefined, localizePath)}
-              className={`hidden sm:flex items-center gap-2 ${getRoleBadgeColor(localRoleNormalized)} text-white px-5 py-2.5 rounded-full font-bold text-[13px] transition shadow-sm`}
+              className="hidden sm:flex items-center gap-3 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 shadow-sm transition hover:border-gray-300 hover:shadow-md"
             >
-              <span className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center text-[11px]">
-                {getRoleIcon(localRoleNormalized)}
+              <AccountAvatar
+                imageUrl={userVisualUrl}
+                initials={userInitials}
+                alt={displayName}
+                role={localRoleNormalized}
+                size="sm"
+              />
+              <span className="min-w-0 text-left leading-tight">
+                <span className="block max-w-[140px] truncate text-[13px] font-bold text-gray-900">{displayName}</span>
+                <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">
+                  {getRoleLabel(localRoleNormalized, isEn)}
+                </span>
               </span>
-              <span className="max-w-[120px] truncate">{(user.name || '').split(' ')[0] || (isEn ? 'Dashboard' : 'Mon espace')}</span>
-              {user.isVerified && <span className="text-[11px]">✓</span>}
+              {user.isVerified && (
+                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-50 px-1.5 text-[10px] font-black text-emerald-600">
+                  ✓
+                </span>
+              )}
             </Link>
           ) : (
             <Link
@@ -175,9 +239,21 @@ export default function Header() {
           {/* BOUTON MENU BURGER */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex items-center gap-2 p-2.5 hover:bg-gray-50 rounded-xl transition group border border-gray-100"
+            className="flex items-center gap-2 rounded-xl border border-gray-100 p-2.5 transition group hover:bg-gray-50"
             aria-label="Menu"
           >
+            {user && (
+              <div className="sm:hidden flex items-center gap-2 min-w-0">
+                <AccountAvatar
+                  imageUrl={userVisualUrl}
+                  initials={userInitials}
+                  alt={displayName}
+                  role={localRoleNormalized}
+                  size="xs"
+                />
+                <span className="max-w-[92px] truncate text-[12px] font-bold text-gray-800">{displayName}</span>
+              </div>
+            )}
             {isMenuOpen ? (
               <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -210,11 +286,16 @@ export default function Header() {
             {user && (
               <div className={`bg-gradient-to-r ${getRoleColor(localRoleNormalized)} px-6 py-5 text-white`}>
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-lg">
-                    {getRoleIcon(localRoleNormalized)}
-                  </div>
+                  <AccountAvatar
+                    imageUrl={userVisualUrl}
+                    initials={userInitials}
+                    alt={displayName}
+                    role={localRoleNormalized}
+                    size="lg"
+                    bordered
+                  />
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-sm truncate">{user.name || (isEn ? 'My account' : 'Mon compte')}</p>
+                    <p className="font-bold text-sm truncate">{displayName}</p>
                     <p className="text-white/70 text-xs flex items-center gap-1.5">
                       <span>{getRoleLabel(localRoleNormalized, isEn)}</span>
                       {user.isVerified && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-extrabold">✓ {isEn ? 'Certified' : 'Certifie'}</span>}
@@ -257,7 +338,7 @@ export default function Header() {
                   {/* Candidat links */}
                   {(localRoleNormalized === 'chercheur' || !localRoleNormalized) && (
                     <>
-                      <MenuLink href={localizePath('/profil')} icon="✏️" label={isEn ? 'My CV / Profile' : 'Mon CV / Profil'} desc={isEn ? 'Build and update your CV' : 'Créer et mettre à jour votre CV'} />
+                      <MenuLink href={getProfileLink(localRole || undefined, localizePath)} icon="✏️" label={isEn ? 'My CV / Profile' : 'Mon CV / Profil'} desc={isEn ? 'Build and update your CV' : 'Créer et mettre à jour votre CV'} />
                       <MenuLink href={localizePath('/emplois')} icon="🔎" label={isEn ? 'Find a job' : 'Trouver un emploi'} desc={isEn ? 'Browse available offers' : 'Parcourir les offres disponibles'} />
                     </>
                   )}
@@ -265,6 +346,7 @@ export default function Header() {
                   {/* Entreprise links */}
                   {localRoleNormalized === 'entreprise' && (
                     <>
+                      <MenuLink href={getProfileLink(localRole || undefined, localizePath)} icon="🏢" label={isEn ? 'Company profile' : 'Profil entreprise'} desc={isEn ? 'Manage your company trust profile' : 'Gérer votre profil entreprise'} />
                       <MenuLink href={localizePath('/publier')} icon="📝" label={isEn ? 'Post a job' : 'Publier une offre'} desc={isEn ? 'Reach thousands of candidates' : 'Touchez des milliers de candidats'} />
                       <MenuLink href={localizePath('/cvtheque')} icon="👥" label={isEn ? 'CV Library' : 'CVthèque'} desc={isEn ? 'Find the ideal candidate' : 'Trouver le candidat idéal'} />
                     </>
@@ -273,10 +355,17 @@ export default function Header() {
                   {/* Artisan links */}
                   {localRoleNormalized === 'artisan' && (
                     <>
-                      <MenuLink href={localizePath('/profil')} icon="🛠️" label={isEn ? 'My profile' : 'Mon profil'} desc={isEn ? 'Manage your artisan profile' : 'Gérer votre profil artisan'} />
+                      <MenuLink href={getProfileLink(localRole || undefined, localizePath)} icon="🛠️" label={isEn ? 'My profile' : 'Mon profil'} desc={isEn ? 'Manage your artisan profile' : 'Gérer votre profil artisan'} />
                       <MenuLink href={localizePath('/petits-boulots')} icon="📋" label={isEn ? 'Service requests' : 'Demandes de services'} desc={isEn ? 'Find clients near you' : 'Trouver des clients près de vous'} />
                     </>
                   )}
+
+                  <MenuLink
+                    href={privacyRightsLink}
+                    icon="🔐"
+                    label={isEn ? 'Privacy & account rights' : 'Confidentialite & droits du compte'}
+                    desc={isEn ? 'Export your data or manage account requests' : 'Exporter vos donnees ou gerer vos demandes de compte'}
+                  />
 
                   <div className="h-px bg-gray-100 my-2 mx-6"></div>
                 </>
@@ -338,5 +427,44 @@ function MenuLink({ href, icon, label, desc }: { href: string; icon: string; lab
         <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
       </div>
     </Link>
+  );
+}
+
+function AccountAvatar({
+  imageUrl,
+  initials,
+  alt,
+  role,
+  size,
+  bordered = false,
+}: {
+  imageUrl: string;
+  initials: string;
+  alt: string;
+  role: string | null | undefined;
+  size: 'xs' | 'sm' | 'lg';
+  bordered?: boolean;
+}) {
+  const sizeClass = size === 'lg' ? 'h-12 w-12 text-sm' : size === 'sm' ? 'h-9 w-9 text-xs' : 'h-8 w-8 text-[11px]';
+  const borderClass = bordered ? 'ring-2 ring-white/25' : 'border border-gray-200';
+  const gradientClass = normalizeRole(role) === 'entreprise'
+    ? 'from-blue-100 to-blue-50 text-blue-700'
+    : normalizeRole(role) === 'artisan'
+      ? 'from-orange-100 to-orange-50 text-orange-700'
+      : 'from-[#FEEBD6] to-[#FFF5EF] text-[#C4623F]';
+
+  return (
+    <span className={`relative inline-flex shrink-0 overflow-hidden rounded-full ${sizeClass} ${borderClass} bg-gradient-to-br ${gradientClass}`}>
+      {imageUrl ? (
+        <span
+          role="img"
+          aria-label={alt}
+          className="h-full w-full bg-cover bg-center"
+          style={{ backgroundImage: `url(${imageUrl})` }}
+        />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center font-black">{initials}</span>
+      )}
+    </span>
   );
 }

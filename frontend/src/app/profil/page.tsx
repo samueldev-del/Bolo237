@@ -5,10 +5,8 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { getStoredUser, mergeStoredUser } from '@/lib/session';
-
-const USER_KEY = 'bolo237-user';
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+import { ApiError, fetchSessionUser, fetchUserProfile, logoutUser, upsertUserProfile } from '@/lib/api';
+import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser } from '@/lib/session';
 
 type Experience = { poste: string; entreprise: string; dateDebut: string; dateFin: string; description: string };
 type Formation = { diplome: string; ecole: string; annee: string };
@@ -45,6 +43,23 @@ function parseInternationalPhone(value: string): { countryCode: CountryPhoneOpti
   return { countryCode: 'CM', localNumber: digits };
 }
 
+function normalizeRole(role: string | null | undefined): 'chercheur' | 'entreprise' | 'artisan' | 'admin' | '' {
+  const normalized = String(role || '').trim().toLowerCase();
+  if (normalized === 'candidat' || normalized === 'chercheur') return 'chercheur';
+  if (normalized === 'entreprise') return 'entreprise';
+  if (normalized === 'artisan') return 'artisan';
+  if (normalized === 'admin' || normalized === 'super_admin' || normalized === 'super-admin') return 'admin';
+  return '';
+}
+
+function getProfileDestination(role: string | null | undefined, localizePath: (path: string) => string): string {
+  const normalizedRole = normalizeRole(role);
+  if (normalizedRole === 'entreprise') return localizePath('/dashboard-entreprise?section=profile');
+  if (normalizedRole === 'artisan') return localizePath('/dashboard-artisan');
+  if (normalizedRole === 'admin') return 'https://admin.bolo237.com';
+  return localizePath('/profil');
+}
+
 export default function ProfilCV() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
@@ -79,31 +94,102 @@ export default function ProfilCV() {
   const [saved, setSaved] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
   const [isCertified, setIsCertified] = useState(false);
+  const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed'>('checking');
   const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
   const cleanedLocalPhone = phone.replace(/\D/g, '');
   const internationalPhone = cleanedLocalPhone ? `${selectedCountry.dialCode}${cleanedLocalPhone}` : '';
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(USER_KEY);
-      if (raw) {
-        const u = JSON.parse(raw);
-        setUserId(u.id);
-        setIsCertified(Boolean(u.isVerified));
-        if (u.name) setFullName(u.name);
-        if (u.email) setEmail(u.email);
+    let active = true;
+
+    const applyUserSnapshot = (user: Record<string, unknown>) => {
+      setUserId(Number(user.id || 0) || null);
+      setIsCertified(Boolean(user.isVerified));
+      if (user.name) setFullName(String(user.name));
+      if (user.email) setEmail(String(user.email));
+    };
+
+    const storedUser = getStoredUser() as (Record<string, unknown> & { role?: string }) | null;
+    const storedRole = normalizeRole(storedUser?.role || (typeof window !== 'undefined' ? window.localStorage.getItem('bolo237-account-role') : null));
+
+    if (storedUser) {
+      if (storedRole && storedRole !== 'chercheur') {
+        window.location.href = getProfileDestination(storedRole, localizePath);
+        return () => {
+          active = false;
+        };
       }
-    } catch { /* */ }
-  }, []);
+      applyUserSnapshot(storedUser);
+    }
+
+    const redirectToLogin = async () => {
+      await logoutUser().catch(() => undefined);
+      clearStoredSession();
+      window.location.href = `${localizePath('/connexion')}?role=chercheur`;
+    };
+
+    const ensureCandidateAccess = async () => {
+      const recentAuth = hasRecentAuthSuccess();
+      const maxAttempts = recentAuth ? 4 : 2;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        if (attempt > 0) {
+          await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+        } else {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+
+        try {
+          const sessionUser = await fetchSessionUser();
+          if (!active) return;
+
+          const sessionRole = normalizeRole(sessionUser.role);
+          if (sessionRole && sessionRole !== 'chercheur') {
+            mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+            window.location.href = getProfileDestination(sessionRole, localizePath);
+            return;
+          }
+
+          mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
+          applyUserSnapshot(sessionUser as unknown as Record<string, unknown>);
+          setAccessStatus('allowed');
+          return;
+        } catch (err) {
+          const status = err instanceof ApiError ? err.status : 0;
+          if (status === 401 || status === 403) {
+            continue;
+          }
+
+          if (storedUser) {
+            setAccessStatus('allowed');
+          }
+          return;
+        }
+      }
+
+      if (!active) return;
+
+      if (storedUser) {
+        setAccessStatus('allowed');
+        return;
+      }
+
+      await redirectToLogin();
+    };
+
+    ensureCandidateAccess();
+
+    return () => {
+      active = false;
+    };
+  }, [localizePath]);
 
   // Load existing profile
   useEffect(() => {
-    if (!userId) return;
-    fetch(`${API}/api/profiles/${userId}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!data) return;
+    if (accessStatus !== 'allowed' || !userId) return;
+
+    fetchUserProfile(userId)
+      .then((data) => {
         if (data.fullName) setFullName(data.fullName);
         if (data.title) setTitle(data.title);
         if (data.location) setCity(data.location);
@@ -130,7 +216,7 @@ export default function ProfilCV() {
         }
       })
       .catch(() => { /* */ });
-  }, [userId]);
+  }, [accessStatus, userId]);
 
   const addSkill = () => {
     const s = skillInput.trim();
@@ -146,16 +232,12 @@ export default function ProfilCV() {
     if (!userId) return;
     setSaving(true);
     try {
-      await fetch(`${API}/api/profiles/${userId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      await upsertUserProfile(userId, {
           fullName, title, location: city, phone: internationalPhone, email, profile: bio,
           experience: JSON.stringify(experiences.filter(e => e.poste)),
           education: JSON.stringify(formations.filter(f => f.diplome)),
           skillsText: skills.join(', '),
           languagesText: languages.join(', '),
-        }),
       });
       const storedUser = getStoredUser();
       mergeStoredUser({
@@ -182,6 +264,16 @@ export default function ProfilCV() {
   ];
 
   return (
+    accessStatus !== 'allowed' ? (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-green-500 animate-spin" />
+          <p className="text-sm font-semibold text-gray-600">
+            {isEn ? 'Checking your profile access...' : 'Verification de votre acces profil...'}
+          </p>
+        </div>
+      </div>
+    ) : (
     <div className="min-h-screen flex flex-col bg-gray-50">
       <Header />
 
@@ -543,5 +635,6 @@ export default function ProfilCV() {
 
       <Footer />
     </div>
+    )
   );
 }

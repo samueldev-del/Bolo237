@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { ApiError, exportPrivacyData, fetchSessionUser, requestAccountDeletion } from '@/lib/api';
 import { useLocale } from '@/components/LocaleProvider';
-import { getStoredUser, mergeStoredUser } from '@/lib/session';
+import { clearStoredSession, getStoredUser, mergeStoredUser } from '@/lib/session';
 
 type SessionState = 'loading' | 'authenticated' | 'guest';
 
@@ -97,8 +97,22 @@ export default function PrivacyRightsPanel() {
         });
         setSessionUser(nextUser);
         setSessionState('authenticated');
-      } catch {
+      } catch (error) {
         if (cancelled) return;
+
+        const status = error instanceof ApiError ? error.status : 0;
+        if (status === 401 || status === 403) {
+          clearStoredSession();
+          setSessionUser(null);
+          setSessionState('guest');
+          return;
+        }
+
+        if (storedUser?.id && storedUser.email && storedUser.role) {
+          setSessionState('authenticated');
+          return;
+        }
+
         setSessionUser(null);
         setSessionState('guest');
       }
@@ -132,12 +146,8 @@ export default function PrivacyRightsPanel() {
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
+        clearStoredSession();
         setSessionState('guest');
-          {exportReference && (
-            <p className="mt-3 rounded-2xl border border-[#F2D7C8] bg-[#FFF8F3] px-4 py-3 text-xs font-semibold text-[#9A4D30]">
-              {isEn ? 'Reference:' : 'Reference :'} <span className="font-mono">{exportReference}</span>
-            </p>
-          )}
         setSessionUser(null);
         setExportError(requireLoginMessage);
       } else {
@@ -175,6 +185,7 @@ export default function PrivacyRightsPanel() {
       setDeleteConfirmed(false);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
+        clearStoredSession();
         setSessionState('guest');
         setSessionUser(null);
         setDeleteError(requireLoginMessage);

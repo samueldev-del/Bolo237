@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchCandidateProfiles } from '@/lib/api';
+import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 
 const USER_KEY = 'bolo237-user';
 const ROLE_KEY = 'bolo237-account-role';
@@ -43,13 +44,13 @@ export default function CvthequePage() {
 
   // Access control: only entreprise and artisan can view CVthèque
   const userSnapshot = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem(USER_KEY),
+    subscribeToSessionStorage,
+    () => getSessionStorageValue(USER_KEY),
     () => undefined,
   );
   const roleSnapshot = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem(ROLE_KEY),
+    subscribeToSessionStorage,
+    () => getSessionStorageValue(ROLE_KEY),
     () => undefined,
   );
   const accessAllowed = useMemo<boolean | null>(() => {

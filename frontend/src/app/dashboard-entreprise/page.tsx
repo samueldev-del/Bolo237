@@ -3,8 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import Footer from '@/components/Footer';
-import PrivacyRightsPanel from '@/components/PrivacyRightsPanel';
 import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
@@ -60,6 +60,7 @@ type SidebarSection = 'dashboard' | 'post' | 'listings' | 'applications' | 'inte
    ──────────────────────────────────────────── */
 export default function DashboardEntreprise() {
   const { locale, localizePath } = useLocale();
+  const searchParams = useSearchParams();
   const isEn = locale === 'en';
   const employerAccountLabel = isEn ? 'Employer account' : 'Compte entreprise';
   const recruiterLabel = isEn ? 'Recruiter' : 'Recruteur';
@@ -111,6 +112,12 @@ export default function DashboardEntreprise() {
   const isEnterprisePublishingReady = hasCompanyPhoto;
   const isEnterpriseCertified = isVerifiedFromBackend || profileReviewStatus === 'approved';
   const companyDisplayName = companyName || userName || employerAccountLabel;
+
+  useEffect(() => {
+    if (searchParams.get('section') === 'profile') {
+      setActiveSection('profile');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     let active = true;
@@ -204,13 +211,13 @@ export default function DashboardEntreprise() {
 
       if (!active) return;
 
-      if (sawAuthFailure) {
-        await redirectToEmployerLogin();
+      if (storedUser) {
+        setAccessStatus('allowed');
         return;
       }
 
-      if (storedUser) {
-        setAccessStatus('allowed');
+      if (sawAuthFailure) {
+        await redirectToEmployerLogin();
         return;
       }
 
@@ -1776,20 +1783,6 @@ export default function DashboardEntreprise() {
                 </button>
               </div>
             )}
-
-            <section className="mt-6 space-y-3">
-              <div className="px-1">
-                <h2 className="text-lg sm:text-xl font-extrabold text-gray-900">
-                  {isEn ? 'Privacy and account rights' : 'Confidentialite et droits du compte'}
-                </h2>
-                <p className="mt-1 text-sm text-gray-500">
-                  {isEn
-                    ? 'Export your company account data or submit a deletion request from this dashboard.'
-                    : 'Exportez les donnees de votre compte entreprise ou soumettez une demande de suppression depuis ce dashboard.'}
-                </p>
-              </div>
-              <PrivacyRightsPanel />
-            </section>
 
           </div>
         </main>

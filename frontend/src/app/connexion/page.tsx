@@ -5,15 +5,14 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
-import { createUser, loginUser } from '@/lib/api';
-import { markRecentAuthSuccess } from '@/lib/session';
+import { createUser, loginUser, forgotPassword, resetPassword } from '@/lib/api';
+import { markRecentAuthSuccess, storeAuthenticatedUser } from '@/lib/session';
 
 type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
 type Role = SignupRole | 'admin';
 
 const ROLE_STORAGE_KEY = 'bolo237-account-role';
 const USER_KEY = 'bolo237-user';
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 const ROLE_MAP: Record<SignupRole, string> = {
   chercheur: 'CANDIDAT',
@@ -28,6 +27,11 @@ const BACKEND_ROLE_TO_LOCAL: Record<string, Role> = {
   ADMIN: 'admin',
   SUPER_ADMIN: 'admin',
 };
+
+function toLocalRole(role: string | null | undefined): Role {
+  const normalizedRole = String(role || '').trim().toUpperCase();
+  return BACKEND_ROLE_TO_LOCAL[normalizedRole] || 'chercheur';
+}
 
 type CountryPhoneOption = {
   code: string;
@@ -164,10 +168,8 @@ export default function Connexion() {
       });
 
       if (typeof window !== 'undefined') {
-        const localRole = BACKEND_ROLE_TO_LOCAL[loggedUser.role] || 'chercheur';
-        window.localStorage.setItem(USER_KEY, JSON.stringify(loggedUser));
-        window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
-        window.localStorage.setItem('bolo237-phone-verified', 'true');
+        const localRole = toLocalRole(loggedUser.role);
+        storeAuthenticatedUser(loggedUser, { role: localRole, phoneVerified: true });
         markRecentAuthSuccess();
         // Full page reload so the session cookie is properly sent on
         // the very first request the dashboard makes to /api/auth/me.
@@ -198,10 +200,8 @@ export default function Connexion() {
     try {
       const user = await loginUser({ identifier: loginEmail.trim(), password: loginPassword });
       if (typeof window !== 'undefined') {
-        const localRole = BACKEND_ROLE_TO_LOCAL[user.role] || 'chercheur';
-        window.localStorage.setItem(USER_KEY, JSON.stringify(user));
-        window.localStorage.setItem(ROLE_STORAGE_KEY, localRole);
-        window.localStorage.setItem('bolo237-phone-verified', 'true');
+        const localRole = toLocalRole(user.role);
+        storeAuthenticatedUser(user, { role: localRole, phoneVerified: true });
         markRecentAuthSuccess();
         // Full page reload — same reason as signup above.
         window.location.href = getDashboardRoute(localRole);
@@ -414,12 +414,7 @@ export default function Connexion() {
                               const country = COUNTRY_PHONE_OPTIONS.find(c => c.code === resetCountryCode) || COUNTRY_PHONE_OPTIONS[0];
                               const fullPhone = `${country.dialCode}${resetPhone.replace(/\D/g, '')}`;
                               try {
-                                const res = await fetch(`${API}/api/auth/forgot-password`, {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ phone: fullPhone }),
-                                });
-                                const data = await res.json();
-                                if (!res.ok) throw new Error(data.error || 'Error');
+                                await forgotPassword(fullPhone);
                                 setResetCodeSent(true);
                                 setResetMessage(isEn ? 'Code sent! Check your SMS.' : 'Code envoye ! Verifiez vos SMS.');
                               } catch (err: unknown) {
@@ -451,12 +446,7 @@ export default function Connexion() {
                                 const country = COUNTRY_PHONE_OPTIONS.find(c => c.code === resetCountryCode) || COUNTRY_PHONE_OPTIONS[0];
                                 const fullPhone = `${country.dialCode}${resetPhone.replace(/\D/g, '')}`;
                                 try {
-                                  const res = await fetch(`${API}/api/auth/reset-password`, {
-                                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ phone: fullPhone, code: resetCode.trim(), newPassword: resetNewPassword }),
-                                  });
-                                  const data = await res.json();
-                                  if (!res.ok) throw new Error(data.error || 'Error');
+                                  await resetPassword({ phone: fullPhone, code: resetCode.trim(), newPassword: resetNewPassword });
                                   setResetSuccess(true);
                                   setResetMessage(isEn ? 'Password changed! You can now sign in.' : 'Mot de passe modifie ! Vous pouvez maintenant vous connecter.');
                                 } catch (err: unknown) {

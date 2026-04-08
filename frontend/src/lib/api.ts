@@ -1,4 +1,18 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const FRONTEND_PROXY_BASE = '/api/backend';
+
+function buildApiUrl(path: string): string {
+  if (typeof window === 'undefined') {
+    return `${API_BASE}${path}`;
+  }
+
+  const normalizedPath = String(path || '').replace(/^\/+/, '');
+  const strippedApiPath = normalizedPath.startsWith('api/')
+    ? normalizedPath.slice(4)
+    : normalizedPath;
+
+  return `${FRONTEND_PROXY_BASE}/${strippedApiPath}`;
+}
 
 // ── Types partagées ──────────────────────────────────────────────
 
@@ -180,7 +194,8 @@ class ApiError extends Error {
 }
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(buildApiUrl(path), {
+    cache: 'no-store',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     ...options,
@@ -426,7 +441,11 @@ export async function uploadFile(file: File, folder?: string): Promise<{ url: st
   const formData = new FormData();
   formData.append('file', file);
   const qs = folder ? `?folder=${encodeURIComponent(folder)}` : '';
-  const res = await fetch(`${API_BASE}/api/upload${qs}`, { method: 'POST', body: formData });
+  const res = await fetch(buildApiUrl(`/api/upload${qs}`), {
+    method: 'POST',
+    body: formData,
+    credentials: 'include',
+  });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || 'Upload failed');
@@ -619,5 +638,25 @@ export async function createUserReview(input: {
       rating: input.rating,
       comment: input.comment,
     }),
+  });
+}
+
+// ── Password reset ──────────────────────────────────────────────
+
+export async function forgotPassword(phone: string): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function resetPassword(data: {
+  phone: string;
+  code: string;
+  newPassword: string;
+}): Promise<{ message: string }> {
+  return apiFetch<{ message: string }>('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify(data),
   });
 }

@@ -4,6 +4,7 @@ import { use, useEffect, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchCandidateProfileDetail, fetchUserReviews, type UserReview } from '@/lib/api';
+import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import RatingModal from '@/components/RatingModal';
 import { useApi } from '@/lib/useApi';
 
@@ -19,13 +20,13 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
   const isEn = locale === 'en';
   // Check auth for contact access
   const userSnapshot = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem('bolo237-user'),
+    subscribeToSessionStorage,
+    () => getSessionStorageValue('bolo237-user'),
     () => null,
   );
   const roleSnapshot = useSyncExternalStore(
-    () => () => {},
-    () => window.localStorage.getItem('bolo237-account-role'),
+    subscribeToSessionStorage,
+    () => getSessionStorageValue('bolo237-account-role'),
     () => null,
   );
   const isLoggedIn = Boolean(userSnapshot);

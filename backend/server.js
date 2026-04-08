@@ -28,8 +28,64 @@ const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('@prisma/client');
 
+const isProduction = process.env.NODE_ENV === 'production';
+
+function getDatabaseUrl() {
+  const databaseUrl = String(process.env.DATABASE_URL || '').trim();
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL is required.');
+  }
+
+  return databaseUrl;
+}
+
+function hasRequiredSslMode(connectionString) {
+  try {
+    const parsed = new URL(connectionString);
+    const sslMode = String(parsed.searchParams.get('sslmode') || '').trim().toLowerCase();
+    return sslMode === 'require' || sslMode === 'verify-ca' || sslMode === 'verify-full';
+  } catch {
+    return /(?:^|[?&])sslmode=require(?:&|$)/i.test(connectionString);
+  }
+}
+
+function getDatabaseUsername(connectionString) {
+  try {
+    return decodeURIComponent(new URL(connectionString).username || '');
+  } catch {
+    return '';
+  }
+}
+
+function validateSecurityConfiguration(databaseUrl) {
+  if (!isProduction) return;
+
+  if (!hasRequiredSslMode(databaseUrl)) {
+    throw new Error('DATABASE_URL must include sslmode=require in production.');
+  }
+
+  const sessionSecret = String(process.env.SESSION_JWT_SECRET || '').trim();
+  const masterOtp = String(process.env.MASTER_OTP || '').trim();
+  if (!sessionSecret || sessionSecret === 'change-me-in-production' || sessionSecret === masterOtp) {
+    throw new Error('SESSION_JWT_SECRET must be set to a dedicated strong secret in production.');
+  }
+
+  const configuredOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '').trim();
+  if (configuredOrigins.includes('*')) {
+    throw new Error('CORS_ALLOWED_ORIGINS cannot contain wildcard values in production.');
+  }
+
+  const databaseUsername = getDatabaseUsername(databaseUrl).toLowerCase();
+  if (databaseUsername === 'neondb_owner' || databaseUsername.endsWith('_owner')) {
+    console.warn('⚠️ DATABASE_URL is using an owner-level database role. Prefer a least-privilege Postgres role for the API.');
+  }
+}
+
 // --- Database setup ---
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const DATABASE_URL = getDatabaseUrl();
+validateSecurityConfiguration(DATABASE_URL);
+
+const pool = new Pool({ connectionString: DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
@@ -239,20 +295,19 @@ const envOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
   .map((entry) => entry.trim())
   .filter(Boolean);
 
+const allowPreviewOrigins = String(process.env.ALLOW_VERCEL_PREVIEW_ORIGINS || '').trim().toLowerCase() === 'true';
+
 const allowedOrigins = new Set([
-  'http://localhost:3000',
-  'http://localhost:3001',
   'https://www.bolo237.com',
   'https://admin.bolo237.com',
-  'https://admin-bolo237.vercel.app',
   ...envOrigins,
+  ...(!isProduction ? ['http://localhost:3000', 'http://localhost:3001'] : []),
 ]);
 
 function isAllowedOrigin(origin) {
   if (allowedOrigins.has(origin)) return true;
 
-  // Allow current Bolo237 Vercel deployments (production + preview).
-  if (/^https:\/\/[a-z0-9-]*bolo237[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
+  if (allowPreviewOrigins && /^https:\/\/[a-z0-9-]*bolo237[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
     return true;
   }
 
@@ -280,6 +335,56 @@ const apiGlobalLimiter = rateLimit({
   message: { error: 'Trop de requetes depuis cette IP. Reessayez dans 15 minutes.' },
 });
 
+const loginIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
+  message: { error: 'Trop de tentatives de connexion depuis cette IP. Reessayez dans 15 minutes.' },
+});
+
+const loginIdentifierLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  keyGenerator: (req) => {
+    const loginIdentifier = String(req.body?.identifier || req.body?.email || req.body?.phone || '')
+      .trim()
+      .toLowerCase();
+
+    return loginIdentifier || ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
+  },
+  message: { error: 'Trop de tentatives de connexion pour cet identifiant. Reessayez dans 15 minutes.' },
+});
+
+const forgotPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const phone = String(req.body?.phone || '').replace(/\D/g, '');
+    return phone || ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
+  },
+  message: { error: 'Trop de demandes de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
+});
+
+const resetPasswordLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 8,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const phone = String(req.body?.phone || '').replace(/\D/g, '');
+    return phone || ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
+  },
+  message: { error: 'Trop de tentatives de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
+});
+
 app.use('/api', apiGlobalLimiter);
 app.use(cookieParser());
 app.use(express.json());
@@ -304,6 +409,15 @@ function getSessionCookieOptions() {
     path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   };
+}
+
+function getSessionCookieClearOptions() {
+  const { maxAge: _maxAge, ...cookieOptions } = getSessionCookieOptions();
+  return cookieOptions;
+}
+
+function clearSessionCookie(res) {
+  res.clearCookie(SESSION_COOKIE_NAME, getSessionCookieClearOptions());
 }
 
 function createSessionToken(user) {
@@ -1861,7 +1975,7 @@ app.post('/api/users/:id/reviews', async (req, res) => {
 // =============================================
 
 // POST /api/auth/login — Connexion utilisateur
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', loginIpLimiter, loginIdentifierLimiter, async (req, res) => {
   try {
     const { email, phone, identifier, password } = req.body;
     const loginIdentifier = String(identifier || email || phone || '').trim();
@@ -1915,12 +2029,12 @@ app.get('/api/auth/me', async (req, res) => {
     });
 
     if (!user) {
-      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+      clearSessionCookie(res);
       return res.status(401).json({ error: 'Session invalide.' });
     }
 
     if (user.isBanned) {
-      res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+      clearSessionCookie(res);
       return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
     }
 
@@ -1943,7 +2057,7 @@ app.post('/api/auth/logout', (_req, res) => {
       // ignore decode errors during logout
     }
   }
-  res.clearCookie(SESSION_COOKIE_NAME, { path: '/' });
+  clearSessionCookie(res);
   res.json({ ok: true });
 });
 
@@ -3067,7 +3181,7 @@ app.post('/api/otp/verify', async (req, res) => {
 // =============================================
 
 // Etape 1: Demander un reset — envoie un OTP au telephone associé
-app.post('/api/auth/forgot-password', async (req, res) => {
+app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis." });
@@ -3098,7 +3212,7 @@ app.post('/api/auth/forgot-password', async (req, res) => {
 });
 
 // Etape 2: Vérifier OTP + définir nouveau mot de passe
-app.post('/api/auth/reset-password', async (req, res) => {
+app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
   try {
     const { phone, code, newPassword } = req.body;
     if (!phone || !code || !newPassword) {

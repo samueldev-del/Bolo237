@@ -721,6 +721,17 @@ export default function DashboardEntreprise() {
     );
   };
 
+  const detectedCandidateCount = new Set(
+    notifications
+      .map((notification) => Number(notification.data?.candidateId || 0))
+      .filter((candidateId) => Number.isFinite(candidateId) && candidateId > 0)
+  ).size;
+  const approvedJobsCount = publishedJobs.filter((job) => job.status === 'approved').length;
+  const pendingJobsCount = publishedJobs.filter((job) => job.status === 'pending').length;
+  const recentApplicationNotifications = notifications.slice(0, 5);
+  const topMatchedCandidates = candidateMatches.slice(0, 5);
+  const selectedMatchJob = authoredJobs.find((job) => job.id === selectedMatchJobId) || null;
+
   /* ────────────────────────────────────────────
      Sidebar menu items
      ──────────────────────────────────────────── */
@@ -1760,27 +1771,350 @@ export default function DashboardEntreprise() {
               </div>
             )}
 
-            {(activeSection === 'interviews' || activeSection === 'cvtheque' || activeSection === 'billing') && (
-              <div className="bg-white rounded-2xl border border-gray-200 p-8 sm:p-16 text-center">
-                <div className="text-5xl mb-4">
-                  {activeSection === 'interviews' && '\u{1F4C5}'}
-                  {activeSection === 'cvtheque' && '\u{1F4DA}'}
-                  {activeSection === 'billing' && '\u{1F4B3}'}
+            {activeSection === 'interviews' && (
+              <div className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
+                    <p className="text-xs font-bold uppercase tracking-wider text-blue-700">
+                      {isEn ? 'Applications to review' : 'Candidatures a traiter'}
+                    </p>
+                    <p className="mt-2 text-3xl font-extrabold text-blue-900">{String(unreadNotifications).padStart(2, '0')}</p>
+                    <p className="mt-2 text-xs font-medium text-blue-700">
+                      {isEn ? 'Unread notifications in your employer inbox.' : 'Notifications non lues dans votre boite entreprise.'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                    <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                      {isEn ? 'Qualified candidates detected' : 'Candidats detectes'}
+                    </p>
+                    <p className="mt-2 text-3xl font-extrabold text-emerald-900">{String(detectedCandidateCount).padStart(2, '0')}</p>
+                    <p className="mt-2 text-xs font-medium text-emerald-700">
+                      {isEn ? 'Profiles extracted from incoming application activity.' : 'Profils detectes depuis les activites de candidature.'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                    <p className="text-xs font-bold uppercase tracking-wider text-amber-700">
+                      {isEn ? 'Open positions' : 'Postes ouverts'}
+                    </p>
+                    <p className="mt-2 text-3xl font-extrabold text-amber-900">{String(approvedJobsCount + pendingJobsCount).padStart(2, '0')}</p>
+                    <p className="mt-2 text-xs font-medium text-amber-700">
+                      {isEn
+                        ? `${approvedJobsCount} live, ${pendingJobsCount} pending moderation.`
+                        : `${approvedJobsCount} en ligne, ${pendingJobsCount} en moderation.`}
+                    </p>
+                  </div>
                 </div>
-                <h3 className="font-bold text-gray-900 text-lg mb-2">
-                  {isEn ? 'Coming Soon' : 'Bientot disponible'}
-                </h3>
-                <p className="text-sm text-gray-500 font-medium max-w-sm mx-auto">
-                  {isEn
-                    ? 'This feature is under development. Post jobs to start receiving applications!'
-                    : 'Cette fonctionnalite est en cours de developpement. Publiez des offres pour commencer a recevoir des candidatures!'}
-                </p>
-                <button
-                  onClick={() => navigateTo('post')}
-                  className="mt-5 bg-green-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-green-700 transition active:scale-[0.98]"
-                >
-                  {isEn ? 'Post a Job' : 'Publier une offre'}
-                </button>
+
+                <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+                  <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+                    <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                      <div>
+                        <h3 className="text-[15px] font-bold text-gray-900">
+                          {isEn ? 'Recruitment follow-up' : 'Suivi de recrutement'}
+                        </h3>
+                        <p className="mt-1 text-xs font-medium text-gray-500">
+                          {isEn ? 'Track the latest candidate actions tied to your listings.' : 'Suivez les dernieres actions candidates liees a vos annonces.'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={openApplications}
+                        className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+                      >
+                        {isEn ? 'Open inbox' : 'Ouvrir la boite'}
+                      </button>
+                    </div>
+
+                    {recentApplicationNotifications.length === 0 ? (
+                      <div className="p-8 text-center">
+                        <p className="text-sm font-medium text-gray-500">
+                          {isEn ? 'No candidate interactions recorded yet.' : 'Aucune interaction candidat enregistree pour le moment.'}
+                        </p>
+                        <button
+                          onClick={() => navigateTo('post')}
+                          className="mt-4 rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-700"
+                        >
+                          {isEn ? 'Publish a listing' : 'Publier une offre'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-gray-100">
+                        {recentApplicationNotifications.map((notification) => (
+                          <div key={notification.id} className={`px-5 py-4 ${notification.isRead ? 'bg-white' : 'bg-blue-50/50'}`}>
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-bold text-gray-900">{notification.title}</p>
+                                <p className="mt-1 text-sm text-gray-600">{notification.message}</p>
+                                <p className="mt-2 text-xs font-medium text-gray-400">
+                                  {new Date(notification.createdAt).toLocaleString(isEn ? 'en-US' : 'fr-FR')}
+                                </p>
+                              </div>
+                              {!notification.isRead && <span className="mt-2 h-2.5 w-2.5 rounded-full bg-red-500" />}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border border-gray-200 bg-white p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-[15px] font-bold text-gray-900">
+                          {isEn ? 'Shortlist assistant' : 'Assistant shortlist'}
+                        </h3>
+                        <p className="mt-1 text-xs font-medium text-gray-500">
+                          {selectedMatchJob
+                            ? (isEn ? `Working from: ${selectedMatchJob.title}` : `Base de travail : ${selectedMatchJob.title}`)
+                            : (isEn ? 'Choose a listing to score candidates.' : 'Choisissez une annonce pour scorer les candidats.')}
+                        </p>
+                      </div>
+                      <button
+                        onClick={matchCandidatesWithAi}
+                        disabled={isMatchingCandidates || authoredJobs.length === 0}
+                        className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-60"
+                      >
+                        {isMatchingCandidates ? (isEn ? 'Scoring...' : 'Scoring...') : (isEn ? 'Refresh ranking' : 'Actualiser le classement')}
+                      </button>
+                    </div>
+
+                    {topMatchedCandidates.length > 0 ? (
+                      <div className="mt-4 space-y-3">
+                        {topMatchedCandidates.map((match) => (
+                          <div key={match.candidateId} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-bold text-gray-900">
+                                {isEn ? 'Candidate' : 'Candidat'} #{match.candidateId}
+                              </p>
+                              <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-extrabold text-indigo-700">
+                                {match.score}%
+                              </span>
+                            </div>
+                            <p className="mt-2 text-xs text-gray-600">{match.explanation}</p>
+                            <Link
+                              href={localizePath(`/candidat/${match.candidateId}`)}
+                              className="mt-3 inline-flex text-xs font-bold text-indigo-700 hover:text-indigo-800"
+                            >
+                              {isEn ? 'Open profile' : 'Ouvrir le profil'}
+                            </Link>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-4 rounded-2xl border border-dashed border-gray-200 bg-gray-50 p-5">
+                        <p className="text-sm font-medium text-gray-600">
+                          {isEn
+                            ? 'No shortlist generated yet. Use your live applications to produce ranked candidates.'
+                            : 'Aucune shortlist n a encore ete generee. Utilisez vos candidatures pour produire un classement exploitable.'}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'cvtheque' && (
+              <div className="space-y-5">
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900">CVtheque</h3>
+                      <p className="mt-1 text-sm font-medium text-gray-500">
+                        {isEn
+                          ? 'Search candidate profiles, then compare them with your open positions.'
+                          : 'Explorez les profils candidats, puis comparez-les a vos postes ouverts.'}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={localizePath('/cvtheque')}
+                        className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
+                      >
+                        {isEn ? 'Open CVtheque' : 'Ouvrir la CVtheque'}
+                      </Link>
+                      <button
+                        onClick={() => navigateTo('listings')}
+                        className="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+                      >
+                        {isEn ? 'View listings' : 'Voir mes annonces'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-col gap-3 lg:flex-row">
+                    <select
+                      value={selectedMatchJobId || ''}
+                      onChange={(e) => setSelectedMatchJobId(Number(e.target.value || 0))}
+                      className="flex-1 rounded-xl border border-gray-200 bg-white p-3 text-sm"
+                    >
+                      <option value="">{isEn ? 'Select a listing to benchmark candidates' : 'Selectionnez une annonce pour benchmarker les candidats'}</option>
+                      {authoredJobs.map((job) => (
+                        <option key={job.id} value={job.id}>
+                          #{job.id} - {job.title}
+                        </option>
+                      ))}
+                    </select>
+
+                    <button
+                      onClick={matchCandidatesWithAi}
+                      disabled={isMatchingCandidates || authoredJobs.length === 0}
+                      className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                    >
+                      {isMatchingCandidates
+                        ? (isEn ? 'Generating ranking...' : 'Generation du classement...')
+                        : (isEn ? 'Rank matching candidates' : 'Classer les candidats compatibles')}
+                    </button>
+                  </div>
+
+                  {matchError && (
+                    <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                      {matchError}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+                  {topMatchedCandidates.length > 0 ? topMatchedCandidates.map((match) => (
+                    <div key={match.candidateId} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">
+                            {isEn ? 'Candidate' : 'Candidat'} #{match.candidateId}
+                          </p>
+                          <p className="mt-1 text-xs font-medium text-gray-500">
+                            {selectedMatchJob
+                              ? (isEn ? `Compared with ${selectedMatchJob.title}` : `Compare avec ${selectedMatchJob.title}`)
+                              : (isEn ? 'Scored from your live applications' : 'Score depuis vos candidatures actives')}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-extrabold text-emerald-700">
+                          {match.score}%
+                        </span>
+                      </div>
+
+                      <p className="mt-3 text-sm text-gray-600">{match.explanation}</p>
+
+                      {match.strengths.length > 0 && (
+                        <p className="mt-3 text-xs font-medium text-emerald-700">
+                          {isEn ? 'Strengths:' : 'Forces :'} {match.strengths.join(' | ')}
+                        </p>
+                      )}
+                      {match.gaps.length > 0 && (
+                        <p className="mt-2 text-xs font-medium text-amber-700">
+                          {isEn ? 'Gaps:' : 'Ecarts :'} {match.gaps.join(' | ')}
+                        </p>
+                      )}
+
+                      <Link
+                        href={localizePath(`/candidat/${match.candidateId}`)}
+                        className="mt-4 inline-flex rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+                      >
+                        {isEn ? 'Open candidate profile' : 'Ouvrir le profil candidat'}
+                      </Link>
+                    </div>
+                  )) : (
+                    <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-sm font-medium text-gray-500 lg:col-span-2 xl:col-span-3">
+                      {isEn
+                        ? 'No ranked candidate yet. Publish a job, collect applications, then generate a shortlist here.'
+                        : 'Aucun candidat classe pour le moment. Publiez une offre, recuperez des candidatures, puis generez une shortlist ici.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'billing' && (
+              <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+                  <p className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+                    {isEn ? 'Current plan' : 'Plan actuel'}
+                  </p>
+                  <h3 className="mt-2 text-2xl font-extrabold text-gray-900">
+                    {isEn ? 'Launch plan: 100% free' : 'Plan lancement : 100% gratuit'}
+                  </h3>
+                  <p className="mt-2 text-sm font-medium text-gray-500">
+                    {isEn
+                      ? 'You can publish, manage applications, and prepare your company profile without waiting for billing activation.'
+                      : 'Vous pouvez publier, gerer les candidatures et preparer votre profil entreprise sans attendre l activation de la facturation.'}
+                  </p>
+
+                  <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
+                        {isEn ? 'Published listings' : 'Annonces publiees'}
+                      </p>
+                      <p className="mt-2 text-3xl font-extrabold text-emerald-900">{String(publishedJobs.length).padStart(2, '0')}</p>
+                    </div>
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-blue-700">
+                        {isEn ? 'Candidate leads' : 'Leads candidats'}
+                      </p>
+                      <p className="mt-2 text-3xl font-extrabold text-blue-900">{String(detectedCandidateCount).padStart(2, '0')}</p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wide text-amber-700">
+                        {isEn ? 'Account status' : 'Statut du compte'}
+                      </p>
+                      <p className="mt-2 text-lg font-extrabold text-amber-900">
+                        {isEnterpriseCertified ? (isEn ? 'Certified' : 'Certifie') : (isEn ? 'Pending setup' : 'Parametrage en cours')}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      onClick={() => navigateTo('post')}
+                      className="rounded-xl bg-green-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-green-700"
+                    >
+                      {isEn ? 'Post a new job' : 'Publier une nouvelle offre'}
+                    </button>
+                    <button
+                      onClick={() => navigateTo('profile')}
+                      className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
+                    >
+                      {isEn ? 'Complete company profile' : 'Completer le profil entreprise'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-white p-5 sm:p-6">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                    {isEn ? 'Support and readiness' : 'Support et activation'}
+                  </p>
+                  <div className="mt-4 space-y-4">
+                    <div className={`rounded-2xl border p-4 ${isEnterpriseCertified ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                      <p className={`text-sm font-bold ${isEnterpriseCertified ? 'text-emerald-800' : 'text-amber-800'}`}>
+                        {isEnterpriseCertified
+                          ? (isEn ? 'Identity and trust checks passed.' : 'Verification identite et confiance validee.')
+                          : (isEn ? 'Finish profile setup to strengthen account trust.' : 'Terminez le profil pour renforcer la confiance du compte.')}
+                      </p>
+                    </div>
+
+                    <div className={`rounded-2xl border p-4 ${hasCompanyPhoto ? 'border-blue-200 bg-blue-50' : 'border-red-200 bg-red-50'}`}>
+                      <p className={`text-sm font-bold ${hasCompanyPhoto ? 'text-blue-800' : 'text-red-800'}`}>
+                        {hasCompanyPhoto
+                          ? (isEn ? 'Logo uploaded and visible on profile.' : 'Logo telecharge et visible sur le profil.')
+                          : (isEn ? 'Logo still missing for public trust pages.' : 'Logo encore manquant pour les pages publiques de confiance.')}
+                      </p>
+                    </div>
+
+                    <a
+                      href="mailto:contact@bolo237.com?subject=Support%20Entreprise%20Bolo237"
+                      className="flex items-center justify-between rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4 transition hover:bg-gray-100"
+                    >
+                      <span>
+                        <span className="block text-sm font-bold text-gray-900">contact@bolo237.com</span>
+                        <span className="mt-1 block text-xs font-medium text-gray-500">
+                          {isEn ? 'Reach support for onboarding, verification, or account questions.' : 'Contactez le support pour onboarding, verification ou questions de compte.'}
+                        </span>
+                      </span>
+                      <span className="text-sm font-bold text-indigo-700">{isEn ? 'Write' : 'Ecrire'}</span>
+                    </a>
+                  </div>
+                </div>
               </div>
             )}
 

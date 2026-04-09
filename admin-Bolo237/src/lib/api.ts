@@ -41,7 +41,7 @@ export type Job = {
   location: string;
   description: string;
   salary: string | null;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  status: 'PENDING' | 'APPROVED' | 'ACTIVE' | 'REJECTED' | 'CLOSED';
   authorId: number;
   createdAt: string;
   author?: { id: number; name: string | null; email: string };
@@ -51,12 +51,27 @@ export type User = {
   id: number;
   email: string;
   name: string | null;
-  role: 'CANDIDAT' | 'ENTREPRISE' | 'ARTISAN' | 'ADMIN';
+  role: 'CANDIDAT' | 'ENTREPRISE' | 'ARTISAN' | 'ADMIN' | 'SUPER_ADMIN';
   isVerified: boolean;
   isBanned: boolean;
   banReason: string | null;
   bannedAt: string | null;
   createdAt: string;
+};
+
+export type AdminSearchUser = {
+  id: number;
+  name: string | null;
+  email: string;
+  phone?: string | null;
+  role: User['role'];
+};
+
+export type AdminSearchJob = {
+  id: number;
+  title: string;
+  company: string;
+  status: Job['status'];
 };
 
 export type Report = {
@@ -323,11 +338,13 @@ type UsersResponse = { users: User[]; pagination: Pagination };
 
 export function fetchUsers(filters: {
   role?: string;
+  search?: string;
   page?: number;
   limit?: number;
 } = {}): Promise<UsersResponse> {
   const params = new URLSearchParams();
   if (filters.role) params.set('role', filters.role);
+  if (filters.search) params.set('search', filters.search);
   if (filters.page) params.set('page', String(filters.page));
   if (filters.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();
@@ -601,7 +618,7 @@ export async function updateAdminPrivacyRequest(reference: string, data: {
 
 // ── Admin Search ────────────────────────────────────────────────
 
-export async function adminSearch(query: string): Promise<{ users: User[]; jobs: Job[] }> {
+export async function adminSearch(query: string): Promise<{ users: AdminSearchUser[]; jobs: AdminSearchJob[] }> {
   return apiFetch(`/api/admin/search?q=${encodeURIComponent(query)}`);
 }
 

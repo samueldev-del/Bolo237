@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/admin-shell";
 import {
   fetchJobs,
@@ -21,6 +22,7 @@ import {
   MapPin,
   Building2,
   Calendar,
+  Search,
   User,
 } from "lucide-react";
 
@@ -29,7 +31,9 @@ type StatusFilter = "all" | "PENDING" | "APPROVED" | "REJECTED";
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   PENDING: { label: "En attente", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   APPROVED: { label: "Approuve", cls: "bg-green-50 text-green-700 border-green-200" },
+  ACTIVE: { label: "Active", cls: "bg-green-50 text-green-700 border-green-200" },
   REJECTED: { label: "Rejete", cls: "bg-red-50 text-red-700 border-red-200" },
+  CLOSED: { label: "Cloturee", cls: "bg-zinc-100 text-zinc-700 border-zinc-200" },
 };
 
 function formatDate(d: string) {
@@ -40,11 +44,16 @@ function formatDate(d: string) {
   });
 }
 
-export default function ModerationJobsPage() {
+function ModerationJobsPageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const appliedSearch = searchParams.get("search") || "";
+  const highlightJobId = Number(searchParams.get("highlight") || 0);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [searchInput, setSearchInput] = useState(appliedSearch);
   const [page, setPage] = useState(1);
   const [actionId, setActionId] = useState<number | null>(null);
   const [selectedJob, setSelectedJob] = useState<Job | null>(null);
@@ -53,7 +62,26 @@ export default function ModerationJobsPage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, page]);
+  }, [statusFilter, page, appliedSearch]);
+
+  useEffect(() => {
+    setSearchInput(appliedSearch);
+    setPage(1);
+  }, [appliedSearch]);
+
+  useEffect(() => {
+    if (highlightJobId) {
+      const matchedJob = jobs.find((job) => job.id === highlightJobId);
+      if (matchedJob) {
+        setSelectedJob(matchedJob);
+        return;
+      }
+    }
+
+    if (selectedJob && !jobs.some((job) => job.id === selectedJob.id)) {
+      setSelectedJob(null);
+    }
+  }, [jobs, highlightJobId, selectedJob]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -65,14 +93,30 @@ export default function ModerationJobsPage() {
     try {
       const filters: Record<string, string | number> = { page, limit: 10 };
       if (statusFilter !== "all") filters.status = statusFilter;
+      if (appliedSearch) filters.search = appliedSearch;
       const data = await fetchJobs(filters);
       setJobs(data.jobs);
       setPagination(data.pagination);
     } catch {
-      /* empty */
+      showToast("Erreur lors du chargement des annonces");
     } finally {
       setLoading(false);
     }
+  }
+
+  function applySearch(nextSearch: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    const trimmed = nextSearch.trim();
+
+    if (trimmed) {
+      params.set("search", trimmed);
+    } else {
+      params.delete("search");
+    }
+
+    params.delete("highlight");
+    setPage(1);
+    router.replace(`/moderation/jobs${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
   async function handleAction(id: number, action: "APPROVED" | "REJECTED" | "DELETE") {
@@ -114,24 +158,65 @@ export default function ModerationJobsPage() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Filter className="h-4 w-4 text-zinc-400" />
-        {(["all", "PENDING", "APPROVED", "REJECTED"] as StatusFilter[]).map((s) => (
-          <button
-            key={s}
-            onClick={() => { setStatusFilter(s); setPage(1); }}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-              statusFilter === s
-                ? "border-green-700 bg-green-700 text-white"
-                : "border-zinc-200 bg-white text-zinc-600 hover:border-green-300 hover:text-green-700"
-            }`}
-          >
-            {s === "all" ? "Toutes" : STATUS_LABELS[s].label}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-zinc-400">
-          {pagination ? `${pagination.total} annonce${pagination.total > 1 ? "s" : ""}` : ""}
-        </span>
+      <div className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter className="h-4 w-4 text-zinc-400" />
+          {(["all", "PENDING", "APPROVED", "REJECTED"] as StatusFilter[]).map((s) => (
+            <button
+              key={s}
+              onClick={() => { setStatusFilter(s); setPage(1); }}
+              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                statusFilter === s
+                  ? "border-green-700 bg-green-700 text-white"
+                  : "border-zinc-200 bg-white text-zinc-600 hover:border-green-300 hover:text-green-700"
+              }`}
+            >
+              {s === "all" ? "Toutes" : STATUS_LABELS[s].label}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-zinc-400">
+            {pagination ? `${pagination.total} annonce${pagination.total > 1 ? "s" : ""}` : ""}
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <label className="relative flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  applySearch(searchInput);
+                }
+              }}
+              placeholder="Rechercher par ID, titre, entreprise ou description..."
+              className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-green-400 focus:bg-white focus:ring-2 focus:ring-green-100"
+            />
+          </label>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => applySearch(searchInput)}
+              className="rounded-xl bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-800"
+            >
+              Rechercher
+            </button>
+            {appliedSearch ? (
+              <button
+                onClick={() => {
+                  setSearchInput("");
+                  applySearch("");
+                }}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+              >
+                Effacer
+              </button>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       {/* Content */}
@@ -153,7 +238,9 @@ export default function ModerationJobsPage() {
                   key={job.id}
                   onClick={() => setSelectedJob(job)}
                   className={`flex items-center justify-between px-5 py-4 cursor-pointer transition hover:bg-green-50/50 ${
-                    selectedJob?.id === job.id ? "bg-green-50/70 border-l-2 border-l-green-500" : ""
+                    selectedJob?.id === job.id || highlightJobId === job.id
+                      ? "bg-green-50/70 border-l-2 border-l-green-500"
+                      : ""
                   }`}
                 >
                   <div className="min-w-0 flex-1">
@@ -297,7 +384,7 @@ export default function ModerationJobsPage() {
                       Approuver
                     </button>
                   )}
-                  {selectedJob.status === "APPROVED" && (
+                  {(selectedJob.status === "APPROVED" || selectedJob.status === "ACTIVE") && (
                     <button
                       onClick={() => handleAction(selectedJob.id, "REJECTED")}
                       disabled={actionId === selectedJob.id}
@@ -325,5 +412,23 @@ export default function ModerationJobsPage() {
         </div>
       </div>
     </AdminShell>
+  );
+}
+
+function ModerationJobsPageFallback() {
+  return (
+    <AdminShell title="Moderation des annonces" description="Validez, rejetez ou supprimez les offres d'emploi.">
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+      </div>
+    </AdminShell>
+  );
+}
+
+export default function ModerationJobsPage() {
+  return (
+    <Suspense fallback={<ModerationJobsPageFallback />}>
+      <ModerationJobsPageContent />
+    </Suspense>
   );
 }

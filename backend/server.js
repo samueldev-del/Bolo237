@@ -879,6 +879,9 @@ function formatShortDate(date, locale = 'fr-FR') {
 app.get('/api/jobs', async (req, res) => {
   try {
     const { status, location, search, authorId, page = '1', limit = '20' } = req.query;
+    const searchTerm = search ? String(search).trim() : '';
+    const numericSearch = searchTerm.replace(/^#/, '');
+    const exactSearchId = /^\d+$/.test(numericSearch) ? parseInt(numericSearch, 10) : null;
 
     const where = {};
     if (status) {
@@ -895,12 +898,16 @@ app.get('/api/jobs', async (req, res) => {
       if (!isNaN(parsedAuthorId)) where.authorId = parsedAuthorId;
     }
     if (location) where.location = { contains: String(location), mode: 'insensitive' };
-    if (search) {
-      where.OR = [
-        { title: { contains: String(search), mode: 'insensitive' } },
-        { company: { contains: String(search), mode: 'insensitive' } },
-        { description: { contains: String(search), mode: 'insensitive' } },
+    if (searchTerm) {
+      const searchConditions = [
+        { title: { contains: searchTerm, mode: 'insensitive' } },
+        { company: { contains: searchTerm, mode: 'insensitive' } },
+        { description: { contains: searchTerm, mode: 'insensitive' } },
       ];
+      if (exactSearchId !== null) {
+        searchConditions.unshift({ id: exactSearchId });
+      }
+      where.OR = searchConditions;
     }
 
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
@@ -1535,10 +1542,24 @@ app.delete('/api/jobs/:id', async (req, res) => {
 // GET /api/users — Liste des utilisateurs
 app.get('/api/users', requireAdminSession, async (req, res) => {
   try {
-    const { role, page = '1', limit = '20' } = req.query;
+    const { role, search, page = '1', limit = '20' } = req.query;
+    const searchTerm = search ? String(search).trim() : '';
+    const numericSearch = searchTerm.replace(/^#/, '');
+    const exactSearchId = /^\d+$/.test(numericSearch) ? parseInt(numericSearch, 10) : null;
 
     const where = {};
     if (role) where.role = String(role);
+    if (searchTerm) {
+      const searchConditions = [
+        { name: { contains: searchTerm, mode: 'insensitive' } },
+        { email: { contains: searchTerm, mode: 'insensitive' } },
+        { phone: { contains: searchTerm, mode: 'insensitive' } },
+      ];
+      if (exactSearchId !== null) {
+        searchConditions.unshift({ id: exactSearchId });
+      }
+      where.OR = searchConditions;
+    }
 
     const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
     const take = Math.min(50, Math.max(1, parseInt(String(limit), 10) || 20));
@@ -2895,24 +2916,33 @@ app.get('/api/admin/search', requireAdminSession, async (req, res) => {
     const q = req.query.q ? String(req.query.q).trim() : '';
     if (!q) return res.json({ users: [], jobs: [] });
 
+    const numericQuery = q.replace(/^#/, '');
+    const exactSearchId = /^\d+$/.test(numericQuery) ? parseInt(numericQuery, 10) : null;
+
+    const userSearchConditions = [
+      { name: { contains: q, mode: 'insensitive' } },
+      { email: { contains: q, mode: 'insensitive' } },
+      { phone: { contains: q, mode: 'insensitive' } },
+    ];
+
+    const jobSearchConditions = [
+      { title: { contains: q, mode: 'insensitive' } },
+      { company: { contains: q, mode: 'insensitive' } },
+    ];
+
+    if (exactSearchId !== null) {
+      userSearchConditions.unshift({ id: exactSearchId });
+      jobSearchConditions.unshift({ id: exactSearchId });
+    }
+
     const [users, jobs] = await Promise.all([
       prisma.user.findMany({
-        where: {
-          OR: [
-            { name: { contains: q, mode: 'insensitive' } },
-            { email: { contains: q, mode: 'insensitive' } },
-          ],
-        },
+        where: { OR: userSearchConditions },
         take: 5,
-        select: { id: true, name: true, email: true, role: true },
+        select: { id: true, name: true, email: true, phone: true, role: true },
       }),
       prisma.job.findMany({
-        where: {
-          OR: [
-            { title: { contains: q, mode: 'insensitive' } },
-            { company: { contains: q, mode: 'insensitive' } },
-          ],
-        },
+        where: { OR: jobSearchConditions },
         take: 5,
         select: { id: true, title: true, company: true, status: true },
       }),

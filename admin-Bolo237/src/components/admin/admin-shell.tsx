@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   CircleStop,
@@ -19,9 +19,14 @@ import {
   X,
   LayoutDashboard,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
 import { useAdminInbox } from "@/components/admin/admin-inbox-provider";
-import { fetchAdminMyNotifications } from "@/lib/api";
+import {
+  adminSearch,
+  fetchAdminMyNotifications,
+  type AdminSearchJob,
+  type AdminSearchUser,
+} from "@/lib/api";
 
 type AdminShellProps = {
   title: string;
@@ -147,8 +152,19 @@ export default function AdminShell({
   children,
 }: AdminShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [adminUnreadCount, setAdminUnreadCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{ users: AdminSearchUser[]; jobs: AdminSearchJob[] }>({
+    users: [],
+    jobs: [],
+  });
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const deferredSearchQuery = useDeferredValue(searchQuery.trim());
+  const searchContainerRef = useRef<HTMLDivElement | null>(null);
   const { summary, sync, isLoading } = useAdminInbox();
   const unreadCount = summary?.unreadCount ?? 0;
   const inboxBadge = unreadCount > 99 ? "99+" : unreadCount > 0 ? String(unreadCount) : undefined;
@@ -185,6 +201,111 @@ export default function AdminShell({
       cancelled = true;
     };
   }, [pathname]);
+
+  useEffect(() => {
+    function handlePointerDown(event: MouseEvent) {
+      if (!searchContainerRef.current?.contains(event.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, []);
+
+  useEffect(() => {
+    setSearchOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSearchResults() {
+      if (deferredSearchQuery.length < 2) {
+        setSearchResults({ users: [], jobs: [] });
+        setSearchError("");
+        setSearchLoading(false);
+        return;
+      }
+
+      setSearchLoading(true);
+      setSearchError("");
+
+      try {
+        const results = await adminSearch(deferredSearchQuery);
+        if (!cancelled) {
+          setSearchResults(results);
+          setSearchOpen(true);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setSearchResults({ users: [], jobs: [] });
+          setSearchError(error instanceof Error ? error.message : "Erreur lors de la recherche");
+        }
+      } finally {
+        if (!cancelled) {
+          setSearchLoading(false);
+        }
+      }
+    }
+
+    void loadSearchResults();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [deferredSearchQuery]);
+
+  function buildUserSearchPath(query: string, highlightId?: number) {
+    const params = new URLSearchParams();
+    params.set("search", query);
+    if (highlightId) {
+      params.set("highlight", String(highlightId));
+    }
+    return `/utilisateurs/liste?${params.toString()}`;
+  }
+
+  function buildJobSearchPath(query: string, highlightId?: number) {
+    const params = new URLSearchParams();
+    params.set("search", query);
+    if (highlightId) {
+      params.set("highlight", String(highlightId));
+    }
+    return `/moderation/jobs?${params.toString()}`;
+  }
+
+  function openSearchPath(path: string) {
+    setSearchOpen(false);
+    setSearchQuery("");
+    setSearchResults({ users: [], jobs: [] });
+    setSearchError("");
+    router.push(path);
+  }
+
+  function handleSearchSubmit() {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      setSearchOpen(false);
+      return;
+    }
+
+    const firstUser = searchResults.users[0];
+    const firstJob = searchResults.jobs[0];
+
+    if (firstUser && !firstJob) {
+      openSearchPath(buildUserSearchPath(String(firstUser.id), firstUser.id));
+      return;
+    }
+
+    if (firstJob && !firstUser) {
+      openSearchPath(buildJobSearchPath(String(firstJob.id), firstJob.id));
+      return;
+    }
+
+    openSearchPath(buildUserSearchPath(trimmed));
+  }
+
+  const totalSearchHits = searchResults.users.length + searchResults.jobs.length;
 
   const navigationAlertItems = alertItems.map((item) =>
     item.href === "/inbox"
@@ -329,14 +450,117 @@ export default function AdminShell({
             </div>
 
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <label className="relative w-full max-w-2xl">
+              <div ref={searchContainerRef} className="relative w-full max-w-2xl">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
                 <input
                   type="search"
+                  value={searchQuery}
                   placeholder="Rechercher un utilisateur ou une annonce par ID ou nom..."
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setSearchOpen(event.target.value.trim().length >= 2);
+                  }}
+                  onFocus={() => {
+                    if (searchQuery.trim().length >= 2) {
+                      setSearchOpen(true);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleSearchSubmit();
+                    }
+                    if (event.key === "Escape") {
+                      setSearchOpen(false);
+                    }
+                  }}
                   className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#DA7756] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
                 />
-              </label>
+                {searchOpen ? (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-50 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.14)]">
+                    {searchLoading ? (
+                      <div className="px-4 py-4 text-sm text-zinc-500">Recherche en cours...</div>
+                    ) : searchError ? (
+                      <div className="px-4 py-4 text-sm text-red-600">{searchError}</div>
+                    ) : deferredSearchQuery.length < 2 ? (
+                      <div className="px-4 py-4 text-sm text-zinc-500">Tapez au moins 2 caracteres pour lancer la recherche.</div>
+                    ) : totalSearchHits === 0 ? (
+                      <div className="px-4 py-4 text-sm text-zinc-500">Aucun resultat pour cette recherche.</div>
+                    ) : (
+                      <div className="max-h-[420px] overflow-y-auto py-2">
+                        {searchResults.users.length > 0 ? (
+                          <div className="border-b border-zinc-100 px-2 pb-2">
+                            <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                              Utilisateurs
+                            </p>
+                            {searchResults.users.map((user) => (
+                              <button
+                                key={`user-${user.id}`}
+                                type="button"
+                                onClick={() => openSearchPath(buildUserSearchPath(String(user.id), user.id))}
+                                className="flex w-full items-start justify-between rounded-xl px-3 py-3 text-left transition hover:bg-zinc-50"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-semibold text-zinc-900">
+                                    {user.name || user.email}
+                                  </span>
+                                  <span className="block truncate text-xs text-zinc-500">
+                                    #{user.id} • {user.role} • {user.phone || user.email}
+                                  </span>
+                                </span>
+                                <span className="text-xs font-medium text-[#DA7756]">Ouvrir</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {searchResults.jobs.length > 0 ? (
+                          <div className="px-2 pt-2">
+                            <p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+                              Annonces
+                            </p>
+                            {searchResults.jobs.map((job) => (
+                              <button
+                                key={`job-${job.id}`}
+                                type="button"
+                                onClick={() => openSearchPath(buildJobSearchPath(String(job.id), job.id))}
+                                className="flex w-full items-start justify-between rounded-xl px-3 py-3 text-left transition hover:bg-zinc-50"
+                              >
+                                <span className="min-w-0">
+                                  <span className="block truncate text-sm font-semibold text-zinc-900">
+                                    {job.title}
+                                  </span>
+                                  <span className="block truncate text-xs text-zinc-500">
+                                    #{job.id} • {job.company} • {job.status}
+                                  </span>
+                                </span>
+                                <span className="text-xs font-medium text-[#DA7756]">Ouvrir</span>
+                              </button>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        <div className="mt-2 flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => openSearchPath(buildUserSearchPath(deferredSearchQuery))}
+                            className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-600 transition hover:border-[#DA7756] hover:text-[#8B4332]"
+                          >
+                            Voir tous les utilisateurs
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => openSearchPath(buildJobSearchPath(deferredSearchQuery))}
+                            className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-600 transition hover:border-[#DA7756] hover:text-[#8B4332]"
+                          >
+                            Voir toutes les annonces
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
 
               <div className="flex items-center justify-end gap-2 sm:gap-4">
                 <Link

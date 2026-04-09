@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminShell from "@/components/admin/admin-shell";
 import {
   fetchUsers,
@@ -24,6 +25,7 @@ import {
   Trash2,
   UserCog,
   X,
+  Search,
   ShieldCheck,
   ShieldOff,
   Unlock,
@@ -36,6 +38,7 @@ const ROLE_LABELS: Record<string, { label: string; cls: string }> = {
   ENTREPRISE: { label: "Entreprise", cls: "bg-purple-50 text-purple-700 border-purple-200" },
   ARTISAN: { label: "Artisan", cls: "bg-amber-50 text-amber-700 border-amber-200" },
   ADMIN: { label: "Admin", cls: "bg-green-50 text-green-700 border-green-200" },
+  SUPER_ADMIN: { label: "Super Admin", cls: "bg-emerald-50 text-emerald-700 border-emerald-200" },
 };
 
 const ROLE_OPTIONS = ["CANDIDAT", "ENTREPRISE", "ARTISAN", "ADMIN"];
@@ -48,11 +51,16 @@ function formatDate(d: string) {
   });
 }
 
-export default function UtilisateursListePage() {
+function UtilisateursListePageContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const appliedSearch = searchParams.get("search") || "";
+  const highlightUserId = Number(searchParams.get("highlight") || 0);
   const [users, setUsers] = useState<User[]>([]);
   const [pagination, setPagination] = useState<Pagination | null>(null);
   const [loading, setLoading] = useState(true);
   const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [searchInput, setSearchInput] = useState(appliedSearch);
   const [page, setPage] = useState(1);
   const [actionMenu, setActionMenu] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -66,7 +74,12 @@ export default function UtilisateursListePage() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roleFilter, page]);
+  }, [roleFilter, page, appliedSearch]);
+
+  useEffect(() => {
+    setSearchInput(appliedSearch);
+    setPage(1);
+  }, [appliedSearch]);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -78,14 +91,30 @@ export default function UtilisateursListePage() {
     try {
       const filters: Record<string, string | number> = { page, limit: 15 };
       if (roleFilter !== "all") filters.role = roleFilter;
+      if (appliedSearch) filters.search = appliedSearch;
       const data = await fetchUsers(filters);
       setUsers(data.users);
       setPagination(data.pagination);
     } catch {
-      /* empty */
+      showToast("Erreur lors du chargement des utilisateurs");
     } finally {
       setLoading(false);
     }
+  }
+
+  function applySearch(nextSearch: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    const trimmed = nextSearch.trim();
+
+    if (trimmed) {
+      params.set("search", trimmed);
+    } else {
+      params.delete("search");
+    }
+
+    params.delete("highlight");
+    setPage(1);
+    router.replace(`/utilisateurs/liste${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
   async function handleVerify(user: User) {
@@ -160,24 +189,65 @@ export default function UtilisateursListePage() {
       )}
 
       {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Filter className="h-4 w-4 text-zinc-400" />
-        {(["all", "CANDIDAT", "ENTREPRISE", "ARTISAN"] as RoleFilter[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => { setRoleFilter(r); setPage(1); }}
-            className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
-              roleFilter === r
-                ? "border-green-700 bg-green-700 text-white"
-                : "border-zinc-200 bg-white text-zinc-600 hover:border-green-300 hover:text-green-700"
-            }`}
-          >
-            {r === "all" ? "Tous" : ROLE_LABELS[r].label + "s"}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-zinc-400">
-          {pagination ? `${pagination.total} utilisateur${pagination.total > 1 ? "s" : ""}` : ""}
-        </span>
+      <div className="space-y-3 rounded-2xl border border-zinc-200 bg-white p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter className="h-4 w-4 text-zinc-400" />
+          {(["all", "CANDIDAT", "ENTREPRISE", "ARTISAN"] as RoleFilter[]).map((r) => (
+            <button
+              key={r}
+              onClick={() => { setRoleFilter(r); setPage(1); }}
+              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${
+                roleFilter === r
+                  ? "border-green-700 bg-green-700 text-white"
+                  : "border-zinc-200 bg-white text-zinc-600 hover:border-green-300 hover:text-green-700"
+              }`}
+            >
+              {r === "all" ? "Tous" : ROLE_LABELS[r].label + "s"}
+            </button>
+          ))}
+          <span className="ml-auto text-xs text-zinc-400">
+            {pagination ? `${pagination.total} utilisateur${pagination.total > 1 ? "s" : ""}` : ""}
+          </span>
+        </div>
+
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <label className="relative flex-1">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  applySearch(searchInput);
+                }
+              }}
+              placeholder="Rechercher par ID, nom, email ou telephone..."
+              className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-11 pr-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-green-400 focus:bg-white focus:ring-2 focus:ring-green-100"
+            />
+          </label>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => applySearch(searchInput)}
+              className="rounded-xl bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-800"
+            >
+              Rechercher
+            </button>
+            {appliedSearch ? (
+              <button
+                onClick={() => {
+                  setSearchInput("");
+                  applySearch("");
+                }}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+              >
+                Effacer
+              </button>
+            ) : null}
+          </div>
+        </div>
       </div>
 
       {/* User Cards Grid */}
@@ -195,7 +265,11 @@ export default function UtilisateursListePage() {
             <div
               key={user.id}
               className={`relative rounded-2xl border bg-white p-5 transition hover:shadow-md ${
-                user.isBanned ? "border-red-200 bg-red-50/30" : "border-zinc-200"
+                highlightUserId === user.id
+                  ? "border-green-400 ring-2 ring-green-100"
+                  : user.isBanned
+                    ? "border-red-200 bg-red-50/30"
+                    : "border-zinc-200"
               }`}
             >
               {/* Header row */}
@@ -497,5 +571,23 @@ export default function UtilisateursListePage() {
         </div>
       )}
     </AdminShell>
+  );
+}
+
+function UtilisateursListePageFallback() {
+  return (
+    <AdminShell title="Utilisateurs" description="Gestion complete des comptes candidats, entreprises et artisans.">
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+      </div>
+    </AdminShell>
+  );
+}
+
+export default function UtilisateursListePage() {
+  return (
+    <Suspense fallback={<UtilisateursListePageFallback />}>
+      <UtilisateursListePageContent />
+    </Suspense>
   );
 }

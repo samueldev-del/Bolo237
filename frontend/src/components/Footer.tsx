@@ -111,6 +111,18 @@ export default function Footer() {
         {/* Ligne de copyright */}
         <div className="text-center border-t border-gray-300 pt-8 mt-8 text-sm font-bold flex flex-col items-center gap-4">
           <p>© 2026 Bolo237. {t.footer.rights}</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#7B746B]">
+            A{' '}
+            <a
+              href="https://www.dtsfuture.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-black border-b border-black/15 hover:text-[#DA7756] hover:border-[#DA7756]/40 transition"
+            >
+              DTSfuture
+            </a>{' '}
+            Product
+          </p>
         </div>
 
       </div>

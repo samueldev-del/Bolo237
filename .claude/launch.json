@@ -4,8 +4,9 @@
     {
       "name": "frontend",
       "runtimeExecutable": "/bin/bash",
-      "runtimeArgs": ["-c", "export PATH=/Users/samuel/.nvm/versions/node/v24.14.0/bin:$PATH && cd frontend && npx next dev --port 3000"],
-      "port": 3000
+      "runtimeArgs": ["-c", "export PATH=/Users/samuel/.nvm/versions/node/v24.14.0/bin:$PATH && cd frontend && npx next dev"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

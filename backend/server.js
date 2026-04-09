@@ -57,6 +57,15 @@ function getDatabaseUsername(connectionString) {
   }
 }
 
+function getPositiveIntegerEnv(name, fallbackValue) {
+  const rawValue = Number(process.env[name]);
+  if (Number.isFinite(rawValue) && rawValue > 0) {
+    return Math.floor(rawValue);
+  }
+
+  return fallbackValue;
+}
+
 function validateSecurityConfiguration(databaseUrl) {
   if (!isProduction) return;
 
@@ -333,6 +342,17 @@ const apiGlobalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Trop de requetes depuis cette IP. Reessayez dans 15 minutes.' },
+});
+
+const signupIpLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: getPositiveIntegerEnv('SIGNUP_IP_DAILY_LIMIT', 3),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
+  message: {
+    error: 'Trop de creations de compte depuis cette IP aujourd hui. Reessayez demain ou contactez le support.',
+  },
 });
 
 const loginIpLimiter = rateLimit({
@@ -1565,9 +1585,15 @@ app.get('/api/users/:id', requireAdminSession, async (req, res) => {
 });
 
 // POST /api/users — Créer un utilisateur
-app.post('/api/users', async (req, res) => {
+app.post('/api/users', signupIpLimiter, async (req, res) => {
   try {
     const { email, password, name, role, phone } = req.body;
+    const honeypotValue = String(req.body?.website || '').trim();
+
+    if (honeypotValue) {
+      console.warn(`⚠️ Honeypot inscription declenche depuis IP=${req.ip || 'unknown'}`);
+      return res.status(400).json({ error: 'Impossible de traiter cette inscription.' });
+    }
 
     if (!phone || !password) {
       return res.status(400).json({ error: 'Numero de telephone et mot de passe requis.' });

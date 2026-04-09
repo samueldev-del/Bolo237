@@ -321,6 +321,7 @@ export async function createUser(data: {
   name?: string;
   role?: string;
   phone?: string;
+  website?: string;
 }): Promise<ApiUser> {
   return apiFetch<ApiUser>('/api/users', {
     method: 'POST',

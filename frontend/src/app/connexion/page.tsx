@@ -13,6 +13,7 @@ type Role = SignupRole | 'admin';
 
 const ROLE_STORAGE_KEY = 'bolo237-account-role';
 const USER_KEY = 'bolo237-user';
+const SIGNUP_HONEYPOT_FIELD = 'website';
 
 const ROLE_MAP: Record<SignupRole, string> = {
   chercheur: 'CANDIDAT',
@@ -73,6 +74,7 @@ export default function Connexion() {
   const [showPassword, setShowPassword] = useState(false);
   // Entreprise
   const [companyName, setCompanyName] = useState('');
+  const [honeypotValue, setHoneypotValue] = useState('');
 
   // Login
   const [loginEmail, setLoginEmail] = useState('');
@@ -159,6 +161,7 @@ export default function Connexion() {
         name: fullName,
         role: ROLE_MAP[selectedRole],
         phone: internationalPhone,
+        website: honeypotValue,
       });
 
       // Open secure HttpOnly session cookie immediately after signup.
@@ -595,6 +598,19 @@ export default function Connexion() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="nom@email.com"
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
+                />
+              </div>
+
+              <div className="absolute left-[-10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
+                <label htmlFor="signup-website">Website</label>
+                <input
+                  id="signup-website"
+                  name={SIGNUP_HONEYPOT_FIELD}
+                  type="text"
+                  tabIndex={-1}
+                  autoComplete="off"
+                  value={honeypotValue}
+                  onChange={(e) => setHoneypotValue(e.target.value)}
                 />
               </div>
 

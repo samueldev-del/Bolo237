@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Bolo237 Admin
 
-## Getting Started
+Centre de commande Next.js pour la moderation et l'administration de Bolo237.
 
-First, run the development server:
+## Commandes
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Variables d'environnement
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Variables requises pour un deploiement utile:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+NEXT_PUBLIC_API_URL=https://api-237jobs.onrender.com
+ADMIN_BACKEND_EMAIL=admin@bolo237.com
+ADMIN_BACKEND_PASSWORD=mot-de-passe-backend-admin
+ADMIN_PASSWORD=mot-de-passe-du-portail-admin
+ADMIN_SESSION_SECRET=une-cle-longue-et-aleatoire
+```
 
-## Learn More
+Variables recommandees pour verrouiller l'acces reseau:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+ADMIN_ALLOWED_IPS=203.0.113.10,198.51.100.24
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Notes:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `ADMIN_SESSION_SECRET` n'a plus de fallback en production. Si elle est absente, aucune session admin locale n'est creee.
+- `ADMIN_ALLOWED_IPS` et `ADMIN_IP_ALLOWLIST` acceptent une liste d'IP publiques separees par des virgules. Quand la liste est renseignee, toute IP non autorisee recoit une `404` avant meme l'affichage du login.
+- `ADMIN_PASSWORD` protege l'entree du portail. Les actions admin reelles passent ensuite par le compte backend fourni par `ADMIN_BACKEND_EMAIL` et `ADMIN_BACKEND_PASSWORD`.
 
-## Deploy on Vercel
+## Ce qui est verrouille
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 1. Middleware frontal
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Le middleware Next.js protege toutes les pages privees.
+
+- `/login` reste public.
+- Les autres pages exigent un cookie `admin_session` signe et non expire.
+- Un cookie forge ou expire est supprime puis redirige vers `/login`.
+- Si l'allowlist IP est active, les visiteurs hors liste recoivent une `404`.
+
+### 2. RBAC cote serveur
+
+Le portail admin ne parle jamais directement au backend avec la session du navigateur.
+
+- Les appels passent par `/api/backend/[...path]`.
+- Le proxy local exige une session admin locale valide.
+- Le proxy ouvre ensuite une session backend avec le compte admin configure.
+- Le backend Bolo237 controle deja `ADMIN` / `SUPER_ADMIN` cote serveur et renvoie `403` si le role ne convient pas.
+
+### 3. CORS backend
+
+Si l'admin est deployee sur `https://admin.bolo237.com`, le backend doit accepter cette origine dans `CORS_ALLOWED_ORIGINS`.
+
+Valeur attendue typique:
+
+```bash
+CORS_ALLOWED_ORIGINS=https://www.bolo237.com,https://admin.bolo237.com
+```
+
+Le backend principal du repo inclut deja `https://admin.bolo237.com` dans sa liste d'origines autorisees par defaut. Si tu changes de domaine admin, mets a jour cette variable cote Render.
+
+## Deploiement Vercel
+
+1. Declarer toutes les variables ci-dessus dans le projet Vercel admin.
+2. Pointer le domaine admin vers cette app, par exemple `admin.bolo237.com`.
+3. Ajouter l'IP ou les IP autorisees dans `ADMIN_ALLOWED_IPS`.
+4. Verifier que Render autorise bien le domaine admin dans `CORS_ALLOWED_ORIGINS`.
+5. Tester:
+
+```bash
+curl -I https://admin.bolo237.com/login
+curl -i https://admin.bolo237.com/
+```
+
+Depuis une IP non autorisee, l'application doit repondre `404`.

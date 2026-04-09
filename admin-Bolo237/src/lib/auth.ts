@@ -1,14 +1,30 @@
 import { cookies } from "next/headers";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
+import {
+  ADMIN_SESSION_COOKIE_NAME,
+  ADMIN_SESSION_MAX_AGE,
+  getAdminSessionSecret,
+  parseAdminSessionToken,
+  isAdminSessionExpired,
+} from "@/lib/admin-session";
 
-const COOKIE_NAME = "admin_session";
-const SESSION_MAX_AGE = 60 * 60 * 8; // 8 heures
+const COOKIE_NAME = ADMIN_SESSION_COOKIE_NAME;
+const SESSION_MAX_AGE = ADMIN_SESSION_MAX_AGE;
+
+function getRequiredAdminSessionSecret() {
+  const secret = getAdminSessionSecret();
+  if (!secret) {
+    throw new Error("ADMIN_SESSION_SECRET doit etre defini en production.");
+  }
+
+  return secret;
+}
 
 /**
  * Genere un token de session signe avec HMAC-SHA256.
  */
 function generateToken(): string {
-  const secret = process.env.ADMIN_SESSION_SECRET || "fallback_secret";
+  const secret = getRequiredAdminSessionSecret();
   const timestamp = Date.now().toString(36);
   const nonce = randomBytes(16).toString("hex");
   const payload = `${timestamp}:${nonce}`;
@@ -21,26 +37,24 @@ function generateToken(): string {
  */
 function isValidToken(token: string): boolean {
   try {
-    const secret = process.env.ADMIN_SESSION_SECRET || "fallback_secret";
-    const dotIndex = token.lastIndexOf(".");
-    if (dotIndex === -1) return false;
+    const secret = getAdminSessionSecret();
+    if (!secret) return false;
 
-    const payload = token.slice(0, dotIndex);
-    const signature = token.slice(dotIndex + 1);
+    const parsedToken = parseAdminSessionToken(token);
+    if (!parsedToken) return false;
 
-    const expectedSignature = createHmac("sha256", secret).update(payload).digest("base64url");
+    const expectedSignature = createHmac("sha256", secret)
+      .update(parsedToken.payload)
+      .digest("base64url");
 
     // Comparaison en temps constant pour eviter les timing attacks
-    const sigBuf = Buffer.from(signature);
+    const sigBuf = Buffer.from(parsedToken.signature);
     const expectedBuf = Buffer.from(expectedSignature);
     if (sigBuf.length !== expectedBuf.length) return false;
     if (!timingSafeEqual(sigBuf, expectedBuf)) return false;
 
     // Verifier l'expiration du token
-    const [timestampStr] = payload.split(":");
-    const created = parseInt(timestampStr, 36);
-    const now = Date.now();
-    if (now - created > SESSION_MAX_AGE * 1000) return false;
+    if (isAdminSessionExpired(parsedToken.createdAt)) return false;
 
     return true;
   } catch {

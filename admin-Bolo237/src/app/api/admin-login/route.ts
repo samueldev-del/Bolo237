@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createSession, verifyPassword } from "@/lib/auth";
+import { getAdminSessionConfigurationError } from "@/lib/admin-session";
 import { ensureBackendAdminSession } from "@/lib/backend-admin";
 
 export const maxDuration = 60;
@@ -8,6 +9,14 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}));
     const password = String(body?.password || "");
+    const sessionConfigurationError = getAdminSessionConfigurationError();
+
+    if (sessionConfigurationError) {
+      return NextResponse.json(
+        { success: false, error: sessionConfigurationError },
+        { status: 503 }
+      );
+    }
 
     if (!password) {
       return NextResponse.json(

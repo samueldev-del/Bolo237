@@ -22,6 +22,28 @@ const {
 } = require('./lib/adminInboxService');
 require('dotenv').config();
 
+function logFatalError(label, error) {
+  if (error instanceof Error) {
+    console.error(`❌ [FATAL] ${label}: ${error.message}`);
+    if (error.stack) {
+      console.error(error.stack);
+    }
+    return;
+  }
+
+  console.error(`❌ [FATAL] ${label}:`, error);
+}
+
+process.on('uncaughtException', (error) => {
+  logFatalError('Uncaught exception', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logFatalError('Unhandled promise rejection', reason);
+  process.exit(1);
+});
+
 const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');

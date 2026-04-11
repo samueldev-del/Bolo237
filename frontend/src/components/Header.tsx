@@ -363,8 +363,8 @@ export default function Header() {
                   <MenuLink
                     href={privacyRightsLink}
                     icon="🔐"
-                    label={isEn ? 'Privacy & account rights' : 'Confidentialite & droits du compte'}
-                    desc={isEn ? 'Export your data or manage account requests' : 'Exporter vos donnees ou gerer vos demandes de compte'}
+                    label={isEn ? 'Privacy & account rights' : 'Confidentialité & droits du compte'}
+                    desc={isEn ? 'Export your data or manage account requests' : 'Exporter vos données ou gérer vos demandes de compte'}
                   />
 
                   <div className="h-px bg-gray-100 my-2 mx-6"></div>

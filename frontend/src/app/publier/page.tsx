@@ -53,7 +53,7 @@ export default function PublierPage() {
 
           <div className="mt-8">
             <Link href={localizePath('/')} className="text-sm font-bold text-green-700 hover:underline">
-              {isEn ? 'Back to home' : 'Retour a l accueil'}
+              {isEn ? 'Back to home' : 'Retour à l’accueil'}
             </Link>
           </div>
         </div>

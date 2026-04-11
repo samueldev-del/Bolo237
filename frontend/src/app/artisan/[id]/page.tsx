@@ -157,7 +157,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
             <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
           </Link>
           <Link href={localizePath('/recherche')} className="text-sm font-bold text-gray-600 hover:text-green-700">
-            {locale === 'fr' ? 'Retour a la recherche' : 'Back to search'}
+            {locale === 'fr' ? 'Retour à la recherche' : 'Back to search'}
           </Link>
         </div>
       </nav>
@@ -263,7 +263,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
 
         {artisan.profile && (
           <section className="bg-white border border-gray-200 rounded-2xl p-6">
-            <h2 className="text-xl md:text-2xl font-extrabold mb-4">{locale === 'fr' ? 'A propos' : 'About'}</h2>
+            <h2 className="text-xl md:text-2xl font-extrabold mb-4">{locale === 'fr' ? 'À propos' : 'About'}</h2>
             <p className="text-gray-700 leading-relaxed whitespace-pre-line">{artisan.profile}</p>
           </section>
         )}

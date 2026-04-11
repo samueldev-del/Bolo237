@@ -215,7 +215,7 @@ export default function PrivacyRightsPanel() {
           <p className="mt-3 text-sm leading-6 text-gray-600">
             {isEn
               ? 'When you are signed in, you can export the data associated with your account and submit a deletion request that our team will review under identity and retention rules.'
-              : 'Lorsque vous etes connecte, vous pouvez exporter les donnees liees a votre compte et soumettre une demande de suppression qui sera revue selon les regles d identite et de conservation.'}
+              : 'Lorsque vous êtes connecté, vous pouvez exporter les données liées à votre compte et soumettre une demande de suppression qui sera revue selon les règles d’identité et de conservation.'}
           </p>
         </div>
 
@@ -225,19 +225,19 @@ export default function PrivacyRightsPanel() {
           </p>
           {sessionState === 'loading' ? (
             <p className="mt-2 text-sm font-medium text-gray-600">
-              {isEn ? 'Checking your secure session...' : 'Verification de votre session securisee...'}
+              {isEn ? 'Checking your secure session...' : 'Vérification de votre session sécurisée...'}
             </p>
           ) : sessionUser ? (
             <div className="mt-2 space-y-1">
               <p className="text-sm font-bold text-gray-900">{sessionUser.name || sessionUser.email}</p>
               <p className="text-sm text-gray-600">{sessionUser.email}</p>
               <p className="text-xs font-semibold text-[#C4623F]">
-                {formatRole(sessionUser.role, isEn)}{sessionUser.isVerified ? (isEn ? ' • verified' : ' • verifie') : ''}
+                {formatRole(sessionUser.role, isEn)}{sessionUser.isVerified ? (isEn ? ' • verified' : ' • vérifié') : ''}
               </p>
             </div>
           ) : (
             <p className="mt-2 text-sm font-medium text-amber-700">
-              {isEn ? 'Not signed in' : 'Non connecte'}
+              {isEn ? 'Not signed in' : 'Non connecté'}
             </p>
           )}
         </div>
@@ -246,15 +246,15 @@ export default function PrivacyRightsPanel() {
       <div className="mt-6 grid gap-5 lg:grid-cols-2">
         <div className="rounded-3xl border border-gray-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-black uppercase tracking-[0.2em] text-gray-500">
-            {isEn ? 'Data export' : 'Export des donnees'}
+            {isEn ? 'Data export' : 'Export des données'}
           </p>
           <h3 className="mt-2 text-xl font-extrabold text-gray-900">
-            {isEn ? 'Download my account data' : 'Telecharger mes donnees'}
+            {isEn ? 'Download my account data' : 'Télécharger mes données'}
           </h3>
           <p className="mt-3 text-sm leading-6 text-gray-600">
             {isEn
               ? 'The export includes the information currently associated with your account, profile, notifications, saved items, reviews, and verification submissions found in our systems.'
-              : 'L export comprend les informations actuellement rattachees a votre compte, profil, notifications, elements sauvegardes, avis et soumissions de verification presentes dans nos systemes.'}
+              : 'L’export comprend les informations actuellement rattachées à votre compte, profil, notifications, éléments sauvegardés, avis et soumissions de vérification présentes dans nos systèmes.'}
           </p>
           <button
             type="button"
@@ -263,8 +263,8 @@ export default function PrivacyRightsPanel() {
             className="mt-5 inline-flex items-center justify-center rounded-full bg-[#C4623F] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#A94F2F] disabled:cursor-not-allowed disabled:bg-gray-300"
           >
             {isExporting
-              ? (isEn ? 'Preparing export...' : 'Preparation de l export...')
-              : (isEn ? 'Export my data as JSON' : 'Exporter mes donnees en JSON')}
+              ? (isEn ? 'Preparing export...' : 'Préparation de l’export...')
+              : (isEn ? 'Export my data as JSON' : 'Exporter mes données en JSON')}
           </button>
           {exportFeedback && (
             <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
@@ -288,7 +288,7 @@ export default function PrivacyRightsPanel() {
           <p className="mt-3 text-sm leading-6 text-gray-600">
             {isEn
               ? 'Deletion is not instant. We register your request, verify identity, then isolate data that must be retained for legal, anti-fraud, or accounting reasons before final deletion.'
-              : 'La suppression n est pas instantanee. Nous enregistrons votre demande, verifions l identite, puis isolons les donnees qui doivent etre conservees pour des raisons legales, antifraude ou comptables avant suppression finale.'}
+              : 'La suppression n’est pas instantanée. Nous enregistrons votre demande, vérifions l’identité, puis isolons les données qui doivent être conservées pour des raisons légales, antifraude ou comptables avant suppression finale.'}
           </p>
 
           <form className="mt-5 space-y-4" onSubmit={handleDeleteRequest}>

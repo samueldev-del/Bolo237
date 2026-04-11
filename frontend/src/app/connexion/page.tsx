@@ -276,13 +276,13 @@ export default function Connexion() {
               </h1>
               <p className="text-white/80 font-medium text-lg">
                 {isLogin
-                  ? (isEn ? 'Sign in to access your dashboard.' : 'Connectez-vous pour acceder a votre espace.')
+                  ? (isEn ? 'Sign in to access your dashboard.' : 'Connectez-vous pour accéder à votre espace.')
                   : currentRole.heroDesc}
               </p>
             </div>
             <div className="flex items-center gap-3 text-white/40 text-xs font-medium">
               <span className="w-8 h-[1px] bg-white/20"></span>
-              {isEn ? 'Secured platform' : 'Plateforme securisee'} <span>•</span> {isEn ? 'Anti-fraud protection' : 'Protection anti-fraude'}
+              {isEn ? 'Secured platform' : 'Plateforme sécurisée'} <span>•</span> {isEn ? 'Anti-fraud protection' : 'Protection anti-fraude'}
             </div>
           </div>
         </div>
@@ -474,7 +474,7 @@ export default function Connexion() {
                         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-3">✓</div>
                         <p className="text-sm font-bold text-green-700 mb-4">{resetMessage}</p>
                         <button onClick={() => setShowReset(false)} className="bg-[#DA7756] text-white font-bold py-3 px-8 rounded-xl hover:bg-[#C4623F] transition text-sm">
-                          {isEn ? 'Back to login' : 'Retour a la connexion'}
+                          {isEn ? 'Back to login' : 'Retour à la connexion'}
                         </button>
                       </div>
                     )}

@@ -61,18 +61,18 @@ export default function PressePage() {
           <div className="max-w-3xl mx-auto text-center">
             <Link href={localizePath('/')} className="inline-flex items-center gap-1.5 text-sm font-bold text-white/80 hover:text-white transition mb-6">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-              {isEn ? 'Back to home' : 'Retour a l\'accueil'}
+              {isEn ? 'Back to home' : 'Retour à l\'accueil'}
             </Link>
             <p className="text-[#FEEBD6] text-sm font-bold uppercase tracking-wider mb-2">
-              {isEn ? 'Press Room' : 'Espace Presse'}
+              {isEn ? 'Press Room' : 'Espace presse'}
             </p>
             <h1 className="text-3xl md:text-4xl font-extrabold mb-4">
               Bolo237
             </h1>
             <p className="text-lg text-[#FEEBD6] max-w-xl mx-auto">
               {isEn
-                ? 'The Progressive Web App that digitizes and secures the job and local services market in Cameroon.'
-                : 'La Progressive Web App (PWA) qui digitalise et securise le marche de l\'emploi et des services locaux au Cameroun.'}
+                ? 'The DTSfuture product that structures and secures the job and local services market in Cameroon.'
+                : 'Le produit DTSfuture qui structure et sécurise le marché de l\'emploi et des services locaux au Cameroun.'}
             </p>
           </div>
         </section>
@@ -84,8 +84,8 @@ export default function PressePage() {
           </h2>
           <p className="text-gray-700 leading-relaxed">
             {isEn
-              ? 'By combining the power of web matchmaking with the immediacy of WhatsApp, Bolo237 eliminates friction between companies, artisans, and talents. Our platform is designed mobile-first for the Cameroonian market, accessible even on low-bandwidth networks.'
-              : 'En combinant la puissance de la mise en relation web avec l\'immediatete de WhatsApp, Bolo237 elimine les frictions entre les entreprises, les artisans et les talents. Notre plateforme est concue mobile-first pour le marche camerounais, accessible meme sur les reseaux a faible bande passante.'}
+              ? 'Built by DTSfuture, Bolo237 combines the power of web matchmaking with the immediacy of WhatsApp. The product is designed mobile-first for the Cameroonian market and remains usable even on low-bandwidth networks.'
+              : 'Conçu par DTSfuture, Bolo237 combine la puissance de la mise en relation web avec l’immédiateté de WhatsApp. Le produit est pensé mobile-first pour le marché camerounais et reste utilisable même sur des réseaux à faible bande passante.'}
           </p>
         </section>
 
@@ -93,7 +93,7 @@ export default function PressePage() {
         <section className="bg-gray-50 py-12 px-4">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-2xl font-extrabold text-gray-900 mb-8">
-              {isEn ? 'Key Innovations' : 'Nos Innovations Cles'}
+              {isEn ? 'Key Innovations' : 'Nos innovations clés'}
             </h2>
 
             <div className="grid gap-6 md:grid-cols-3">
@@ -105,7 +105,7 @@ export default function PressePage() {
                 <p className="text-sm text-gray-600 leading-relaxed">
                   {isEn
                     ? 'A strict verification process (full KYC with ID and video verification) to eradicate scams.'
-                    : 'Un processus de verification strict (KYC complet avec piece d\'identite et verification video) pour eradiquer les arnaques.'}
+                    : 'Un processus de vérification strict (KYC complet avec pièce d\'identité et vérification vidéo) pour réduire la fraude.'}
                 </p>
               </div>
 
@@ -117,7 +117,7 @@ export default function PressePage() {
                 <p className="text-sm text-gray-600 leading-relaxed">
                   {isEn
                     ? 'PWA technology that lets users install the app without going through app stores, optimized for local networks.'
-                    : 'Une technologie PWA qui permet aux utilisateurs d\'installer l\'application sans passer par les Stores, optimisee pour les reseaux locaux.'}
+                    : 'Une technologie PWA qui permet aux utilisateurs d\'installer l\'application sans passer par les stores, optimisée pour les réseaux locaux.'}
                 </p>
               </div>
 
@@ -131,7 +131,7 @@ export default function PressePage() {
                 <p className="text-sm text-gray-600 leading-relaxed">
                   {isEn
                     ? 'No complex internal messaging — final connections are made directly and securely via WhatsApp.'
-                    : 'Pas de messagerie interne complexe, la mise en relation finale se fait directement et de maniere securisee via WhatsApp.'}
+                    : 'Pas de messagerie interne complexe : la mise en relation finale se fait directement et de manière sécurisée via WhatsApp.'}
                 </p>
               </div>
             </div>
@@ -141,12 +141,12 @@ export default function PressePage() {
         {/* Ressources Media */}
         <section className="max-w-3xl mx-auto px-4 py-12">
           <h2 className="text-2xl font-extrabold text-gray-900 mb-2">
-            {isEn ? 'Media Resources' : 'Ressources Media'}
+            {isEn ? 'Media Resources' : 'Ressources média'}
           </h2>
           <p className="text-sm text-gray-600 mb-6">
             {isEn
               ? 'Download or request our official communication assets for articles, TV/radio segments, and digital press coverage.'
-              : 'Telechargez ou demandez nos elements officiels de communication pour vos articles, reportages TV/radio et couvertures digitales.'}
+              : 'Téléchargez ou demandez nos éléments officiels de communication pour vos articles, reportages TV/radio et couvertures digitales.'}
           </p>
 
           <div className="space-y-4">
@@ -158,9 +158,9 @@ export default function PressePage() {
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-gray-900 text-sm mb-1">
-                    {isEn ? 'HD Logo Pack' : 'Pack Logo Haute Definition'}
+                    {isEn ? 'HD Logo Pack' : 'Pack logo haute définition'}
                   </p>
-                  <p className="text-xs text-gray-500 mb-2">PNG — {isEn ? 'High resolution' : 'Haute resolution'}</p>
+                  <p className="text-xs text-gray-500 mb-2">PNG — {isEn ? 'High resolution' : 'Haute résolution'}</p>
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Official versions in light and dark variants for print and web.'
@@ -183,7 +183,7 @@ export default function PressePage() {
                       onClick={() => downloadAsPng('/logo-icon.svg', 'bolo237-icon.png', 800)}
                       className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition cursor-pointer"
                     >
-                      <span>⬇</span> {isEn ? 'Icon Only' : 'Icone seule'}
+                      <span>⬇</span> {isEn ? 'Icon Only' : 'Icône seule'}
                     </button>
                   </div>
                 </div>
@@ -203,7 +203,7 @@ export default function PressePage() {
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Official brand colors for consistent visual representation.'
-                      : 'Couleurs officielles de la marque pour une representation visuelle coherente.'}
+                      : 'Couleurs officielles de la marque pour une représentation visuelle cohérente.'}
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <div className="text-center">
@@ -247,7 +247,7 @@ export default function PressePage() {
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Curated visuals of key user journeys: hiring, candidate profile, and verification flow.'
-                      : 'Visuels selectionnes des parcours cles : recrutement, profil candidat et verification.'}
+                      : 'Visuels sélectionnés des parcours clés : recrutement, profil candidat et vérification.'}
                   </p>
                   <a
                     href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Screenshots"
@@ -259,7 +259,7 @@ export default function PressePage() {
               </div>
             </div>
 
-            {/* Founder Bio */}
+            {/* DTSfuture Profile */}
             <div className="border border-gray-200 rounded-xl p-5 hover:border-[#DA7756] transition bg-white">
               <div className="flex items-start gap-4">
                 <div className="w-10 h-10 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-xl shrink-0">
@@ -267,18 +267,18 @@ export default function PressePage() {
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-gray-900 text-sm mb-1">
-                    {isEn ? 'Founder Biography' : 'Biographie du Fondateur'}
+                    {isEn ? 'DTSfuture Profile' : 'Présentation de DTSfuture'}
                   </p>
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
-                      ? 'Short and long biography of the founder available for editorial use in articles, podcasts, and interviews.'
-                      : 'Biographie courte et longue du fondateur disponible pour usage editorial dans vos articles, podcasts et interviews.'}
+                      ? 'Short and long presentation of DTSfuture available for editorial use in articles, podcasts, and interviews.'
+                      : 'Présentation courte et longue de DTSfuture disponible pour usage éditorial dans vos articles, podcasts et interviews.'}
                   </p>
                   <a
-                    href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Founder%20Bio"
+                    href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20DTSfuture%20Profile"
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
                   >
-                    <span>📧</span> {isEn ? 'Request biography' : 'Demander la biographie'}
+                    <span>📧</span> {isEn ? 'Request profile' : 'Demander la présentation'}
                   </a>
                 </div>
               </div>
@@ -297,7 +297,7 @@ export default function PressePage() {
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'One-page summary of Bolo237: features, market positioning, technology stack, and competitive advantages.'
-                      : 'Resume d\'une page de Bolo237 : fonctionnalites, positionnement marche, stack technologique et avantages concurrentiels.'}
+                      : 'Résumé d\'une page de Bolo237 : fonctionnalités, positionnement marché, stack technologique et avantages concurrentiels.'}
                   </p>
                   <a
                     href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Factsheet"
@@ -323,13 +323,13 @@ export default function PressePage() {
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Short promotional video and product demo showcasing the main user flows of the Bolo237 platform.'
-                      : 'Video promotionnelle courte et demo produit presentant les parcours utilisateurs principaux de la plateforme Bolo237.'}
+                      : 'Vidéo promotionnelle courte et démo produit présentant les principaux parcours utilisateurs de la plateforme Bolo237.'}
                   </p>
                   <a
                     href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Video"
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#C4623F] bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg px-3 py-1.5 hover:bg-[#FEEBD6] transition"
                   >
-                    <span>📧</span> {isEn ? 'Request video assets' : 'Demander les videos'}
+                    <span>📧</span> {isEn ? 'Request video assets' : 'Demander les vidéos'}
                   </a>
                 </div>
               </div>
@@ -343,12 +343,12 @@ export default function PressePage() {
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-gray-900 text-sm mb-1">
-                    {isEn ? 'Social Media Kit' : 'Kit Reseaux Sociaux'}
+                    {isEn ? 'Social Media Kit' : 'Kit réseaux sociaux'}
                   </p>
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Pre-formatted banners, profile images and post templates optimized for LinkedIn, Twitter/X, Facebook and Instagram.'
-                      : 'Bannieres, images de profil et modeles de publications pre-formates et optimises pour LinkedIn, Twitter/X, Facebook et Instagram.'}
+                      : 'Bannières, images de profil et modèles de publications préformatés et optimisés pour LinkedIn, Twitter/X, Facebook et Instagram.'}
                   </p>
                   <a
                     href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Social%20Media%20Kit"
@@ -368,17 +368,17 @@ export default function PressePage() {
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-gray-900 text-sm mb-1">
-                    {isEn ? 'Key Figures' : 'Chiffres Cles'}
+                    {isEn ? 'Key Figures' : 'Chiffres clés'}
                   </p>
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
                       ? 'Use these figures when referencing Bolo237 in your publications.'
-                      : 'Utilisez ces chiffres pour referencier Bolo237 dans vos publications.'}
+                      : 'Utilisez ces chiffres pour référencer Bolo237 dans vos publications.'}
                   </p>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-[#FFF5EF] rounded-lg p-3 text-center">
                       <p className="text-lg font-extrabold text-[#C4623F]">2024</p>
-                      <p className="text-[10px] text-gray-600">{isEn ? 'Year Founded' : 'Annee de creation'}</p>
+                      <p className="text-[10px] text-gray-600">{isEn ? 'Year Founded' : 'Année de création'}</p>
                     </div>
                     <div className="bg-[#FFF5EF] rounded-lg p-3 text-center">
                       <p className="text-lg font-extrabold text-[#C4623F]">PWA</p>
@@ -386,11 +386,11 @@ export default function PressePage() {
                     </div>
                     <div className="bg-[#FFF5EF] rounded-lg p-3 text-center">
                       <p className="text-lg font-extrabold text-[#C4623F]">🇨🇲</p>
-                      <p className="text-[10px] text-gray-600">{isEn ? 'Target Market' : 'Marche cible'}</p>
+                      <p className="text-[10px] text-gray-600">{isEn ? 'Target Market' : 'Marché cible'}</p>
                     </div>
                     <div className="bg-[#FFF5EF] rounded-lg p-3 text-center">
                       <p className="text-lg font-extrabold text-[#C4623F]">KYC</p>
-                      <p className="text-[10px] text-gray-600">{isEn ? 'Identity Verification' : 'Verification d\'identite'}</p>
+                      <p className="text-[10px] text-gray-600">{isEn ? 'Identity Verification' : 'Vérification d\'identité'}</p>
                     </div>
                   </div>
                 </div>
@@ -409,8 +409,8 @@ export default function PressePage() {
                   </p>
                   <p className="text-xs text-gray-600 mb-3">
                     {isEn
-                      ? 'Get the complete package: founder biography, product factsheet, high-resolution visuals, and brand guidelines.'
-                      : 'Recevez le package complet : biographie du fondateur, fiche produit, visuels haute resolution et charte graphique.'}
+                      ? 'Get the complete package: DTSfuture profile, product factsheet, high-resolution visuals, and brand guidelines.'
+                      : 'Recevez le pack complet : présentation de DTSfuture, fiche produit, visuels haute résolution et charte graphique.'}
                   </p>
                   <a
                     href="mailto:contact@bolo237.com?subject=Press%20Kit%20Request%20-%20Full%20Kit"
@@ -432,8 +432,8 @@ export default function PressePage() {
             </h2>
             <p className="text-gray-600 mb-6">
               {isEn
-                ? 'For any interview request, partnership or additional information, contact our founding team:'
-                : 'Pour toute demande d\'interview, de partenariat ou d\'informations supplementaires, contactez notre equipe fondatrice :'}
+                ? 'For any interview request, partnership, or additional information, contact the DTSfuture team:'
+                : 'Pour toute demande d\'interview, de partenariat ou d\'informations supplémentaires, contactez l\'équipe DTSfuture :'}
             </p>
             <div className="inline-flex flex-col items-center gap-3">
               <a

@@ -17,8 +17,8 @@ export default function ConditionsPage() {
         <>
           <p className="text-gray-700 leading-relaxed mb-3">
             {isEn
-              ? 'Bolo237 is a digital platform operated by Samuel DJOMMOU THENGHO, a sole proprietor registered in Germany. Bolo237 provides a progressive web application (PWA) that connects job seekers, employers, and independent artisans across Cameroon.'
-              : 'Bolo237 est une plateforme num\u00e9rique exploit\u00e9e par Samuel DJOMMOU THENGHO, entrepreneur individuel enregistr\u00e9 en Allemagne. Bolo237 fournit une application web progressive (PWA) qui met en relation les demandeurs d\u2019emploi, les employeurs et les artisans ind\u00e9pendants \u00e0 travers le Cameroun.'}
+              ? 'The Bolo237 application is published by Samuel DJOMMOU THENGHO, an independent developer operating under the DTSfuture commercial brand and product studio. Bolo237 provides a progressive web application (PWA) that connects job seekers, employers, and independent artisans across Cameroon.'
+              : 'L’application Bolo237 est éditée par Samuel DJOMMOU THENGHO, développeur indépendant opérant sous la marque commerciale et le studio d’édition DTSfuture. Bolo237 fournit une application web progressive (PWA) qui met en relation les demandeurs d’emploi, les employeurs et les artisans indépendants à travers le Cameroun.'}
           </p>
           <p className="text-gray-700 leading-relaxed">
             {isEn
@@ -612,8 +612,8 @@ export default function ConditionsPage() {
             </div>
             <p className="text-sm text-gray-500 mt-4">
               {isEn
-                ? 'Bolo237 \u2014 Operated by Samuel DJOMMOU THENGHO \u2014 Germany'
-                : 'Bolo237 \u2014 Exploit\u00e9 par Samuel DJOMMOU THENGHO \u2014 Allemagne'}
+                ? 'Bolo237 — Published by Samuel DJOMMOU THENGHO under the DTSfuture brand'
+                : 'Bolo237 — Éditée par Samuel DJOMMOU THENGHO sous la marque DTSfuture'}
             </p>
           </div>
         </section>

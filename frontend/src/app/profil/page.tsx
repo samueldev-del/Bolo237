@@ -376,7 +376,7 @@ export default function ProfilCV() {
             </div>
 
             <div>
-              <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'About me (short bio)' : 'A propos de moi (bio courte)'}</label>
+              <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'About me (short bio)' : 'À propos de moi (bio courte)'}</label>
               <textarea rows={3} value={bio} onChange={(e) => setBio(e.target.value)}
                 placeholder={isEn ? 'Describe yourself in 2-3 sentences...' : 'Presentez-vous en 2-3 phrases...'}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 outline-none resize-none" />

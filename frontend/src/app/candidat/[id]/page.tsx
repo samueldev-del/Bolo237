@@ -126,7 +126,7 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
           <p className="text-sm text-gray-500 mb-5">{isEn ? 'This candidate profile is unavailable.' : 'Ce profil candidat est indisponible.'}</p>
           <Link href={localizePath('/cvtheque')} className="inline-flex items-center gap-2 rounded-full bg-green-600 px-5 py-3 text-sm font-extrabold text-white hover:bg-green-700 transition">
             <span aria-hidden="true">←</span>
-            {isEn ? 'Back to CV database' : 'Retour a la CVtheque'}
+            {isEn ? 'Back to CV database' : 'Retour à la CVthèque'}
           </Link>
         </div>
       </div>
@@ -138,7 +138,7 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
       <nav className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href={localizePath('/cvtheque')} className="text-sm font-bold text-gray-600 hover:text-green-700">
-            ← {isEn ? 'Back to CV database' : 'Retour a la CVtheque'}
+            ← {isEn ? 'Back to CV database' : 'Retour à la CVthèque'}
           </Link>
           <p className="text-xs text-gray-400 font-bold">ID #{profil.id}</p>
         </div>
@@ -266,24 +266,24 @@ export default function FicheCandidatPage({ params }: CandidatParams) {
         <aside className="space-y-4 h-fit md:sticky md:top-6">
           {canViewContact ? (
             <article className="bg-white border border-gray-200 rounded-2xl p-5">
-              <h3 className="text-base font-extrabold mb-3">{isEn ? 'Candidate contact' : 'Coordonnees du candidat'}</h3>
+              <h3 className="text-base font-extrabold mb-3">{isEn ? 'Candidate contact' : 'Coordonnées du candidat'}</h3>
               <p className="text-sm text-gray-700 mb-1"><span className="font-bold">Email:</span> {profil.email}</p>
-              <p className="text-sm text-gray-700 mb-3"><span className="font-bold">{isEn ? 'Phone' : 'Telephone'}:</span> {profil.telephone}</p>
+              <p className="text-sm text-gray-700 mb-3"><span className="font-bold">{isEn ? 'Phone' : 'Téléphone'}:</span> {profil.telephone}</p>
               <p className="text-xs font-bold text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2">
-                {isEn ? 'Free access to contact details for all companies.' : 'Acces gratuit aux coordonnees pour toutes les entreprises.'}
+                {isEn ? 'Free access to contact details for all companies.' : 'Accès gratuit aux coordonnées pour toutes les entreprises.'}
               </p>
             </article>
           ) : (
             <article className="bg-white border border-gray-200 rounded-2xl p-5 text-center">
               <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-2xl mx-auto mb-3">🔒</div>
-              <h3 className="text-base font-extrabold mb-2">{isEn ? 'Contact details' : 'Coordonnees'}</h3>
+              <h3 className="text-base font-extrabold mb-2">{isEn ? 'Contact details' : 'Coordonnées'}</h3>
               <p className="text-sm text-gray-600 mb-4">
                 {isEn
                   ? 'Create a company or artisan account to access this candidate\'s contact details.'
-                  : 'Creez un compte entreprise ou artisan pour acceder aux coordonnees de ce candidat.'}
+                  : 'Créez un compte entreprise ou artisan pour accéder aux coordonnées de ce candidat.'}
               </p>
               <Link href={localizePath('/connexion')} className="block w-full bg-green-600 text-white font-bold py-3 rounded-xl hover:bg-green-700 transition text-sm">
-                {isEn ? 'Create an account' : 'Creer un compte'}
+                {isEn ? 'Create an account' : 'Créer un compte'}
               </Link>
             </article>
           )}

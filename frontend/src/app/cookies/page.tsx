@@ -305,6 +305,12 @@ export default function CookiesPage() {
 
         {/* Sections */}
         <section className="max-w-3xl mx-auto px-4 py-12 space-y-10">
+          <div className="rounded-2xl border border-[#E8C4B0] bg-[#FFF5EF] px-6 py-5 text-sm leading-7 text-gray-700">
+            {isEn
+              ? 'The Bolo237 application is published by Samuel DJOMMOU THENGHO, an independent developer operating under the DTSfuture commercial brand and product studio.'
+              : 'L’application Bolo237 est éditée par Samuel DJOMMOU THENGHO, développeur indépendant opérant sous la marque commerciale et le studio d’édition DTSfuture.'}
+          </div>
+
           {sections.map((s) => (
             <div key={s.num}>
               <h2 className="text-xl font-extrabold text-gray-900 mb-3 flex items-center gap-2">
@@ -338,8 +344,8 @@ export default function CookiesPage() {
             </div>
             <p className="text-sm text-gray-500 mt-4">
               {isEn
-                ? 'Bolo237 \u2014 Operated by Samuel DJOMMOU THENGHO \u2014 Germany'
-                : 'Bolo237 \u2014 Exploit\u00e9 par Samuel DJOMMOU THENGHO \u2014 Allemagne'}
+                ? 'Bolo237 — Published by Samuel DJOMMOU THENGHO under the DTSfuture brand'
+                : 'Bolo237 — Éditée par Samuel DJOMMOU THENGHO sous la marque DTSfuture'}
             </p>
           </div>
         </section>

@@ -18,8 +18,8 @@ export default function ConfidentialitePage() {
         <>
           <p className="text-gray-700 leading-relaxed mb-3">
             {isEn
-              ? 'Bolo237 is a digital platform operated by Samuel DJOMMOU THENGHO, a sole proprietor registered in Germany. This Privacy Policy describes how Bolo237 collects, uses, stores, and protects your personal data when you use our platform.'
-              : 'Bolo237 est une plateforme num\u00e9rique exploit\u00e9e par Samuel DJOMMOU THENGHO, entrepreneur individuel enregistr\u00e9 en Allemagne. La pr\u00e9sente Politique de Confidentialit\u00e9 d\u00e9crit comment Bolo237 collecte, utilise, conserve et prot\u00e8ge vos donn\u00e9es personnelles lorsque vous utilisez notre plateforme.'}
+              ? 'The Bolo237 application is published by Samuel DJOMMOU THENGHO, an independent developer operating under the DTSfuture commercial brand and product studio. This Privacy Policy describes how Bolo237 collects, uses, stores, and protects your personal data when you use the platform.'
+              : 'L’application Bolo237 est éditée par Samuel DJOMMOU THENGHO, développeur indépendant opérant sous la marque commerciale et le studio d’édition DTSfuture. La présente Politique de confidentialité décrit comment Bolo237 collecte, utilise, conserve et protège vos données personnelles lorsque vous utilisez la plateforme.'}
           </p>
           <p className="text-gray-700 leading-relaxed mb-3">
             {isEn
@@ -484,12 +484,12 @@ export default function ConfidentialitePage() {
           <section id="account-rights" className="scroll-mt-28 space-y-3">
             <div>
               <h2 className="text-xl font-extrabold text-gray-900 mb-2">
-                {isEn ? 'Privacy and account rights' : 'Confidentialite et droits du compte'}
+                {isEn ? 'Privacy and account rights' : 'Confidentialité et droits du compte'}
               </h2>
               <p className="text-gray-600 leading-relaxed">
                 {isEn
                   ? 'Use the secure self-service area below to export your data or submit an account deletion request.'
-                  : 'Utilisez l espace securise ci-dessous pour exporter vos donnees ou soumettre une demande de suppression de compte.'}
+                  : 'Utilisez l’espace sécurisé ci-dessous pour exporter vos données ou soumettre une demande de suppression de compte.'}
               </p>
             </div>
             <PrivacyRightsPanel />
@@ -516,8 +516,8 @@ export default function ConfidentialitePage() {
             </div>
             <p className="text-sm text-gray-500 mt-4">
               {isEn
-                ? 'Bolo237 \u2014 Operated by Samuel DJOMMOU THENGHO \u2014 Germany'
-                : 'Bolo237 \u2014 Exploit\u00e9 par Samuel DJOMMOU THENGHO \u2014 Allemagne'}
+                ? 'Bolo237 — Published by Samuel DJOMMOU THENGHO under the DTSfuture brand'
+                : 'Bolo237 — Éditée par Samuel DJOMMOU THENGHO sous la marque DTSfuture'}
             </p>
           </div>
         </section>

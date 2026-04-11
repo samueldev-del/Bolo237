@@ -12,19 +12,24 @@ export default function MentionsLegalesPage() {
   const sections = [
     {
       num: 1,
-      title: isEn ? 'Website Publisher' : 'Éditeur du site',
+      title: isEn ? 'Application Publisher' : 'Éditeur de l’application',
       content: (
         <div className="space-y-2">
           <p className="text-gray-700 leading-relaxed">
             {isEn
-              ? 'In accordance with Cameroonian Law No. 2010/021 of 21 December 2010 governing electronic commerce (Art. 7), the following information identifies the publisher of this website:'
-              : 'Conformément à la loi camerounaise n°2010/021 du 21 décembre 2010 régissant le commerce électronique (Art. 7), les informations suivantes identifient l\u2019éditeur de ce site :'}
+              ? 'Application publisher: the Bolo237 application is published by Samuel DJOMMOU THENGHO, an independent developer operating under the DTSfuture commercial brand and product studio.'
+              : 'Éditeur de l’application : l’application Bolo237 est éditée par Samuel DJOMMOU THENGHO, développeur indépendant opérant sous la marque commerciale et le studio d’édition DTSfuture.'}
+          </p>
+          <p className="text-gray-700 leading-relaxed">
+            {isEn
+              ? 'In accordance with Cameroonian Law No. 2010/021 of 21 December 2010 governing electronic commerce (Art. 7), the following information identifies the publisher of this application:'
+              : 'Conformément à la loi camerounaise n°2010/021 du 21 décembre 2010 régissant le commerce électronique (Art. 7), les informations suivantes identifient l’éditeur de cette application :'}
           </p>
           <ul className="space-y-3 mt-3">
             {[
               { label: isEn ? 'Name' : 'Nom', value: 'Samuel DJOMMOU THENGHO' },
-              { label: isEn ? 'Status' : 'Statut', value: isEn ? 'Sole proprietor registered in Germany' : 'Entrepreneur individuel enregistré en Allemagne' },
-              { label: isEn ? 'Address' : 'Adresse', value: isEn ? 'Germany' : 'Allemagne (Germany)' },
+              { label: isEn ? 'Status' : 'Statut', value: isEn ? 'Independent developer operating under the DTSfuture brand and product studio' : 'Développeur indépendant opérant sous la marque commerciale et le studio d’édition DTSfuture' },
+              { label: isEn ? 'Contact address' : 'Adresse de contact', value: isEn ? 'Germany' : 'Allemagne' },
               { label: 'Email', value: 'contact@bolo237.com' },
               { label: isEn ? 'Phone' : 'Téléphone', value: '+49 151 24862693' },
               { label: isEn ? 'Website' : 'Site web', value: 'https://bolo237.com' },
@@ -260,8 +265,8 @@ export default function MentionsLegalesPage() {
             </div>
             <p className="text-sm text-gray-500 mt-4">
               {isEn
-                ? 'Bolo237 — Operated by Samuel DJOMMOU THENGHO — Germany'
-                : 'Bolo237 — Exploité par Samuel DJOMMOU THENGHO — Allemagne'}
+                ? 'Bolo237 — Published by Samuel DJOMMOU THENGHO under the DTSfuture brand'
+                : 'Bolo237 — Éditée par Samuel DJOMMOU THENGHO sous la marque DTSfuture'}
             </p>
           </div>
         </section>

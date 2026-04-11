@@ -54,7 +54,7 @@ export default function AProposPage() {
       <BreadcrumbJsonLd
         items={[
           { name: { fr: 'Accueil', en: 'Home' }, path: '/' },
-          { name: { fr: 'A propos', en: 'About' }, path: '/a-propos' },
+          { name: { fr: 'À propos', en: 'About' }, path: '/a-propos' },
         ]}
       />
       <Header />
@@ -69,17 +69,17 @@ export default function AProposPage() {
 
           <div className="relative max-w-3xl mx-auto text-center">
             <p className="inline-block text-xs md:text-sm font-bold tracking-widest uppercase text-[#FEEBD6]/80 mb-6">
-              {isEn ? 'About Bolo237' : 'A propos de Bolo237'}
+              {isEn ? 'About Bolo237' : 'À propos de Bolo237'}
             </p>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-tight mb-6">
               {isEn
                 ? 'A DTSfuture product built for trust in Cameroon.'
-                : 'Un produit DTSfuture concu pour la confiance au Cameroun.'}
+                : 'Un produit DTSfuture conçu pour la confiance au Cameroun.'}
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-[#FEEBD6] max-w-2xl mx-auto leading-relaxed">
               {isEn
                 ? 'Bolo237 is a DTSfuture product designed to make jobs and artisan services in Cameroon clearer, safer, and more useful in real conditions.'
-                : 'Bolo237 est un produit DTSfuture concu pour rendre l emploi et les services d artisans au Cameroun plus clairs, plus fiables et plus utiles dans les conditions reelles du terrain.'}
+                : 'Bolo237 est un produit DTSfuture conçu pour rendre l’emploi et les services d’artisans au Cameroun plus clairs, plus fiables et plus utiles dans les conditions réelles du terrain.'}
             </p>
           </div>
         </section>
@@ -88,7 +88,7 @@ export default function AProposPage() {
         <section className="py-16 md:py-24 px-4">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-2">
-              {isEn ? 'The Story Behind Bolo237' : 'L histoire de Bolo237'}
+              {isEn ? 'The Story Behind Bolo237' : 'L’histoire de Bolo237'}
             </h2>
             <div className="w-16 h-1 bg-[#DA7756] rounded-full mb-8" />
 
@@ -96,27 +96,27 @@ export default function AProposPage() {
               <p>
                 {isEn
                   ? 'Bolo237 is not an isolated side project. It is one of the public products developed by DTSfuture, a company that builds the digital products the Cameroonian market actually needs.'
-                  : 'Bolo237 n est pas un projet isole. C est l un des produits publics developpes par DTSfuture, une entreprise qui conçoit les produits numeriques dont le marche camerounais a reellement besoin.'}
+                  : 'Bolo237 n’est pas un projet isolé. C’est l’un des produits publics développés par DTSfuture, une entreprise qui conçoit les produits numériques dont le marché camerounais a réellement besoin.'}
               </p>
               <p>
                 {isEn
                   ? 'The starting point was simple: too many real needs were still answered by unreliable services. Local hiring and artisan services often suffer from weak trust signals, fragmented information, and too much friction for users who mostly rely on mobile.'
-                  : 'Le point de depart etait simple : trop de besoins reels restaient mal servis. Le recrutement local et les services d artisans souffrent encore d un manque de signaux de confiance, d informations fragmentees et de trop de friction pour des utilisateurs majoritairement sur mobile.'}
+                  : 'Le point de départ était simple : trop de besoins réels restaient mal servis. Le recrutement local et les services d’artisans souffrent encore d’un manque de signaux de confiance, d’informations fragmentées et de trop de friction pour des utilisateurs majoritairement sur mobile.'}
               </p>
               <p>
                 {isEn
                   ? 'DTSfuture built Bolo237 to make this market more structured, more reassuring, and more direct: distinct journeys for candidates, companies, and artisans, visible moderation, identity verification, anti-fraud signals, and direct contact through familiar local usage such as WhatsApp.'
-                  : 'DTSfuture a construit Bolo237 pour rendre ce marche plus structure, plus rassurant et plus direct : des parcours distincts pour les candidats, les entreprises et les artisans, une moderation visible, une verification d identite, des signaux anti-fraude et un contact direct via des usages locaux comme WhatsApp.'}
+                  : 'DTSfuture a construit Bolo237 pour rendre ce marché plus structuré, plus rassurant et plus direct : des parcours distincts pour les candidats, les entreprises et les artisans, une modération visible, une vérification d’identité, des signaux anti-fraude et un contact direct via des usages locaux comme WhatsApp.'}
               </p>
               <p>
                 {isEn
                   ? 'The logic behind Bolo237 follows DTSfuture\'s broader story: Cameroon gave the urgency, Germany reinforced the discipline. Local understanding defines the problem; rigorous execution makes the solution credible.'
-                  : 'La logique de Bolo237 suit l histoire plus large de DTSfuture : le Cameroun a donne l urgence, l Allemagne a renforce la discipline. La comprehension locale definit le probleme ; une execution rigoureuse rend la solution credible.'}
+                  : 'La logique de Bolo237 suit l’histoire plus large de DTSfuture : le Cameroun a donné l’urgence, l’Allemagne a renforcé la discipline. La compréhension locale définit le problème ; une exécution rigoureuse rend la solution crédible.'}
               </p>
               <p className="font-semibold text-gray-900">
                 {isEn
                   ? 'Bolo237 is already proof of that approach: a live product, visible to the public, built to earn trust before it asks for growth.'
-                  : 'Bolo237 est deja la preuve de cette approche : un produit en ligne, visible publiquement, concu pour gagner la confiance avant de chercher la croissance.'}
+                  : 'Bolo237 est déjà la preuve de cette approche : un produit en ligne, visible publiquement, conçu pour gagner la confiance avant de chercher la croissance.'}
               </p>
             </div>
 
@@ -127,7 +127,7 @@ export default function AProposPage() {
                 <p className="text-lg md:text-xl font-medium text-gray-800 italic leading-relaxed">
                   {isEn
                     ? 'Bolo237 shows what DTSfuture stands for: local understanding, visible trust signals, and execution solid enough to survive real-world use.'
-                    : 'Bolo237 montre ce que DTSfuture defend : une comprehension locale, des signaux de confiance visibles et une execution assez solide pour tenir dans la vraie vie.'}
+                    : 'Bolo237 montre ce que DTSfuture défend : une compréhension locale, des signaux de confiance visibles et une exécution assez solide pour tenir dans la vraie vie.'}
                 </p>
                 <footer className="mt-6 flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-[#DA7756] flex items-center justify-center text-white font-extrabold text-lg">
@@ -136,7 +136,7 @@ export default function AProposPage() {
                   <div>
                     <p className="font-extrabold text-gray-900 text-sm">DTSfuture</p>
                     <p className="text-xs text-[#C4623F] font-semibold">
-                      {isEn ? 'Company behind Bolo237' : 'L entreprise derriere Bolo237'}
+                      {isEn ? 'Company behind Bolo237' : 'L’entreprise derrière Bolo237'}
                     </p>
                   </div>
                 </footer>

@@ -115,17 +115,17 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/a-propos',
     title: {
-      fr: 'A propos de Bolo237 | Mission et confiance',
+      fr: 'À propos de Bolo237 | Mission et confiance',
       en: 'About Bolo237 | Mission and trust',
     },
     description: {
-      fr: 'Decouvrez Bolo237, produit de DTSfuture, et son approche de la confiance pour le marche camerounais.',
+      fr: 'Découvrez Bolo237, produit de DTSfuture, et son approche de la confiance pour le marché camerounais.',
       en: 'Discover Bolo237, a DTSfuture product, and its trust-first approach for the Cameroonian market.',
     },
     priority: 0.75,
     changeFrequency: 'monthly',
     navLabel: {
-      fr: 'A propos',
+      fr: 'À propos',
       en: 'About',
     },
   },
@@ -174,7 +174,7 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/modele-cv',
     title: {
-      fr: 'Modele de CV | Bolo237',
+      fr: 'Modèle de CV | Bolo237',
       en: 'CV template | Bolo237',
     },
     description: {

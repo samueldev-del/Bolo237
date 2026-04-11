@@ -73,13 +73,13 @@ export default function AProposPage() {
             </p>
             <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-tight mb-6">
               {isEn
-                ? 'Born from frustration. Built with passion.'
-                : "N\u00e9 d\u2019une frustration. Construit avec passion."}
+                ? 'A DTSfuture product built for trust in Cameroon.'
+                : 'Un produit DTSfuture concu pour la confiance au Cameroun.'}
             </h1>
             <p className="text-base sm:text-lg md:text-xl text-[#FEEBD6] max-w-2xl mx-auto leading-relaxed">
               {isEn
-                ? "Bolo237 is more than a platform. It\u2019s a mission: giving every Cameroonian the tools to build their professional future."
-                : "Bolo237 est plus qu\u2019une plateforme. C\u2019est une mission\u00a0: donner \u00e0 chaque Camerounais les outils pour construire son avenir professionnel."}
+                ? 'Bolo237 is a DTSfuture product designed to make jobs and artisan services in Cameroon clearer, safer, and more useful in real conditions.'
+                : 'Bolo237 est un produit DTSfuture concu pour rendre l emploi et les services d artisans au Cameroun plus clairs, plus fiables et plus utiles dans les conditions reelles du terrain.'}
             </p>
           </div>
         </section>
@@ -88,50 +88,55 @@ export default function AProposPage() {
         <section className="py-16 md:py-24 px-4">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-extrabold text-gray-900 mb-2">
-              {isEn ? 'The Story' : "L\u2019Histoire"}
+              {isEn ? 'The Story Behind Bolo237' : 'L histoire de Bolo237'}
             </h2>
             <div className="w-16 h-1 bg-[#DA7756] rounded-full mb-8" />
 
             <div className="space-y-5 text-gray-700 leading-relaxed text-[15px] md:text-base">
               <p>
                 {isEn
-                  ? "My name is Samuel DJOMMOU THENGHO. I\u2019m Cameroonian, and I live in Germany. Like many of us in the diaspora, I never stopped thinking about home \u2014 about the people I love, the country that shaped me, and the challenges that still hold it back."
-                  : "Je m\u2019appelle Samuel DJOMMOU THENGHO. Je suis Camerounais, et je vis en Allemagne. Comme beaucoup d\u2019entre nous dans la diaspora, je n\u2019ai jamais cess\u00e9 de penser au pays\u00a0\u2014\u00a0aux gens que j\u2019aime, \u00e0 la terre qui m\u2019a forg\u00e9, et aux d\u00e9fis qui freinent encore son \u00e9lan."}
+                  ? 'Bolo237 is not an isolated side project. It is one of the public products developed by DTSfuture, a company that builds the digital products the Cameroonian market actually needs.'
+                  : 'Bolo237 n est pas un projet isole. C est l un des produits publics developpes par DTSfuture, une entreprise qui conçoit les produits numeriques dont le marche camerounais a reellement besoin.'}
               </p>
               <p>
                 {isEn
-                  ? "Every time I needed a reliable plumber or electrician back home, it was a nightmare. Every time I saw a talented young Cameroonian struggling to find work despite incredible skills, it broke my heart. And every time I saw fake job listings preying on desperate people, it made me angry."
-                  : "Chaque fois que j\u2019avais besoin d\u2019un plombier ou d\u2019un \u00e9lectricien fiable au pays, c\u2019\u00e9tait un calvaire. Chaque fois que je voyais un jeune Camerounais talentueux gaL\u00e9rer \u00e0 trouver un emploi malgr\u00e9 ses comp\u00e9tences, \u00e7a me brisait le c\u0153ur. Et chaque fois que je voyais des fausses offres d\u2019emploi qui arnaquaient des gens d\u00e9sesp\u00e9r\u00e9s, \u00e7a me mettait en col\u00e8re."}
+                  ? 'The starting point was simple: too many real needs were still answered by unreliable services. Local hiring and artisan services often suffer from weak trust signals, fragmented information, and too much friction for users who mostly rely on mobile.'
+                  : 'Le point de depart etait simple : trop de besoins reels restaient mal servis. Le recrutement local et les services d artisans souffrent encore d un manque de signaux de confiance, d informations fragmentees et de trop de friction pour des utilisateurs majoritairement sur mobile.'}
+              </p>
+              <p>
+                {isEn
+                  ? 'DTSfuture built Bolo237 to make this market more structured, more reassuring, and more direct: distinct journeys for candidates, companies, and artisans, visible moderation, identity verification, anti-fraud signals, and direct contact through familiar local usage such as WhatsApp.'
+                  : 'DTSfuture a construit Bolo237 pour rendre ce marche plus structure, plus rassurant et plus direct : des parcours distincts pour les candidats, les entreprises et les artisans, une moderation visible, une verification d identite, des signaux anti-fraude et un contact direct via des usages locaux comme WhatsApp.'}
+              </p>
+              <p>
+                {isEn
+                  ? 'The logic behind Bolo237 follows DTSfuture\'s broader story: Cameroon gave the urgency, Germany reinforced the discipline. Local understanding defines the problem; rigorous execution makes the solution credible.'
+                  : 'La logique de Bolo237 suit l histoire plus large de DTSfuture : le Cameroun a donne l urgence, l Allemagne a renforce la discipline. La comprehension locale definit le probleme ; une execution rigoureuse rend la solution credible.'}
               </p>
               <p className="font-semibold text-gray-900">
                 {isEn
-                  ? "So I decided to stop complaining and start building."
-                  : "Alors j\u2019ai d\u00e9cid\u00e9 d\u2019arr\u00eater de me plaindre et de commencer \u00e0 construire."}
-              </p>
-              <p>
-                {isEn
-                  ? "Bolo237 is a platform where every profile is verified, every listing is moderated, and connections happen directly via WhatsApp \u2014 the tool Cameroonians already use every day. No middlemen. No scams. Just real people finding real opportunities."
-                  : "Bolo237 est une plateforme o\u00f9 chaque profil est v\u00e9rifi\u00e9, chaque annonce est mod\u00e9r\u00e9e, et les mises en relation se font directement via WhatsApp\u00a0\u2014\u00a0l\u2019outil que les Camerounais utilisent d\u00e9j\u00e0 chaque jour. Pas d\u2019interm\u00e9diaires. Pas d\u2019arnaques. Juste de vraies personnes qui trouvent de vraies opportunit\u00e9s."}
+                  ? 'Bolo237 is already proof of that approach: a live product, visible to the public, built to earn trust before it asks for growth.'
+                  : 'Bolo237 est deja la preuve de cette approche : un produit en ligne, visible publiquement, concu pour gagner la confiance avant de chercher la croissance.'}
               </p>
             </div>
 
-            {/* Founder quote */}
+            {/* DTSfuture quote */}
             <div className="mt-10 bg-gradient-to-br from-[#FFF5EF] to-[#FEEBD6] rounded-2xl p-8 md:p-10 border border-[#DA7756]/20 relative">
               <div className="absolute top-4 left-6 text-6xl text-[#DA7756]/20 font-serif leading-none select-none">&ldquo;</div>
               <blockquote className="relative z-10">
                 <p className="text-lg md:text-xl font-medium text-gray-800 italic leading-relaxed">
                   {isEn
-                    ? "I wanted to create the platform I wish I had. A platform where trust is not a luxury, but the standard."
-                    : "J\u2019ai voulu cr\u00e9er la plateforme que j\u2019aurais aim\u00e9 avoir. Une plateforme o\u00f9 la confiance n\u2019est pas un luxe, mais la norme."}
+                    ? 'Bolo237 shows what DTSfuture stands for: local understanding, visible trust signals, and execution solid enough to survive real-world use.'
+                    : 'Bolo237 montre ce que DTSfuture defend : une comprehension locale, des signaux de confiance visibles et une execution assez solide pour tenir dans la vraie vie.'}
                 </p>
                 <footer className="mt-6 flex items-center gap-3">
                   <div className="w-12 h-12 rounded-full bg-[#DA7756] flex items-center justify-center text-white font-extrabold text-lg">
-                    SD
+                    DT
                   </div>
                   <div>
-                    <p className="font-extrabold text-gray-900 text-sm">Samuel DJOMMOU THENGHO</p>
+                    <p className="font-extrabold text-gray-900 text-sm">DTSfuture</p>
                     <p className="text-xs text-[#C4623F] font-semibold">
-                      {isEn ? 'Founder & CEO' : 'Fondateur & CEO'}
+                      {isEn ? 'Company behind Bolo237' : 'L entreprise derriere Bolo237'}
                     </p>
                   </div>
                 </footer>

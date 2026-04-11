@@ -119,8 +119,8 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
       en: 'About Bolo237 | Mission and trust',
     },
     description: {
-      fr: 'Decouvrez la mission de Bolo237, son fondateur et son approche de la confiance au Cameroun.',
-      en: 'Discover Bolo237, its founder, and its trust-first approach for Cameroon.',
+      fr: 'Decouvrez Bolo237, produit de DTSfuture, et son approche de la confiance pour le marche camerounais.',
+      en: 'Discover Bolo237, a DTSfuture product, and its trust-first approach for the Cameroonian market.',
     },
     priority: 0.75,
     changeFrequency: 'monthly',

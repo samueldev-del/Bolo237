@@ -2,7 +2,7 @@
 # 1. BASE : On prépare le terrain
 # ==========================================
 # On utilise Alpine, une version de Linux minuscule (environ 5 Mo !)
-FROM node:18-alpine AS base
+FROM node:20-alpine AS base
 
 # ==========================================
 # 2. DÉPENDANCES : On installe les paquets

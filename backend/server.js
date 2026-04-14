@@ -3776,11 +3776,6 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Temporary route for production Sentry crash validation.
-app.get('/api/force-sentry-error', (_req, _res) => {
-  throw new Error('CRASH TEST SENTRY BACKEND - Bolo237');
-});
-
 Sentry.setupExpressErrorHandler(app);
 
 // Démarrage des tâches automatisées

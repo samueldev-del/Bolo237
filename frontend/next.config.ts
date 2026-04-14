@@ -31,6 +31,8 @@ const contentSecurityPolicy = [
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
   `connect-src ${connectSources.join(' ')}`,
+  "worker-src 'self' blob:",
+  "child-src 'self' blob:",
   "frame-ancestors 'none'",
   "object-src 'none'",
   "base-uri 'self'",
@@ -65,6 +67,8 @@ export default withSentryConfig(nextConfig, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
   org: process.env.SENTRY_ORG,
   project: process.env.SENTRY_PROJECT,
+  widenClientFileUpload: true,
+  tunnelRoute: '/monitoring',
   silent: !process.env.CI,
   webpack: {
     treeshake: {

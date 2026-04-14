@@ -17,6 +17,7 @@ Sentry.init({
   enabled: sentryEnabled,
   dsn: sentryDsn || undefined,
   sendDefaultPii: true,
+  includeLocalVariables: true,
   environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim() || 'development',
   release: String(process.env.SENTRY_RELEASE || '').trim() || undefined,
   tracesSampleRate: getSampleRateFromEnv(

@@ -25,7 +25,21 @@ try {
       process.env.NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE || process.env.SENTRY_TRACES_SAMPLE_RATE,
       process.env.NODE_ENV === 'production' ? 0.1 : 1,
     ),
+    replaysSessionSampleRate: parseSampleRate(
+      process.env.NEXT_PUBLIC_SENTRY_REPLAYS_SESSION_SAMPLE_RATE,
+      process.env.NODE_ENV === 'production' ? 0.1 : 1,
+    ),
+    replaysOnErrorSampleRate: parseSampleRate(
+      process.env.NEXT_PUBLIC_SENTRY_REPLAYS_ON_ERROR_SAMPLE_RATE,
+      1,
+    ),
     enableLogs: true,
+    integrations: [
+      Sentry.replayIntegration({
+        maskAllText: true,
+        blockAllMedia: true,
+      }),
+    ],
   });
 } catch (error) {
   console.error('Sentry client init failed:', error);

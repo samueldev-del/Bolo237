@@ -106,6 +106,7 @@ export async function middleware(request: NextRequest) {
   // Routes publiques (login, assets, api)
   if (
     pathname === "/login" ||
+    pathname.startsWith("/monitoring") ||
     pathname.startsWith("/api/") ||
     isPublicAsset(pathname)
   ) {
@@ -136,6 +137,6 @@ export const config = {
     /*
      * Match all request paths except static files
      */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!monitoring|_next/static|_next/image|favicon.ico).*)",
   ],
 };

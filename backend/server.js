@@ -1,3 +1,32 @@
+require('dotenv').config();
+const Sentry = require('@sentry/node');
+
+function getSampleRateFromEnv(name, fallbackValue) {
+  const parsedValue = Number(process.env[name]);
+  if (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1) {
+    return parsedValue;
+  }
+
+  return fallbackValue;
+}
+
+const sentryDsn = String(process.env.SENTRY_DSN || '').trim();
+const sentryEnabled = Boolean(sentryDsn);
+
+Sentry.init({
+  enabled: sentryEnabled,
+  dsn: sentryDsn || undefined,
+  sendDefaultPii: true,
+  environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim() || 'development',
+  release: String(process.env.SENTRY_RELEASE || '').trim() || undefined,
+  tracesSampleRate: getSampleRateFromEnv(
+    'SENTRY_TRACES_SAMPLE_RATE',
+    process.env.NODE_ENV === 'production' ? 0.1 : 1,
+  ),
+  profilesSampleRate: getSampleRateFromEnv('SENTRY_PROFILES_SAMPLE_RATE', 0),
+  enableLogs: true,
+});
+
 const express = require('express');
 const startJobArchiver = require('./cron/jobArchiver');
 const cors = require('cors');
@@ -20,7 +49,15 @@ const {
   replyToAdminInboxTicket,
   trashAdminInboxTicket,
 } = require('./lib/adminInboxService');
-require('dotenv').config();
+const {
+  sendAccountVerifiedEmail,
+  sendApplicationReceivedEmail,
+  sendApplicationSentEmail,
+  sendJobQueuedEmail,
+  sendPasswordResetCodeEmail,
+  sendPasswordResetConfirmationEmail,
+  sendWelcomeEmail,
+} = require('./lib/transactionalEmail');
 
 function logFatalError(label, error) {
   if (error instanceof Error) {
@@ -34,13 +71,42 @@ function logFatalError(label, error) {
   console.error(`❌ [FATAL] ${label}:`, error);
 }
 
-process.on('uncaughtException', (error) => {
+function reportError(label, error, context = {}) {
+  console.error(`${label}:`, error);
+
+  Sentry.withScope((scope) => {
+    scope.setTag('service', 'backend');
+    scope.setTag('error_label', String(label || 'backend_error'));
+    Object.entries(context || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        scope.setExtra(key, value);
+      }
+    });
+    Sentry.captureException(error);
+  });
+}
+
+async function flushSentry(timeoutMs = 2000) {
+  if (!sentryEnabled) return;
+
+  try {
+    await Sentry.flush(timeoutMs);
+  } catch {
+    // Ignore flush failures during shutdown paths.
+  }
+}
+
+process.on('uncaughtException', async (error) => {
   logFatalError('Uncaught exception', error);
+  Sentry.captureException(error);
+  await flushSentry();
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason) => {
+process.on('unhandledRejection', async (reason) => {
   logFatalError('Unhandled promise rejection', reason);
+  Sentry.captureException(reason);
+  await flushSentry();
   process.exit(1);
 });
 
@@ -86,6 +152,10 @@ function getPositiveIntegerEnv(name, fallbackValue) {
   }
 
   return fallbackValue;
+}
+
+function getRequestIpKey(req) {
+  return ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
 }
 
 function validateSecurityConfiguration(databaseUrl) {
@@ -371,7 +441,7 @@ const signupIpLimiter = rateLimit({
   max: getPositiveIntegerEnv('SIGNUP_IP_DAILY_LIMIT', 3),
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
+  keyGenerator: (req) => getRequestIpKey(req),
   message: {
     error: 'Trop de creations de compte depuis cette IP aujourd hui. Reessayez demain ou contactez le support.',
   },
@@ -383,7 +453,7 @@ const loginIpLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
-  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
+  keyGenerator: (req) => getRequestIpKey(req),
   message: { error: 'Trop de tentatives de connexion depuis cette IP. Reessayez dans 15 minutes.' },
 });
 
@@ -398,7 +468,7 @@ const loginIdentifierLimiter = rateLimit({
       .trim()
       .toLowerCase();
 
-    return loginIdentifier || ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
+    return loginIdentifier || getRequestIpKey(req);
   },
   message: { error: 'Trop de tentatives de connexion pour cet identifiant. Reessayez dans 15 minutes.' },
 });
@@ -410,7 +480,7 @@ const forgotPasswordLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
+    return phone || getRequestIpKey(req);
   },
   message: { error: 'Trop de demandes de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
 });
@@ -422,9 +492,103 @@ const resetPasswordLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
+    return phone || getRequestIpKey(req);
   },
   message: { error: 'Trop de tentatives de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
+});
+
+const verificationSubmissionLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: getPositiveIntegerEnv('VERIFICATION_SUBMISSION_DAILY_LIMIT', 6),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const accountKey = String(req.body?.accountKey || '').trim().toLowerCase();
+    const phone = String(req.body?.phone || '').replace(/\D/g, '');
+    return accountKey || phone || getRequestIpKey(req);
+  },
+  message: { error: 'Trop de demandes de verification aujourd hui. Reessayez plus tard.' },
+});
+
+const candidateProfileLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: getPositiveIntegerEnv('CANDIDATE_PROFILE_HOURLY_LIMIT', 20),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = parseInt(String(req.body?.userId || ''), 10);
+    return Number.isFinite(userId) && userId > 0 ? `candidate-profile:${userId}` : getRequestIpKey(req);
+  },
+  message: { error: 'Trop de mises a jour de profil candidat. Reessayez dans une heure.' },
+});
+
+const savedJobsLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: getPositiveIntegerEnv('SAVED_JOBS_15M_LIMIT', 120),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = parseInt(String(req.params?.id || req.body?.userId || ''), 10);
+    return Number.isFinite(userId) && userId > 0 ? `saved-jobs:${userId}` : getRequestIpKey(req);
+  },
+  message: { error: 'Trop de modifications sur vos favoris. Reessayez dans 15 minutes.' },
+});
+
+const jobApplicationLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: getPositiveIntegerEnv('JOB_APPLICATION_HOURLY_LIMIT', 30),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const candidateId = parseInt(String(req.body?.candidateId || ''), 10);
+    return Number.isFinite(candidateId) && candidateId > 0 ? `job-apply:${candidateId}` : getRequestIpKey(req);
+  },
+  message: { error: 'Trop de candidatures envoyees en une heure. Reessayez plus tard.' },
+});
+
+const jobCreationLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: getPositiveIntegerEnv('JOB_CREATION_DAILY_LIMIT', 12),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const authorId = parseInt(String(req.body?.authorId || ''), 10);
+    return Number.isFinite(authorId) && authorId > 0 ? `job-create:${authorId}` : getRequestIpKey(req);
+  },
+  message: { error: 'Trop d annonces creees aujourd hui. Reessayez demain ou contactez le support.' },
+});
+
+const feedbackSubmissionLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: getPositiveIntegerEnv('APP_FEEDBACK_DAILY_LIMIT', 5),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const userId = parseInt(String(req.body?.userId || ''), 10);
+    return Number.isFinite(userId) && userId > 0 ? `app-feedback:${userId}` : getRequestIpKey(req);
+  },
+  message: { error: 'Trop de retours envoyes aujourd hui. Merci de reessayer plus tard.' },
+});
+
+const reviewSubmissionLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000,
+  max: getPositiveIntegerEnv('USER_REVIEW_DAILY_LIMIT', 12),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const reviewerId = parseInt(String(req.body?.reviewerId || ''), 10);
+    return Number.isFinite(reviewerId) && reviewerId > 0 ? `user-review:${reviewerId}` : getRequestIpKey(req);
+  },
+  message: { error: 'Trop d avis envoyes aujourd hui. Reessayez demain.' },
+});
+
+const uploadIpLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: getPositiveIntegerEnv('UPLOAD_IP_15M_LIMIT', 25),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getRequestIpKey(req),
+  message: { error: 'Trop de televersements depuis cette IP. Reessayez dans 15 minutes.' },
 });
 
 app.use('/api', apiGlobalLimiter);
@@ -996,7 +1160,7 @@ app.get('/api/verifications/status', async (req, res) => {
 });
 
 // POST /api/verifications — Soumettre ou re-soumettre une demande
-app.post('/api/verifications', async (req, res) => {
+app.post('/api/verifications', verificationSubmissionLimiter, async (req, res) => {
   try {
     const { role, accountKey, displayName, phone, payload } = req.body;
 
@@ -1043,7 +1207,7 @@ app.post('/api/verifications', async (req, res) => {
 
     res.status(201).json(submission);
   } catch (error) {
-    console.error('POST /api/verifications error:', error);
+    reportError('POST /api/verifications error', error, { route: '/api/verifications' });
     res.status(500).json({ error: 'Erreur lors de la soumission de verification.' });
   }
 });
@@ -1092,23 +1256,30 @@ app.patch('/api/verifications/:id/review', requireAdminSession, async (req, res)
           data: { isVerified: true },
         }).catch(() => null);
 
-        await createNotification({
-          userId: userToVerify.id,
-          type: 'account_verified',
-          title: 'Compte certifie',
-          message: 'Felicitations ! Votre identite a ete verifiee. Vous avez maintenant le badge certifie sur votre profil.',
-          data: { verificationId: updated.id, role: updated.role },
-        }).catch(() => null);
+        const verifiedUser = { ...userToVerify, isVerified: true };
 
-        await sendWhatsAppModerationAlert(
-          `✅ Identite verifiee\nUser: ${userToVerify.name || userToVerify.email}\nRole: ${updated.role}`
-        ).catch(() => null);
+        await Promise.allSettled([
+          createNotification({
+            userId: userToVerify.id,
+            type: 'account_verified',
+            title: 'Compte certifie',
+            message: 'Felicitations ! Votre identite a ete verifiee. Vous avez maintenant le badge certifie sur votre profil.',
+            data: { verificationId: updated.id, role: updated.role },
+          }),
+          sendWhatsAppModerationAlert(
+            `✅ Identite verifiee\nUser: ${userToVerify.name || userToVerify.email}\nRole: ${updated.role}`
+          ),
+          sendAccountVerifiedEmail({ transporter, user: verifiedUser }),
+        ]);
       }
     }
 
     res.json(updated);
   } catch (error) {
-    console.error('PATCH /api/verifications/:id/review error:', error);
+    reportError('PATCH /api/verifications/:id/review error', error, {
+      route: '/api/verifications/:id/review',
+      verificationId: req.params.id,
+    });
     res.status(500).json({ error: 'Erreur lors de la mise a jour de la verification.' });
   }
 });
@@ -1130,7 +1301,7 @@ app.get('/api/candidates', async (_req, res) => {
   }
 });
 
-app.post('/api/candidates', async (req, res) => {
+app.post('/api/candidates', candidateProfileLimiter, async (req, res) => {
   try {
     const {
       userId,
@@ -1183,7 +1354,7 @@ app.post('/api/candidates', async (req, res) => {
 
     res.status(existing ? 200 : 201).json({ ...item, cvMajJours: calcCvMajJours(item.createdAt) });
   } catch (error) {
-    console.error('POST /api/candidates error:', error);
+    reportError('POST /api/candidates error', error, { route: '/api/candidates' });
     res.status(500).json({ error: 'Erreur lors de la creation du profil candidat.' });
   }
 });
@@ -1318,7 +1489,7 @@ app.get('/api/users/:id/saved-jobs', async (req, res) => {
   }
 });
 
-app.post('/api/users/:id/saved-jobs', async (req, res) => {
+app.post('/api/users/:id/saved-jobs', savedJobsLimiter, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const jobId = parseInt(String(req.body?.jobId), 10);
@@ -1377,7 +1548,7 @@ app.get('/api/jobs/:id', async (req, res) => {
 });
 
 // POST /api/jobs/:id/apply — Simuler une candidature et notifier l'entreprise
-app.post('/api/jobs/:id/apply', async (req, res) => {
+app.post('/api/jobs/:id/apply', jobApplicationLimiter, async (req, res) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     if (isNaN(jobId)) return res.status(400).json({ error: 'ID annonce invalide.' });
@@ -1399,12 +1570,16 @@ app.post('/api/jobs/:id/apply', async (req, res) => {
       return res.status(400).json({ error: 'candidateId invalide.' });
     }
 
-    const [user, userProfile] = await Promise.all([
+    const [user, userProfile, employer] = await Promise.all([
       prisma.user.findUnique({
         where: { id: normalizedCandidateId },
         select: { id: true, name: true, email: true, phone: true, isVerified: true },
       }),
       prisma.userProfile.findUnique({ where: { userId: normalizedCandidateId } }),
+      prisma.user.findUnique({
+        where: { id: job.authorId },
+        select: { id: true, name: true, email: true, role: true },
+      }),
     ]);
 
     if (!user) {
@@ -1451,20 +1626,51 @@ app.post('/api/jobs/:id/apply', async (req, res) => {
       },
     });
 
+    await Promise.allSettled([
+      sendApplicationReceivedEmail({
+        transporter,
+        employer,
+        job,
+        candidateName: candidateLabel,
+      }),
+      sendApplicationSentEmail({
+        transporter,
+        user,
+        job,
+      }),
+    ]);
+
     res.status(201).json({ ok: true, notification: notif });
   } catch (error) {
-    console.error('POST /api/jobs/:id/apply error:', error);
+    reportError('POST /api/jobs/:id/apply error', error, {
+      route: '/api/jobs/:id/apply',
+      jobId: req.params.id,
+    });
     res.status(500).json({ error: 'Erreur lors de la candidature.' });
   }
 });
 
 // POST /api/jobs — Créer une offre
-app.post('/api/jobs', async (req, res) => {
+app.post('/api/jobs', jobCreationLimiter, async (req, res) => {
   try {
     const { title, company, location, description, salary, authorId } = req.body;
 
     if (!title || !company || !location || !description || !authorId) {
       return res.status(400).json({ error: 'Champs obligatoires manquants: title, company, location, description, authorId.' });
+    }
+
+    const normalizedAuthorId = parseInt(String(authorId), 10);
+    if (isNaN(normalizedAuthorId)) {
+      return res.status(400).json({ error: 'authorId invalide.' });
+    }
+
+    const author = await prisma.user.findUnique({
+      where: { id: normalizedAuthorId },
+      select: { id: true, name: true, email: true, role: true },
+    });
+
+    if (!author) {
+      return res.status(404).json({ error: 'Auteur introuvable.' });
     }
 
     const job = await prisma.job.create({
@@ -1474,24 +1680,27 @@ app.post('/api/jobs', async (req, res) => {
         location: String(location),
         description: String(description),
         salary: salary ? String(salary) : null,
-        authorId: parseInt(String(authorId), 10),
+        authorId: normalizedAuthorId,
         status: 'PENDING',
       },
     });
 
-    await sendWhatsAppModerationAlert(
-      [
-        'Nouvelle annonce en attente de moderation',
-        `ID: ${job.id}`,
-        `Titre: ${job.title}`,
-        `Entreprise: ${job.company}`,
-        `Lieu: ${job.location}`,
-      ].join('\n')
-    );
+    await Promise.allSettled([
+      sendWhatsAppModerationAlert(
+        [
+          'Nouvelle annonce en attente de moderation',
+          `ID: ${job.id}`,
+          `Titre: ${job.title}`,
+          `Entreprise: ${job.company}`,
+          `Lieu: ${job.location}`,
+        ].join('\n')
+      ),
+      sendJobQueuedEmail({ transporter, author, job }),
+    ]);
 
     res.status(201).json(job);
   } catch (error) {
-    console.error('POST /api/jobs error:', error);
+    reportError('POST /api/jobs error', error, { route: '/api/jobs' });
     res.status(500).json({ error: "Erreur lors de la création de l'offre." });
   }
 });
@@ -1671,22 +1880,25 @@ app.post('/api/users', signupIpLimiter, async (req, res) => {
 
     console.log(`✅ Nouveau user créé: ID=${user.id} Role=${user.role} Email=${user.email}`);
 
-    await sendWhatsAppModerationAlert(
-      [
-        '🆕 Nouveau profil en attente de vérification',
-        `👤 ${user.name || '-'}`,
-        `📧 ${user.email}`,
-        `🏷️ ${user.role}`,
-        `🔗 ID: ${user.id}`,
-      ].join('\n')
-    );
+    await Promise.allSettled([
+      sendWhatsAppModerationAlert(
+        [
+          '🆕 Nouveau profil en attente de vérification',
+          `👤 ${user.name || '-'}`,
+          `📧 ${user.email}`,
+          `🏷️ ${user.role}`,
+          `🔗 ID: ${user.id}`,
+        ].join('\n')
+      ),
+      sendWelcomeEmail({ transporter, user }),
+    ]);
 
     res.status(201).json({
       ...user,
       moderationStatus: 'PENDING',
     });
   } catch (error) {
-    console.error('POST /api/users error:', error);
+    reportError('POST /api/users error', error, { route: '/api/users' });
     res.status(500).json({ error: "Erreur lors de la création de l'utilisateur." });
   }
 });
@@ -1698,6 +1910,15 @@ app.put('/api/users/:id', requireAdminSession, async (req, res) => {
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
 
     const { name, role, isVerified, photoUrl } = req.body;
+    const currentUser = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, name: true, role: true, isVerified: true },
+    });
+
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Utilisateur non trouvé.' });
+    }
+
     const data = {};
     if (name !== undefined) data.name = String(name);
     if (role !== undefined) data.role = String(role);
@@ -1715,23 +1936,28 @@ app.put('/api/users/:id', requireAdminSession, async (req, res) => {
     console.log(`PUT /api/users/${id} — result: isVerified=${user.isVerified}`);
 
     // Envoyer une notification WhatsApp lors de la vérification
-    if (isVerified === true) {
-      await sendWhatsAppModerationAlert(
-        `✅ Compte vérifié\nUser ID: ${user.id}\nNom: ${user.name || '-'}\nRole: ${user.role}`
-      );
-
-      await createNotification({
-        userId: id,
-        type: 'account_verified',
-        title: 'Compte verifie',
-        message: 'Votre compte a ete verifie avec succes. Vous pouvez maintenant acceder a toutes les fonctionnalites.',
-        data: {},
-      });
+    if (isVerified === true && !currentUser.isVerified) {
+      await Promise.allSettled([
+        sendWhatsAppModerationAlert(
+          `✅ Compte vérifié\nUser ID: ${user.id}\nNom: ${user.name || '-'}\nRole: ${user.role}`
+        ),
+        createNotification({
+          userId: id,
+          type: 'account_verified',
+          title: 'Compte verifie',
+          message: 'Votre compte a ete verifie avec succes. Vous pouvez maintenant acceder a toutes les fonctionnalites.',
+          data: {},
+        }),
+        sendAccountVerifiedEmail({ transporter, user }),
+      ]);
     }
 
     res.json(user);
   } catch (error) {
-    console.error('PUT /api/users/:id error:', error);
+    reportError('PUT /api/users/:id error', error, {
+      route: '/api/users/:id',
+      userId: req.params.id,
+    });
     if (error.code === 'P2025') return res.status(404).json({ error: 'Utilisateur non trouvé.' });
     res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
   }
@@ -1885,7 +2111,7 @@ app.get('/api/users/:id/applications', async (req, res) => {
 // ROUTES: App Feedbacks
 // =============================================
 
-app.post('/api/feedbacks', async (req, res) => {
+app.post('/api/feedbacks', feedbackSubmissionLimiter, async (req, res) => {
   try {
     const { userId, authorName, rating, comment } = req.body || {};
 
@@ -1915,7 +2141,7 @@ app.post('/api/feedbacks', async (req, res) => {
 
     res.status(201).json(row);
   } catch (error) {
-    console.error('POST /api/feedbacks error:', error);
+    reportError('POST /api/feedbacks error', error, { route: '/api/feedbacks' });
     res.status(500).json({ error: 'Erreur lors de la creation du retour.' });
   }
 });
@@ -1987,7 +2213,7 @@ app.get('/api/users/:id/reviews', async (req, res) => {
   }
 });
 
-app.post('/api/users/:id/reviews', async (req, res) => {
+app.post('/api/users/:id/reviews', reviewSubmissionLimiter, async (req, res) => {
   try {
     const reviewedId = parseInt(req.params.id, 10);
     if (isNaN(reviewedId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -2034,7 +2260,10 @@ app.post('/api/users/:id/reviews', async (req, res) => {
 
     res.status(201).json(row);
   } catch (error) {
-    console.error('POST /api/users/:id/reviews error:', error);
+    reportError('POST /api/users/:id/reviews error', error, {
+      route: '/api/users/:id/reviews',
+      userId: req.params.id,
+    });
     res.status(500).json({ error: 'Erreur lors de la creation de lavis.' });
   }
 });
@@ -3124,7 +3353,7 @@ const upload = multer({
   },
 });
 
-app.post('/api/upload', upload.single('file'), async (req, res) => {
+app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
     if (!ALLOWED_UPLOAD_MIME.has(String(req.file.mimetype || '').toLowerCase())) {
@@ -3160,7 +3389,10 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
     res.json({ url: `${baseUrl}/uploads/${relativePath}`, publicId: relativePath });
   } catch (error) {
-    console.error('Upload error:', error);
+    reportError('Upload error', error, {
+      route: '/api/upload',
+      folder: req.query?.folder,
+    });
     if (error?.message === 'Invalid file type') {
       return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp.' });
     }
@@ -3193,9 +3425,21 @@ const otpPhoneLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => {
     const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || ipKeyGenerator(req.ip);
+    return phone || getRequestIpKey(req);
   },
   message: { error: 'Trop de demandes OTP pour ce numero. Reessayez dans 15 minutes.' },
+});
+
+const otpVerifyLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: getPositiveIntegerEnv('OTP_VERIFY_15M_LIMIT', 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => {
+    const phone = String(req.body?.phone || '').replace(/\D/g, '');
+    return phone || getRequestIpKey(req);
+  },
+  message: { error: 'Trop de tentatives de verification OTP. Reessayez dans 15 minutes.' },
 });
 
 // Route pour ENVOYER le code SMS
@@ -3230,7 +3474,7 @@ app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
 });
 
 // Route pour VÉRIFIER le code SMS
-app.post('/api/otp/verify', async (req, res) => {
+app.post('/api/otp/verify', otpVerifyLimiter, async (req, res) => {
   const { phone, code } = req.body;
   
   // Le Master Code (0000 ou 000000) pour qu'Apple/Google puissent tester l'app plus tard
@@ -3272,19 +3516,27 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) =>
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
 
+    const deliveryTasks = [];
+
     // Envoyer par SMS si Twilio configuré
     if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
-      await twilioClient.messages.create({
-        body: `Bolo237 — Votre code de réinitialisation : ${otp}`,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: phone
-      }).catch(() => {});
+      deliveryTasks.push(
+        twilioClient.messages.create({
+          body: `Bolo237 — Votre code de réinitialisation : ${otp}`,
+          from: process.env.TWILIO_PHONE_NUMBER,
+          to: phone
+        })
+      );
     }
 
+    deliveryTasks.push(sendPasswordResetCodeEmail({ transporter, user, code: otp }));
+
+    await Promise.allSettled(deliveryTasks);
+
     // OTP sent (not logged for security)
-    res.json({ success: true, message: "Code envoyé par SMS." });
+    res.json({ success: true, message: "Code envoye. Verifiez votre SMS ou votre email." });
   } catch (error) {
-    console.error('forgot-password error:', error);
+    reportError('forgot-password error', error, { route: '/api/auth/forgot-password' });
     res.status(500).json({ error: "Erreur serveur." });
   }
 });
@@ -3324,10 +3576,12 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
     const hashedPassword = bcrypt.hashSync(String(newPassword), 10);
     await prisma.user.update({ where: { id: user.id }, data: { password: hashedPassword } });
 
+    await sendPasswordResetConfirmationEmail({ transporter, user });
+
     console.log(`✅ Mot de passe réinitialisé pour user ${user.id} (${phone})`);
     res.json({ success: true, message: "Mot de passe réinitialisé avec succès." });
   } catch (error) {
-    console.error('reset-password error:', error);
+    reportError('reset-password error', error, { route: '/api/auth/reset-password' });
     res.status(500).json({ error: "Erreur serveur." });
   }
 });
@@ -3520,6 +3774,9 @@ app.get('/', (_req, res) => {
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
+
+Sentry.setupExpressErrorHandler(app);
+
 // Démarrage des tâches automatisées
 startJobArchiver(prisma);
 

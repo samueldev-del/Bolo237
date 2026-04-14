@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -7,6 +8,8 @@ const connectSources = [
   'https://www.bolo237.com',
   'https://admin.bolo237.com',
   'https://api-237jobs.onrender.com',
+  'https://ingest.sentry.io',
+  'https://*.ingest.sentry.io',
   ...(isDev
     ? [
         'http://localhost:3000',
@@ -58,4 +61,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  silent: !process.env.CI,
+  webpack: {
+    treeshake: {
+      removeDebugLogging: true,
+    },
+  },
+});

@@ -1,5 +1,7 @@
 "use server";
 
+import * as Sentry from "@sentry/nextjs";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { verifyPassword, createSession } from "@/lib/auth";
 
@@ -12,18 +14,28 @@ export async function loginAction(
   _prevState: LoginState,
   formData: FormData
 ): Promise<LoginState> {
-  const password = formData.get("password");
+  const requestHeaders = await headers();
 
-  if (!password || typeof password !== "string") {
-    return { error: "Veuillez entrer le mot de passe." };
-  }
+  return Sentry.withServerActionInstrumentation(
+    "admin.loginAction",
+    {
+      headers: requestHeaders,
+      recordResponse: false,
+    },
+    async () => {
+      const password = formData.get("password");
 
-  if (!verifyPassword(password)) {
-    // Petit delai anti-bruteforce
-    await new Promise((r) => setTimeout(r, 800));
-    return { error: "Mot de passe incorrect." };
-  }
+      if (!password || typeof password !== "string") {
+        return { error: "Veuillez entrer le mot de passe." };
+      }
 
-  await createSession();
-  redirect("/");
+      if (!verifyPassword(password)) {
+        await new Promise((r) => setTimeout(r, 800));
+        return { error: "Mot de passe incorrect." };
+      }
+
+      await createSession();
+      redirect("/");
+    }
+  );
 }

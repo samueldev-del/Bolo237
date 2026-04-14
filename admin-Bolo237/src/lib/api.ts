@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/nextjs';
+
 const BACKEND_PROXY_PREFIX = '/api/backend';
 
 function buildBackendProxyPath(path: string) {
@@ -30,6 +32,18 @@ async function readErrorMessage(response: Response) {
 
   const text = await response.text().catch(() => '');
   return text.trim() || `Erreur API ${response.status}`;
+}
+
+function captureApiException(error: unknown, context: Record<string, unknown>) {
+  Sentry.withScope((scope) => {
+    scope.setTag('surface', 'admin-api');
+    Object.entries(context).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        scope.setExtra(key, value);
+      }
+    });
+    Sentry.captureException(error);
+  });
 }
 
 // ── Types ────────────────────────────────────────────────────────
@@ -269,20 +283,37 @@ export type AdminInboxMutationResponse = {
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
+  const method = String(options?.method || 'GET').toUpperCase();
 
   if (options?.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const res = await fetch(buildBackendProxyPath(path), {
-    ...options,
-    credentials: 'same-origin',
-    headers,
-    cache: 'no-store',
-  });
+  let res: Response;
+
+  try {
+    res = await fetch(buildBackendProxyPath(path), {
+      ...options,
+      credentials: 'same-origin',
+      headers,
+      cache: 'no-store',
+    });
+  } catch (error) {
+    captureApiException(error, { kind: 'network', method, path });
+    throw error;
+  }
 
   if (!res.ok) {
-    throw new Error(await readErrorMessage(res));
+    const message = await readErrorMessage(res);
+    if (res.status >= 500) {
+      captureApiException(new Error(message), {
+        kind: 'response',
+        method,
+        path,
+        status: res.status,
+      });
+    }
+    throw new Error(message);
   }
 
   if (res.status === 204) {

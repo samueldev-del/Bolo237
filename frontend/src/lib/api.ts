@@ -1,3 +1,5 @@
+import * as Sentry from '@sentry/nextjs';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const FRONTEND_PROXY_BASE = '/api/backend';
 
@@ -193,16 +195,44 @@ class ApiError extends Error {
   }
 }
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(buildApiUrl(path), {
-    cache: 'no-store',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
+function captureApiException(error: unknown, context: Record<string, unknown>) {
+  Sentry.withScope((scope) => {
+    scope.setTag('surface', 'frontend-api');
+    Object.entries(context).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        scope.setExtra(key, value);
+      }
+    });
+    Sentry.captureException(error);
   });
+}
+
+async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+  const method = String(options?.method || 'GET').toUpperCase();
+  let res: Response;
+
+  try {
+    res = await fetch(buildApiUrl(path), {
+      cache: 'no-store',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+  } catch (error) {
+    captureApiException(error, { kind: 'network', method, path });
+    throw error;
+  }
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    if (res.status >= 500) {
+      captureApiException(new Error(body.error || `API error ${res.status}`), {
+        kind: 'response',
+        method,
+        path,
+        status: res.status,
+      });
+    }
     throw new ApiError(body.error || `API error ${res.status}`, res.status);
   }
 

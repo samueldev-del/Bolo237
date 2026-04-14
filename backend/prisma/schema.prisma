@@ -1,10 +1,12 @@
 // Configuration de base
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
+  extensions = [pg_trgm]
 }
 
 // 1. Table des Utilisateurs
@@ -32,6 +34,9 @@ model User {
   @@index([role, createdAt])
   @@index([role, isVerified])
   @@index([isBanned, bannedAt])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_name_trgm_idx")
+  @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_email_trgm_idx")
+  @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_phone_trgm_idx")
 }
 
 // 2. Table des Offres d'Emploi
@@ -50,6 +55,10 @@ model Job {
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([authorId, createdAt])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_title_trgm_idx")
+  @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_company_trgm_idx")
+  @@index([location(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_location_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_description_trgm_idx")
 }
 
 // 3. Table des Signalements (Pour la sécurité)
@@ -81,6 +90,9 @@ model Notification {
   @@index([userId, isRead, createdAt])
   @@index([userId, createdAt])
   @@index([createdAt])
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Notification_title_trgm_idx")
+  @@index([message(ops: raw("gin_trgm_ops"))], type: Gin, map: "Notification_message_trgm_idx")
+  @@index([type(ops: raw("gin_trgm_ops"))], type: Gin, map: "Notification_type_trgm_idx")
 }
 
 model PrivacyRequest {
@@ -108,6 +120,14 @@ model PrivacyRequest {
   @@index([status, requestedAt])
   @@index([kind, requestedAt])
   @@index([userId, requestedAt])
+  @@index([reference(ops: raw("gin_trgm_ops"))], type: Gin, map: "PrivacyRequest_reference_trgm_idx")
+  @@index([requesterEmail(ops: raw("gin_trgm_ops"))], type: Gin, map: "PrivacyRequest_requesterEmail_trgm_idx")
+  @@index([requesterName(ops: raw("gin_trgm_ops"))], type: Gin, map: "PrivacyRequest_requesterName_trgm_idx")
+  @@index([requesterPhone(ops: raw("gin_trgm_ops"))], type: Gin, map: "PrivacyRequest_requesterPhone_trgm_idx")
+  @@index([requesterRole(ops: raw("gin_trgm_ops"))], type: Gin, map: "PrivacyRequest_requesterRole_trgm_idx")
+  @@index([reason(ops: raw("gin_trgm_ops"))], type: Gin, map: "PrivacyRequest_reason_trgm_idx")
+  @@index([notes(ops: raw("gin_trgm_ops"))], type: Gin, map: "PrivacyRequest_notes_trgm_idx")
+  @@index([processedBy(ops: raw("gin_trgm_ops"))], type: Gin, map: "PrivacyRequest_processedBy_trgm_idx")
 }
 
 model AppFeedback {

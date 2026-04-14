@@ -1,0 +1,25 @@
+# Ne pas inclure ce fichier lui-même
+Dockerfile
+.dockerignore
+
+# Ignorer les dépendances locales (Docker s'en occupera)
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Ignorer les builds locaux
+.next/
+out/
+build/
+
+# Ignorer les fichiers liés à Git
+.git
+.gitignore
+
+# SÉCURITÉ : Ignorer absolument tous les fichiers d'environnement
+.env
+.env.*
+!.env.example
+
+# Fichiers divers non nécessaires en production
+README.md

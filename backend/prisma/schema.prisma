@@ -27,6 +27,11 @@ model User {
   appFeedbacks AppFeedback[]
   reviewsGiven UserReview[] @relation("reviewer")
   reviewsReceived UserReview[] @relation("reviewed")
+
+  @@index([createdAt])
+  @@index([role, createdAt])
+  @@index([role, isVerified])
+  @@index([isBanned, bannedAt])
 }
 
 // 2. Table des Offres d'Emploi
@@ -41,6 +46,10 @@ model Job {
   author      User     @relation(fields: [authorId], references: [id])
   authorId    Int
   createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([authorId, createdAt])
 }
 
 // 3. Table des Signalements (Pour la sécurité)
@@ -51,6 +60,10 @@ model Report {
   targetId    Int
   status      String   @default("OPEN")    
   createdAt   DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status, createdAt])
+  @@index([targetType, targetId, status])
 }
 
 model Notification {
@@ -66,6 +79,8 @@ model Notification {
   createdAt DateTime @default(now())
 
   @@index([userId, isRead, createdAt])
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }
 
 model PrivacyRequest {
@@ -119,6 +134,7 @@ model UserReview {
 
   @@index([reviewedId, createdAt])
   @@index([reviewerId, createdAt])
+  @@index([createdAt])
 }
 
 model CandidateProfile {
@@ -135,6 +151,7 @@ model CandidateProfile {
   createdAt      DateTime @default(now())
 
   @@index([userId])
+  @@index([createdAt])
 }
 
 model UserProfile {
@@ -175,7 +192,9 @@ model VerificationSubmission {
   payload     Json
 
   @@unique([role, accountKey])
+  @@index([submittedAt])
   @@index([status, submittedAt])
+  @@index([phone, submittedAt])
 }
 
 model SupportTicket {

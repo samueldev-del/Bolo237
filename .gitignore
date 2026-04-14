@@ -5,6 +5,8 @@ Thumbs.db
 # Environment
 .env
 .env.*
+!admin-Bolo237/.env.example
+!frontend/.env.example
 .env.local
 .env.*.local
 

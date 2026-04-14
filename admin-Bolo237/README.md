@@ -35,6 +35,40 @@ Notes:
 - En test local via Docker Desktop sur macOS, les requetes publiees sur `localhost` arrivent souvent avec l'IP passerelle `192.168.65.1`. Ajoute-la a `ADMIN_ALLOWED_IPS` avec `127.0.0.1` si tu veux tester l'allowlist depuis ta machine.
 - `ADMIN_PASSWORD` protege l'entree du portail. Les actions admin reelles passent ensuite par le compte backend fourni par `ADMIN_BACKEND_EMAIL` et `ADMIN_BACKEND_PASSWORD`.
 
+## Commandes Docker locales
+
+Prepare le fichier d'environnement local une seule fois:
+
+```bash
+cp .env.example .env
+```
+
+Construit et lance le portail admin:
+
+```bash
+docker compose up -d --build
+```
+
+Suis les logs du conteneur:
+
+```bash
+docker compose logs -f
+```
+
+Arrete la stack locale:
+
+```bash
+docker compose down
+```
+
+URL locale:
+- `http://localhost:3001/login`
+
+Notes:
+- La stack Docker de l'admin vit dans `admin-Bolo237/docker-compose.yml`.
+- En local macOS avec Docker Desktop, garde `ADMIN_ALLOWED_IPS=127.0.0.1,192.168.65.1` pour que `localhost` reste autorise.
+- `.env.example` contient seulement des placeholders. Garde les vrais secrets dans `.env`, jamais dans Git.
+
 ## Ce qui est verrouille
 
 ### 1. Middleware frontal

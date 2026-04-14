@@ -97,6 +97,27 @@ export function normalizeIp(value: string | null | undefined) {
   return ip.toLowerCase();
 }
 
+function normalizeHostCandidate(value: string | null | undefined) {
+  const normalized = normalizeIp(value);
+  if (!normalized) {
+    return null;
+  }
+
+  if (normalized === "0.0.0.0" || normalized === "::" || normalized === "::1") {
+    return "127.0.0.1";
+  }
+
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(normalized)) {
+    return normalized;
+  }
+
+  if (normalized.includes(":")) {
+    return normalized;
+  }
+
+  return normalized === "localhost" ? "127.0.0.1" : null;
+}
+
 export function getClientIpFromHeaders(headers: Headers, hostname?: string) {
   const headerCandidates = [
     headers.get("x-forwarded-for"),
@@ -112,7 +133,16 @@ export function getClientIpFromHeaders(headers: Headers, hostname?: string) {
     }
   }
 
-  return normalizeIp(hostname);
+  const hostCandidates = [headers.get("host"), headers.get("x-forwarded-host"), hostname];
+
+  for (const candidate of hostCandidates) {
+    const normalized = normalizeHostCandidate(candidate);
+    if (normalized) {
+      return normalized;
+    }
+  }
+
+  return null;
 }
 
 export function getAdminAllowedIps() {

@@ -1,14 +1,14 @@
 services:
   # Nom du service (interne à Docker)
-  bolo237-admin:
+  bolo237-frontend:
     # On lui dit de construire l'image à partir du dossier actuel (.)
     build:
       context: .
       dockerfile: Dockerfile
     # Le nom que portera ton image une fois construite
-    image: bolo237-admin:latest
+    image: bolo237-frontend:latest
     # Le nom du conteneur quand il sera lancé
-    container_name: bolo237-admin-portal
+    container_name: bolo237-frontend-public
     # On lie le port 3000 de ta machine au port 3000 du conteneur
     ports:
       - "3000:3000"

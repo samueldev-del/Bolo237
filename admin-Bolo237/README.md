@@ -32,6 +32,7 @@ Notes:
 
 - `ADMIN_SESSION_SECRET` n'a plus de fallback en production. Si elle est absente, aucune session admin locale n'est creee.
 - `ADMIN_ALLOWED_IPS` et `ADMIN_IP_ALLOWLIST` acceptent une liste d'IP publiques separees par des virgules. Quand la liste est renseignee, toute IP non autorisee recoit une `404` avant meme l'affichage du login.
+- En test local via Docker Desktop sur macOS, les requetes publiees sur `localhost` arrivent souvent avec l'IP passerelle `192.168.65.1`. Ajoute-la a `ADMIN_ALLOWED_IPS` avec `127.0.0.1` si tu veux tester l'allowlist depuis ta machine.
 - `ADMIN_PASSWORD` protege l'entree du portail. Les actions admin reelles passent ensuite par le compte backend fourni par `ADMIN_BACKEND_EMAIL` et `ADMIN_BACKEND_PASSWORD`.
 
 ## Ce qui est verrouille

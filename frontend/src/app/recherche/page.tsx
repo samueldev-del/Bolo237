@@ -174,7 +174,7 @@ export default function Recherche() {
               <label className="flex items-center justify-between cursor-pointer group">
                 <div className="flex items-center gap-2">
                   <input type="checkbox" className="w-4 h-4 text-blue-700 rounded focus:ring-blue-500 border-gray-300" />
-                  <span className="text-gray-700 text-sm group-hover:text-black">{isEn ? 'Small jobs (Informal)' : 'Petit Boulot (Informel)'}</span>
+                  <span className="text-gray-700 text-sm group-hover:text-black">{isEn ? 'Small jobs' : 'Petit Boulot'}</span>
                 </div>
                 <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">342</span>
               </label>

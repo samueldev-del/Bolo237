@@ -65,7 +65,7 @@ export default function PetitsBoulots() {
         <div className="max-w-6xl mx-auto">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', marginBottom: '20px' }}>
             <div>
-              <h1 style={{ color: 'white', fontWeight: 900, fontSize: '1.6rem', margin: 0 }}>Petits Boulots & Informel</h1>
+              <h1 style={{ color: 'white', fontWeight: 900, fontSize: '1.6rem', margin: 0 }}>Petits Boulots</h1>
               <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.88rem', margin: '4px 0 0' }}>
                 Pas de CV · Contact direct WhatsApp · Gratuit à poster
               </p>

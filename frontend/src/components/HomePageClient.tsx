@@ -265,15 +265,17 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
             <div className="bg-white border border-gray-200 p-1.5 rounded-full inline-flex shadow-lg shadow-[#FEEBD6]/50">
               <button
                 onClick={() => setSearchMode('emploi')}
-                className={`px-7 py-3 rounded-full text-sm font-bold transition-all duration-200 ${searchMode === 'emploi' ? 'bg-[#DA7756] text-white shadow-md shadow-[#FEEBD6]' : 'text-gray-500 hover:text-black'}`}
+                className={`inline-flex items-center gap-2 px-7 py-3 rounded-full text-sm font-bold transition-all duration-200 ${searchMode === 'emploi' ? 'bg-[#DA7756] text-white shadow-md shadow-[#FEEBD6]' : 'text-gray-500 hover:text-black'}`}
               >
-                💼 {t.home.searchJob}
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                {t.home.searchJob}
               </button>
               <button
                 onClick={() => setSearchMode('artisan')}
-                className={`px-7 py-3 rounded-full text-sm font-bold transition-all duration-200 ${searchMode === 'artisan' ? 'bg-[#DA7756] text-white shadow-md shadow-[#FEEBD6]' : 'text-gray-500 hover:text-black'}`}
+                className={`inline-flex items-center gap-2 px-7 py-3 rounded-full text-sm font-bold transition-all duration-200 ${searchMode === 'artisan' ? 'bg-[#DA7756] text-white shadow-md shadow-[#FEEBD6]' : 'text-gray-500 hover:text-black'}`}
               >
-                🛠️ {t.home.findArtisan}
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                {t.home.findArtisan}
               </button>
             </div>
           </div>
@@ -281,7 +283,9 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
           <div className="max-w-4xl mx-auto">
             <div className="bg-white rounded-2xl shadow-xl shadow-gray-200/50 border border-gray-100 p-2 flex flex-col md:flex-row gap-2">
               <div className="relative flex-1">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">🔍</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
                 <input
                   type="text"
                   placeholder={searchMode === 'emploi' ? t.home.searchPlaceholderJob : t.home.searchPlaceholderArtisan}
@@ -292,7 +296,9 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                 />
               </div>
               <div className="relative flex-1">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg">📍</span>
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                </span>
                 <input
                   type="text"
                   placeholder={t.home.locationPlaceholder}
@@ -316,7 +322,29 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
             </div>
           </div>
 
-          <div className="flex justify-center gap-8 mt-10 text-sm">
+          <div className="mt-4 flex flex-wrap justify-center items-center gap-2">
+            <span className="text-xs text-gray-400 font-medium">
+              {isEn ? 'Cities:' : 'Villes :'}
+            </span>
+            {(['Douala', 'Yaoundé', 'Bafoussam', 'Bamenda', 'Garoua', 'Bertoua'] as const).map((city) => (
+              <button
+                key={city}
+                onClick={() => {
+                  setLocationInput(city);
+                  navigateToHome({ search: searchInput.trim(), location: city, page: 1 });
+                }}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                  initialQuery.location === city
+                    ? 'bg-[#DA7756] text-white border-[#DA7756]'
+                    : 'bg-white/70 text-gray-600 border-gray-200 hover:border-[#DA7756] hover:text-[#C4623F] backdrop-blur-sm'
+                }`}
+              >
+                {city}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex justify-center gap-8 mt-6 text-sm">
             <div className="flex items-center gap-2 text-gray-500">
               <span className="min-w-[2.25rem] h-8 px-2 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-[#C4623F] font-bold text-xs">
                 {heroOfferValue}
@@ -324,11 +352,17 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
               <span className="font-medium">{heroOfferLabel}</span>
             </div>
             <div className="flex items-center gap-2 text-gray-500">
-              <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700 font-bold text-xs">10</span>
+              <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700">
+                <svg viewBox="0 0 16 20" width="14" height="18" fill="currentColor" aria-hidden="true">
+                  <path d="M8,0.5 L12,2 L14,5 L15,9 L15,13 L14,17 L8,20 L4,18 L3,15 L2,12 L0.5,10 L2,8 L3,5 L6,2 Z"/>
+                </svg>
+              </span>
               <span className="font-medium">{isEn ? 'Regions' : 'Régions'}</span>
             </div>
             <div className="flex items-center gap-2 text-gray-500">
-              <span className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-700 font-bold text-xs">⚡</span>
+              <span className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-700">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </span>
               <span className="font-medium">{isEn ? 'Real-time' : 'Temps réel'}</span>
             </div>
           </div>
@@ -339,80 +373,68 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
         <aside className="w-full lg:basis-[28%] lg:max-w-none shrink-0 space-y-4 h-fit lg:sticky lg:top-24">
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
             <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white font-bold text-black text-sm flex items-center gap-2">
-              <span className="w-5 h-5 bg-[#FEEBD6] rounded flex items-center justify-center text-[#C4623F] text-[10px]">⚙</span>
+              <span className="w-5 h-5 bg-[#FEEBD6] rounded flex items-center justify-center text-[#C4623F]">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+              </span>
               {isEn ? 'Search summary' : 'Résumé de recherche'}
             </div>
 
             {searchMode === 'emploi' && (
               <div className="p-4 space-y-5">
-                {totalActiveJobs > 0 ? (
-                  <>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="rounded-2xl border border-[#F2D8C8] bg-[#FFF8F3] px-4 py-4">
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-[#A8502F]">
-                          {isEn ? 'Verified offers' : 'Offres vérifiées'}
-                        </p>
-                        <p className="mt-2 text-3xl font-extrabold text-black">{totalJobsDisplay}</p>
-                      </div>
-                      <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4">
-                        <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
-                          {isEn ? 'Page' : 'Page'}
-                        </p>
-                        <p className="mt-2 text-3xl font-extrabold text-black">{currentPageLabel}</p>
-                      </div>
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-[#F2D8C8] bg-[#FFF8F3] px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-[#A8502F]">
+                      {isEn ? 'Verified offers' : 'Offres vérifiées'}
+                    </p>
+                    <p className="mt-2 text-3xl font-extrabold text-black">{totalJobsDisplay}</p>
+                  </div>
+                  <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
+                      Page
+                    </p>
+                    <p className="mt-2 text-3xl font-extrabold text-black">{currentPageLabel}</p>
+                  </div>
+                </div>
 
-                    {hasActiveSearch ? (
-                      <div>
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400">
-                            {isEn ? 'Active search' : 'Recherche active'}
-                          </h3>
-                          <button
-                            onClick={resetSearch}
-                            disabled={isPending}
-                            className="text-xs font-bold text-[#C4623F] hover:underline disabled:cursor-not-allowed disabled:opacity-70"
-                          >
-                            {isEn ? 'Reset search' : 'Réinitialiser la recherche'}
-                          </button>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {initialQuery.search ? (
-                            <span className="inline-flex items-center gap-2 rounded-full border border-[#F2D8C8] bg-[#FFF8F3] px-3 py-1.5 text-xs font-semibold text-[#A8502F]">
-                              🔍 {initialQuery.search}
-                            </span>
-                          ) : null}
-                          {initialQuery.location ? (
-                            <span className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">
-                              📍 {initialQuery.location}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-[#F2D8C8] bg-[#FFF8F3] px-4 py-5 text-sm text-gray-500 font-medium leading-relaxed">
-                        {isEn
-                          ? 'Use the search bar to filter by job title, skill, company, or city. Totals below come directly from the backend.'
-                          : 'Utilisez la barre de recherche pour filtrer par intitulé, compétence, entreprise ou ville. Les totaux ci-dessous viennent directement du backend.'}
-                      </div>
-                    )}
-
-                    <div className="rounded-2xl border border-gray-200 bg-white px-4 py-5 text-sm text-gray-500 font-medium leading-relaxed">
-                      <p className="font-bold text-black">
-                        {isEn ? 'Newest verified listings first' : 'Les annonces vérifiées les plus récentes en premier'}
-                      </p>
-                      <p className="mt-2">
-                        {isEn
-                          ? 'This panel reflects the real backend total and the page you are currently browsing.'
-                          : 'Ce panneau reflète le total backend réel et la page que vous consultez actuellement.'}
-                      </p>
+                {hasActiveSearch ? (
+                  <div>
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400">
+                        {isEn ? 'Active search' : 'Recherche active'}
+                      </h3>
+                      <button
+                        onClick={resetSearch}
+                        disabled={isPending}
+                        className="text-xs font-bold text-[#C4623F] hover:underline disabled:cursor-not-allowed disabled:opacity-70"
+                      >
+                        {isEn ? 'Reset search' : 'Réinitialiser la recherche'}
+                      </button>
                     </div>
-                  </>
+                    <div className="flex flex-wrap gap-2">
+                      {initialQuery.search ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#F2D8C8] bg-[#FFF8F3] px-3 py-1.5 text-xs font-semibold text-[#A8502F]">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                          {initialQuery.search}
+                        </span>
+                      ) : null}
+                      {initialQuery.location ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+                          {initialQuery.location}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-[#F2D8C8] bg-[#FFF8F3] px-4 py-5 text-sm text-gray-500 font-medium leading-relaxed">
-                    {isEn
-                      ? 'Verified offers will appear here as soon as the first approved listings are published.'
-                      : 'Les offres vérifiées apparaîtront ici dès la publication des premières annonces approuvées.'}
+                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-5 text-sm text-gray-500 font-medium leading-relaxed">
+                    <p className="font-bold text-black">
+                      {isEn ? 'Newest verified listings first' : 'Les annonces vérifiées les plus récentes en premier'}
+                    </p>
+                    <p className="mt-2">
+                      {isEn
+                        ? 'This panel reflects the real backend total and the page you are currently browsing.'
+                        : 'Ce panneau reflète le total backend réel et la page que vous consultez actuellement.'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -468,9 +490,9 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                       <div className="flex-1 min-w-0">
                         <h3 className="text-lg font-bold text-black mb-1 group-hover:text-[#C4623F] transition">{job.titre}</h3>
                         <div className="text-sm text-gray-600 font-medium flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span className="flex items-center gap-1">🏢 {job.entreprise}</span>
+                          <span className="flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>{job.entreprise}</span>
                           <span className="text-gray-300">•</span>
-                          <span className="flex items-center gap-1">📍 {job.lieu}</span>
+                          <span className="flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>{job.lieu}</span>
                           <span className="text-gray-300">•</span>
                           <span className="text-gray-400">{job.temps}</span>
                         </div>
@@ -702,8 +724,8 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {[
               {
-                icon: '💼',
-                emoji: '🎯',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>),
+                emoji: isEn ? 'Apply in one click' : 'Postulez en un clic',
                 bg: 'from-[#DA7756] to-[#C4623F]',
                 title: isEn ? 'Candidates' : 'Candidats',
                 desc: isEn
@@ -713,8 +735,8 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                 href: '/connexion',
               },
               {
-                icon: '🏢',
-                emoji: '📢',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>),
+                emoji: isEn ? 'Post for free' : 'Publiez gratuitement',
                 bg: 'from-blue-600 to-blue-700',
                 title: isEn ? 'Employers' : 'Entreprises',
                 desc: isEn
@@ -724,8 +746,8 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                 href: '/publier',
               },
               {
-                icon: '🛠️',
-                emoji: '⭐',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>),
+                emoji: isEn ? 'Grow your clientele' : 'Développez votre clientèle',
                 bg: 'from-amber-500 to-amber-600',
                 title: isEn ? 'Artisans' : 'Artisans',
                 desc: isEn
@@ -781,7 +803,9 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
           </div>
 
           <div className="flex flex-col items-center justify-center py-12">
-            <div className="w-20 h-20 bg-[#FEEBD6] rounded-full flex items-center justify-center text-4xl mb-6">💬</div>
+            <div className="w-20 h-20 bg-[#FEEBD6] rounded-full flex items-center justify-center text-[#C4623F] mb-6">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
+            </div>
             <p className="text-gray-500 font-medium text-center max-w-md">
               {isEn
                 ? 'Our first verified testimonials will be published here. Create an account to become one of the first visible profiles on Bolo237.'
@@ -815,42 +839,42 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               {
-                icon: '🔒', bg: 'bg-[#FEEBD6]',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>), bg: 'bg-[#FEEBD6]', color: 'text-[#C4623F]',
                 title: isEn ? 'Anti-fraud protection' : 'Protection anti-fraude',
                 desc: isEn
                   ? 'Every listing is moderated. Suspicious profiles are automatically flagged and hidden.'
                   : 'Chaque annonce est modérée. Les profils suspects sont automatiquement signalés et masqués.',
               },
               {
-                icon: '🌍', bg: 'bg-blue-100',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>), bg: 'bg-blue-100', color: 'text-blue-600',
                 title: isEn ? 'All 10 regions' : 'Les 10 régions',
                 desc: isEn
                   ? 'Find opportunities near you — Douala, Yaoundé, Bafoussam, Bamenda, and beyond.'
                   : 'Trouvez des opportunités près de chez vous — Douala, Yaoundé, Bafoussam, Bamenda et au-delà.',
               },
               {
-                icon: '⚡', bg: 'bg-amber-100',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>), bg: 'bg-amber-100', color: 'text-amber-600',
                 title: isEn ? 'Jobs + Artisans' : 'Emplois + Artisans',
                 desc: isEn
                   ? 'The only platform combining formal job offers and skilled artisan services in one place.'
                   : 'La seule plateforme combinant offres d\'emploi formelles et services d\'artisans qualifiés.',
               },
               {
-                icon: '💬', bg: 'bg-emerald-100',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>), bg: 'bg-emerald-100', color: 'text-emerald-600',
                 title: isEn ? 'WhatsApp integrated' : 'WhatsApp intégré',
                 desc: isEn
                   ? 'Chat directly with recruiters or artisans via WhatsApp. Fast, familiar, effective.'
                   : 'Échangez directement avec les recruteurs ou artisans via WhatsApp. Rapide, familier, efficace.',
               },
               {
-                icon: '📱', bg: 'bg-purple-100',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>), bg: 'bg-purple-100', color: 'text-purple-600',
                 title: isEn ? 'Mobile-first' : 'Pensé pour le mobile',
                 desc: isEn
                   ? 'Designed for Cameroon, our app works even on low-bandwidth networks. Install it on your phone like a native app.'
                   : 'Conçue pour le Cameroun, notre app fonctionne même sur les réseaux à faible débit. Installez-la sur votre téléphone comme une application native.',
               },
               {
-                icon: '🆓', bg: 'bg-green-100',
+                icon: (<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>), bg: 'bg-green-100', color: 'text-green-600',
                 title: isEn ? '100% Free' : '100% Gratuit',
                 desc: isEn
                   ? 'Registration, job posting, applications: everything is free. No hidden fees, no commission.'
@@ -858,7 +882,7 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
               },
             ].map((card) => (
               <div key={card.title} className="bg-white rounded-2xl border border-gray-200 p-8 hover:shadow-xl hover:shadow-gray-100/80 transition-all duration-300 group">
-                <div className={`w-14 h-14 ${card.bg} rounded-2xl flex items-center justify-center text-2xl mb-5 group-hover:scale-110 transition-transform`}>
+                <div className={`w-14 h-14 ${card.bg} ${card.color} rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform`}>
                   {card.icon}
                 </div>
                 <h3 className="font-bold text-lg text-black mb-2">{card.title}</h3>

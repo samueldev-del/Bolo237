@@ -16,8 +16,8 @@ export default function CookiesPage() {
       content: (
         <p className="text-gray-700 leading-relaxed">
           {isEn
-            ? 'A cookie is a small text file stored on your device (computer, smartphone, or tablet) when you visit a website. Cookies allow the site to remember your actions and preferences (such as language, display settings, and session information) over a period of time, so you don\u2019t have to re-enter them each time you visit or navigate between pages.'
-            : 'Un cookie est un petit fichier texte stock\u00e9 sur votre appareil (ordinateur, smartphone ou tablette) lorsque vous visitez un site web. Les cookies permettent au site de m\u00e9moriser vos actions et pr\u00e9f\u00e9rences (telles que la langue, les param\u00e8tres d\u2019affichage et les informations de session) pendant une p\u00e9riode d\u00e9termin\u00e9e, afin que vous n\u2019ayez pas \u00e0 les saisir \u00e0 nouveau \u00e0 chaque visite ou navigation entre les pages.'}
+            ? 'A cookie is a small text file stored on your device (computer, smartphone, or tablet) when you visit a website. Cookies allow the site to remember technical information such as your session, security state, and consent choices over time, so you do not have to re-enter them on each visit.'
+            : 'Un cookie est un petit fichier texte stock\u00e9 sur votre appareil (ordinateur, smartphone ou tablette) lorsque vous visitez un site web. Les cookies permettent au site de m\u00e9moriser des informations techniques comme votre session, l\u2019\u00e9tat de s\u00e9curit\u00e9 et vos choix de consentement, afin que vous n\u2019ayez pas \u00e0 les ressaisir \u00e0 chaque visite.'}
         </p>
       ),
     },
@@ -40,9 +40,6 @@ export default function CookiesPage() {
               isEn
                 ? 'User session management (authentication, login state)'
                 : 'Gestion de la session utilisateur (authentification, \u00e9tat de connexion)',
-              isEn
-                ? 'Language preference storage (French / English)'
-                : 'Stockage de la pr\u00e9f\u00e9rence de langue (fran\u00e7ais / anglais)',
               isEn
                 ? 'Cookie consent choice recording'
                 : 'Enregistrement du choix de consentement aux cookies',
@@ -68,8 +65,8 @@ export default function CookiesPage() {
           </p>
           <p className="text-gray-700 leading-relaxed mb-4">
             {isEn
-              ? 'These cookies remember your preferences (such as theme and language) to provide a more personalized experience when you return to the platform.'
-              : 'Ces cookies m\u00e9morisent vos pr\u00e9f\u00e9rences (telles que le th\u00e8me et la langue) pour offrir une exp\u00e9rience plus personnalis\u00e9e lorsque vous revenez sur la plateforme.'}
+              ? 'These cookies are reserved for optional interface preferences such as display options when such features are enabled in the future.'
+              : 'Ces cookies sont r\u00e9serv\u00e9s \u00e0 d\u2019\u00e9ventuelles pr\u00e9f\u00e9rences d\u2019interface non essentielles, comme certaines options d\u2019affichage, si ces fonctions sont activ\u00e9es plus tard.'}
           </p>
 
           <div className="bg-[#FFF5EF] border border-[#E8C4B0] rounded-lg p-4">
@@ -105,20 +102,6 @@ export default function CookiesPage() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700 font-mono">
-                  NEXT_LOCALE
-                </td>
-                <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">
-                  {isEn ? 'Language preference' : 'Pr\u00e9f\u00e9rence de langue'}
-                </td>
-                <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">
-                  {isEn ? 'Essential' : 'Essentiel'}
-                </td>
-                <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700">
-                  {isEn ? '1 year' : '1 an'}
-                </td>
-              </tr>
               <tr className="bg-gray-50">
                 <td className="border border-gray-200 px-4 py-2 text-sm text-gray-700 font-mono">
                   bolo237_session

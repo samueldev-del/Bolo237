@@ -4,6 +4,11 @@ const DEFAULT_LOCALE = 'fr';
 const SUPPORTED_LOCALES = ['fr', 'en'] as const;
 const PUBLIC_FILE = /\.(.*)$/;
 
+function getPreferredLocale(request: NextRequest) {
+  const acceptLanguage = request.headers.get('accept-language') || '';
+  return /\ben\b/i.test(acceptLanguage) ? 'en' : DEFAULT_LOCALE;
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -18,22 +23,27 @@ export function proxy(request: NextRequest) {
 
   const maybeLocale = pathname.split('/')[1];
   const isLocalePath = SUPPORTED_LOCALES.includes(maybeLocale as (typeof SUPPORTED_LOCALES)[number]);
+  const isLocaleHomePath = pathname === '/fr' || pathname === '/en';
+
+  if (isLocaleHomePath) {
+    return NextResponse.next();
+  }
 
   if (!isLocalePath) {
-    const cookieLocale = request.cookies.get('NEXT_LOCALE')?.value;
-    const locale = cookieLocale === 'en' ? 'en' : DEFAULT_LOCALE;
+    const locale = getPreferredLocale(request);
     const redirectUrl = request.nextUrl.clone();
     redirectUrl.pathname = pathname === '/' ? `/${locale}` : `/${locale}${pathname}`;
-    return NextResponse.redirect(redirectUrl);
+
+    const response = NextResponse.redirect(redirectUrl);
+    response.headers.set('Vary', 'Accept-Language');
+    return response;
   }
 
   const locale = maybeLocale as (typeof SUPPORTED_LOCALES)[number];
   const rewriteUrl = request.nextUrl.clone();
   rewriteUrl.pathname = pathname.replace(`/${locale}`, '') || '/';
 
-  const response = NextResponse.rewrite(rewriteUrl);
-  response.cookies.set('NEXT_LOCALE', locale, { path: '/', maxAge: 60 * 60 * 24 * 365 });
-  return response;
+  return NextResponse.rewrite(rewriteUrl);
 }
 
 export const config = {

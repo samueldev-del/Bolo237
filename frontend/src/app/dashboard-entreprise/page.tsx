@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { Suspense, useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -58,7 +58,7 @@ type SidebarSection = 'dashboard' | 'post' | 'listings' | 'applications' | 'inte
 /* ────────────────────────────────────────────
    Main Component
    ──────────────────────────────────────────── */
-export default function DashboardEntreprise() {
+function DashboardEntrepriseContent() {
   const { locale, localizePath } = useLocale();
   const searchParams = useSearchParams();
   const isEn = locale === 'en';
@@ -2171,5 +2171,13 @@ export default function DashboardEntreprise() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function DashboardEntreprise() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardEntrepriseContent />
+    </Suspense>
   );
 }

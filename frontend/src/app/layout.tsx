@@ -4,12 +4,22 @@ import "./globals.css";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import AppFeedbackWidget from "@/components/AppFeedbackWidget";
-import { cookies } from "next/headers";
 import { buildLocalizedMetadata, SITE_URL } from "@/lib/seo";
 
 const inter = Inter({ subsets: ["latin"] });
 
 const homeMetadata = buildLocalizedMetadata('/');
+const localeBootstrapScript = `
+  (function () {
+    var locale = window.location.pathname.startsWith('/en') ? 'en' : 'fr';
+    document.documentElement.lang = locale;
+    document.documentElement.dataset.locale = locale;
+
+    try {
+      localStorage.setItem('NEXT_LOCALE', locale);
+    } catch {}
+  })();
+`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -43,10 +53,7 @@ export const viewport: Viewport = {
   themeColor: "#DA7756",
 };
 
-export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode; }>) {
-  const cookieStore = await cookies();
-  const localeCookie = cookieStore.get("NEXT_LOCALE")?.value;
-  const lang = localeCookie === "en" ? "en" : "fr";
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode; }>) {
   const websiteSchema = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -99,11 +106,15 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   };
 
   return (
-    <html lang={lang}>
+    <html lang="fr" suppressHydrationWarning>
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+        <script
+          id="locale-bootstrap"
+          dangerouslySetInnerHTML={{ __html: localeBootstrapScript }}
+        />
         <script
           id="schema-website"
           type="application/ld+json"

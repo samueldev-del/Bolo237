@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -53,7 +53,7 @@ const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
   { code: 'CH', name: 'Suisse', flag: '🇨🇭', dialCode: '+41', placeholder: '79 123 45 67' },
 ];
 
-export default function Connexion() {
+function ConnexionContent() {
   const { locale, localizePath } = useLocale();
   const searchParams = useSearchParams();
   const isEn = locale === 'en';
@@ -677,5 +677,13 @@ export default function Connexion() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Connexion() {
+  return (
+    <Suspense fallback={null}>
+      <ConnexionContent />
+    </Suspense>
   );
 }

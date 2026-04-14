@@ -33,9 +33,9 @@ export const dictionary = {
       artisans: 'Artisans',
       findArtisan: 'Trouver un artisan',
       artisanLogin: 'Connexion artisans',
-      artisanCategories: 'Categories de metiers',
+      artisanCategories: 'Catégories de métiers',
       becomeArtisan: 'Devenir artisan',
-      comingSoon: 'Bientot disponible sur',
+      comingSoon: 'Bientôt disponible sur',
     },
     home: {
       find: 'Trouvez',

@@ -213,7 +213,7 @@ export { ApiError };
 
 // ── Jobs ─────────────────────────────────────────────────────────
 
-type JobsResponse = { jobs: ApiJob[]; pagination: Pagination };
+export type JobsResponse = { jobs: ApiJob[]; pagination: Pagination };
 
 export type JobFilters = {
   search?: string;

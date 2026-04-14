@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { DEFAULT_LOCALE, dictionary, getLocaleFromPath, Locale, stripLocalePrefix, withLocale } from '@/lib/i18n';
 
@@ -18,11 +18,23 @@ export function LocaleProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const locale = useMemo<Locale>(() => getLocaleFromPath(pathname || '/'), [pathname]);
 
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dataset.locale = locale;
+
+    try {
+      localStorage.setItem('NEXT_LOCALE', locale);
+    } catch {}
+  }, [locale]);
+
   const setLocale = useCallback((nextLocale: Locale) => {
     const basePath = stripLocalePrefix(pathname || '/');
     const nextPath = withLocale(basePath, nextLocale);
-    document.cookie = `NEXT_LOCALE=${nextLocale}; path=/; max-age=31536000`;
-    localStorage.setItem('NEXT_LOCALE', nextLocale);
+
+    try {
+      localStorage.setItem('NEXT_LOCALE', nextLocale);
+    } catch {}
+
     router.push(nextPath);
   }, [pathname, router]);
 

@@ -315,9 +315,9 @@ export function truncateText(value: string, maxLength = 160) {
   return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
 }
 
-export function buildAlternates(path: string) {
+export function buildAlternates(path: string, locale: Locale = DEFAULT_LOCALE) {
   return {
-    canonical: localizedUrl(path, 'fr'),
+    canonical: localizedUrl(path, locale),
     languages: {
       fr: localizedUrl(path, 'fr'),
       en: localizedUrl(path, 'en'),
@@ -365,7 +365,7 @@ export function buildLocalizedMetadata(
   return {
     title,
     description,
-    alternates: buildAlternates(path),
+    alternates: buildAlternates(path, locale),
     openGraph: {
       title,
       description,

@@ -218,6 +218,21 @@ export default function AdminShell({
   }, [pathname]);
 
   useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
+
+    if (mobileNavOpen) {
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+    };
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function loadSearchResults() {
@@ -326,18 +341,18 @@ export default function AdminShell({
       {mobileNavOpen ? (
         <button
           aria-label="Fermer le menu"
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/50 xl:hidden"
           onClick={() => setMobileNavOpen(false)}
         />
       ) : null}
 
-      <div className="relative z-50 mx-auto grid min-h-[calc(100vh-1.5rem)] max-w-[1500px] grid-cols-1 overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgba(22,34,51,0.16)] lg:grid-cols-[310px_1fr]">
+      <div className="relative z-50 mx-auto grid min-h-[calc(100dvh-1.5rem)] max-w-[1500px] grid-cols-1 overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-[0_24px_80px_rgba(22,34,51,0.16)] xl:grid-cols-[310px_1fr]">
         <aside
-          className={`fixed inset-y-0 left-0 z-50 w-[310px] max-w-[86vw] transform bg-gradient-to-b from-[#8B4332] to-[#6B3325] text-white transition duration-300 lg:static lg:w-auto lg:max-w-none lg:translate-x-0 ${
+          className={`fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[310px] max-w-[86vw] flex-col overflow-hidden bg-gradient-to-b from-[#8B4332] to-[#6B3325] text-white transition duration-300 xl:static xl:h-auto xl:min-h-full xl:w-auto xl:max-w-none xl:translate-x-0 ${
             mobileNavOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
-          <div className="flex items-center justify-between border-b border-[#A8502F]/50 px-6 py-6 lg:justify-start">
+          <div className="flex shrink-0 items-center justify-between border-b border-[#A8502F]/50 px-6 py-6 xl:justify-start">
             <div className="inline-flex items-center gap-3 rounded-2xl border border-[#C4623F]/40 bg-[#A8502F]/40 px-4 py-3">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/logo-white.svg" alt="Bolo237" className="h-7 w-auto" />
@@ -346,14 +361,14 @@ export default function AdminShell({
 
             <button
               aria-label="Fermer la navigation"
-              className="rounded-lg p-2 text-[#F5C5A3] transition hover:bg-[#A8502F] lg:hidden"
+              className="rounded-lg p-2 text-[#F5C5A3] transition hover:bg-[#A8502F] xl:hidden"
               onClick={() => setMobileNavOpen(false)}
             >
               <X className="h-5 w-5" />
             </button>
           </div>
 
-          <nav className="flex-1 space-y-6 overflow-y-auto px-4 py-6">
+          <nav className="min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-6">
             {/* Dashboard link */}
             <div className="space-y-2">
               <SidebarLink
@@ -406,7 +421,7 @@ export default function AdminShell({
             </div>
           </nav>
 
-          <div className="space-y-2 border-t border-[#A8502F]/50 px-4 py-5">
+          <div className="shrink-0 space-y-2 border-t border-[#A8502F]/50 px-4 py-5 pb-[calc(env(safe-area-inset-bottom)+1.25rem)]">
             <Link
               href="/parametres"
               onClick={() => setMobileNavOpen(false)}
@@ -436,7 +451,7 @@ export default function AdminShell({
 
         <main className="flex min-w-0 flex-col bg-white">
           <header className="border-b border-zinc-200 px-4 py-4 sm:px-8 sm:py-5">
-            <div className="mb-3 flex items-center justify-between lg:hidden">
+            <div className="mb-3 flex items-center justify-between xl:hidden">
               <button
                 aria-label="Ouvrir la navigation"
                 className="rounded-xl border border-[#E8C4B0] bg-white p-2 text-[#DA7756]"

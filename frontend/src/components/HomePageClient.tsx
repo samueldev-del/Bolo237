@@ -425,18 +425,7 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                       ) : null}
                     </div>
                   </div>
-                ) : (
-                  <div className="rounded-2xl border border-gray-200 bg-white px-4 py-5 text-sm text-gray-500 font-medium leading-relaxed">
-                    <p className="font-bold text-black">
-                      {isEn ? 'Newest verified listings first' : 'Les annonces vérifiées les plus récentes en premier'}
-                    </p>
-                    <p className="mt-2">
-                      {isEn
-                        ? 'This panel reflects the real backend total and the page you are currently browsing.'
-                        : 'Ce panneau reflète le total backend réel et la page que vous consultez actuellement.'}
-                    </p>
-                  </div>
-                )}
+                ) : null}
               </div>
             )}
 

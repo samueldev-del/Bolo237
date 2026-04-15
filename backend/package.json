@@ -8,6 +8,7 @@
     "build": "npx prisma generate",
     "start": "node server.js",
     "seed": "node prisma/seed.js",
+    "seed:trusted": "node scripts/seedTrustedCompaniesJobs.js",
     "db:clean": "node prisma/clean.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

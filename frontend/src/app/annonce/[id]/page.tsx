@@ -140,6 +140,17 @@ export default function OffreEmploiPage({ params }: JobParams) {
       }
     : null;
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#f5f7f8] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-[#C4623F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">{locale === 'fr' ? 'Chargement...' : 'Loading...'}</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!annonce) {
     return (
       <div className="min-h-screen bg-[#f5f7f8]">
@@ -306,17 +317,6 @@ export default function OffreEmploiPage({ params }: JobParams) {
       setIsApplying(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#f5f7f8] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-8 h-8 border-4 border-[#C4623F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">{locale === 'fr' ? 'Chargement...' : 'Loading...'}</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#f5f7f8] text-black pb-24 md:pb-10">

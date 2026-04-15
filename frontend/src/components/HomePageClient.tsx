@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useTransition, type KeyboardEvent } from 'react';
+import { Suspense, useState, useTransition, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
@@ -38,7 +38,125 @@ type LocalJob = {
   lieu: string;
   publishedHours: number;
   temps: string;
+  description: string;
+  salaire: string | null;
+  region: string;
+  city: string;
+  workMode: 'onsite' | 'partial' | 'remote';
+  applicationType: 'bolo237' | 'external';
+  contractType: 'cdi' | 'cdd' | 'stage' | 'freelance';
+  experienceLevel: 'junior' | 'confirmed' | 'senior';
+  workTime: 'full' | 'part';
 };
+
+type HomeFilters = {
+  sortBy: 'recent' | 'oldest';
+  datePosted: 'all' | '24h' | '7d' | '30d';
+  remote: 'all' | 'onsite' | 'partial' | 'remote';
+  salary: 'all' | 'with-salary';
+  applicationType: 'all' | 'bolo237' | 'external';
+  region: string;
+  city: string;
+  experience: 'all' | 'junior' | 'confirmed' | 'senior';
+  contract: 'all' | 'cdi' | 'cdd' | 'stage' | 'freelance';
+  workTime: 'all' | 'full' | 'part';
+};
+
+const DEFAULT_HOME_FILTERS: HomeFilters = {
+  sortBy: 'recent',
+  datePosted: 'all',
+  remote: 'all',
+  salary: 'all',
+  applicationType: 'all',
+  region: 'all',
+  city: 'all',
+  experience: 'all',
+  contract: 'all',
+  workTime: 'all',
+};
+
+function extractExternalApplyUrl(description: string): string | null {
+  const text = String(description || '');
+  if (!text) return null;
+
+  const markerPattern = /(postuler sur le site de l'entreprise|lien de candidature|apply on company site)\s*[:\-]\s*(https?:\/\/[^\s]+)/i;
+  const markerMatch = text.match(markerPattern);
+  return markerMatch?.[2]?.trim() || null;
+}
+
+function inferWorkMode(location: string, description: string): 'onsite' | 'partial' | 'remote' {
+  const text = `${location} ${description}`.toLowerCase();
+
+  if (text.includes('100% teletravail') || text.includes('100% remote') || text.includes('full remote')) {
+    return 'remote';
+  }
+
+  if (
+    text.includes('teletravail partiel') ||
+    text.includes('hybride') ||
+    text.includes('hybrid') ||
+    text.includes('partially remote') ||
+    text.includes('part-time remote') ||
+    text.includes('home-office')
+  ) {
+    return 'partial';
+  }
+
+  return 'onsite';
+}
+
+function inferContractType(title: string, description: string): 'cdi' | 'cdd' | 'stage' | 'freelance' {
+  const text = `${title} ${description}`.toLowerCase();
+
+  if (text.includes('stage') || text.includes('intern')) return 'stage';
+  if (text.includes('freelance') || text.includes('consultant')) return 'freelance';
+  if (text.includes('cdd') || text.includes('contract')) return 'cdd';
+  return 'cdi';
+}
+
+function inferWorkTime(title: string, description: string): 'full' | 'part' {
+  const text = `${title} ${description}`.toLowerCase();
+  if (text.includes('temps partiel') || text.includes('part-time') || text.includes('teilzeit') || text.includes('minijob')) {
+    return 'part';
+  }
+
+  return 'full';
+}
+
+function inferExperienceLevel(title: string, description: string): 'junior' | 'confirmed' | 'senior' {
+  const text = `${title} ${description}`.toLowerCase();
+  if (text.includes('senior') || text.includes('lead') || text.includes('manager') || text.includes('head')) {
+    return 'senior';
+  }
+  if (text.includes('junior') || text.includes('assistant') || text.includes('entry')) {
+    return 'junior';
+  }
+  return 'confirmed';
+}
+
+function inferCity(location: string): string {
+  const normalized = String(location || '').trim();
+  if (!normalized) return 'Autres';
+
+  return normalized.split(/[\/,]/)[0]?.trim() || 'Autres';
+}
+
+function inferRegion(location: string): string {
+  const text = String(location || '').toLowerCase();
+
+  if (text.includes('douala') || text.includes('littoral')) return 'Littoral';
+  if (text.includes('yaound') || text.includes('centre')) return 'Centre';
+  if (text.includes('bafoussam') || text.includes('ouest')) return 'Ouest';
+  if (text.includes('bamenda') || text.includes('nord-ouest')) return 'Nord-Ouest';
+  if (text.includes('buea') || text.includes('limbe') || text.includes('sud-ouest')) return 'Sud-Ouest';
+  if (text.includes('garoua') || text.includes('nord')) return 'Nord';
+  if (text.includes('bertoua') || text.includes('est')) return 'Est';
+  if (text.includes('kribi') || text.includes('sud')) return 'Sud';
+  if (text.includes('maroua') || text.includes('extreme-nord')) return 'Extreme-Nord';
+  if (text.includes('ngaound') || text.includes('adamaoua')) return 'Adamaoua';
+
+  return 'Autres';
+}
 
 
 function timeAgo(createdAt: string, isEn: boolean): string {
@@ -50,8 +168,10 @@ function timeAgo(createdAt: string, isEn: boolean): string {
   return isEn ? `${days}d ago` : `il y a ${days}j`;
 }
 
-function apiJobToLocal(job: ApiJob, isEn: boolean) {
+function apiJobToLocal(job: ApiJob, isEn: boolean): LocalJob {
   const hours = Math.floor((Date.now() - new Date(job.createdAt).getTime()) / (1000 * 60 * 60));
+  const description = job.description || '';
+
   return {
     id: job.id,
     titre: job.title,
@@ -59,6 +179,15 @@ function apiJobToLocal(job: ApiJob, isEn: boolean) {
     lieu: job.location,
     publishedHours: hours,
     temps: timeAgo(job.createdAt, isEn),
+    description,
+    salaire: job.salary,
+    region: inferRegion(job.location),
+    city: inferCity(job.location),
+    workMode: inferWorkMode(job.location, description),
+    applicationType: extractExternalApplyUrl(description) ? 'external' : 'bolo237',
+    contractType: inferContractType(job.title, description),
+    experienceLevel: inferExperienceLevel(job.title, description),
+    workTime: inferWorkTime(job.title, description),
   };
 }
 
@@ -108,6 +237,49 @@ function LoadingJobCards() {
   );
 }
 
+function FilterGroup({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
+  return (
+    <details open={defaultOpen} className="group rounded-2xl border border-gray-200 bg-white">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-gray-900">
+        <span>{title}</span>
+        <span className="text-gray-400 transition group-open:rotate-180">▾</span>
+      </summary>
+      <div className="border-t border-gray-100 px-3 py-3">{children}</div>
+    </details>
+  );
+}
+
+function FilterChoice({
+  label,
+  active,
+  onClick,
+  count,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  count?: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left text-sm font-semibold transition ${
+        active
+          ? 'border-[#DA7756] bg-[#FFF5EF] text-[#A8502F]'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-[#F2D8C8] hover:bg-[#FFF8F3]'
+      }`}
+      type="button"
+    >
+      <span>{label}</span>
+      {count !== undefined ? (
+        <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${active ? 'bg-[#DA7756] text-white' : 'bg-gray-100 text-gray-500'}`}>
+          {count}
+        </span>
+      ) : null}
+    </button>
+  );
+}
+
 function resolveHomeQuery(searchParams: { get: (name: string) => string | null }): HomeQuery {
   const pageValue = Number.parseInt(searchParams.get('page') || '1', 10);
 
@@ -126,6 +298,7 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
   const [searchMode, setSearchMode] = useState<'emploi' | 'artisan'>('emploi');
   const [searchInput, setSearchInput] = useState(initialQuery.search);
   const [locationInput, setLocationInput] = useState(initialQuery.location);
+  const [filters, setFilters] = useState<HomeFilters>(DEFAULT_HOME_FILTERS);
 
   const isBaseHomeQuery = initialQuery.page === DEFAULT_HOME_QUERY.page
     && !initialQuery.search
@@ -158,12 +331,41 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
   const resultsStart = totalActiveJobs === 0 ? 0 : (currentPage - 1) * currentLimit + 1;
   const resultsEnd = totalActiveJobs === 0 ? 0 : resultsStart + emplois.length - 1;
   const hasActiveSearch = Boolean(initialQuery.search || initialQuery.location);
-  const currentPageLabel = totalPages > 0 ? `${currentPage}/${totalPages}` : jobsLoading ? `${currentPage}/…` : '1/1';
-  const showOfferCount = totalActiveJobs > 0;
-  const heroOfferValue = showOfferCount ? `${totalActiveJobs}+` : '✓';
-  const heroOfferLabel = isEn ? 'Verified offers' : 'Offres vérifiées';
-  const totalJobsDisplay = jobsLoading && !jobsData ? '…' : String(totalActiveJobs);
   const showJobLoadingState = searchMode === 'emploi' && jobsLoading && !jobsData;
+
+  const filteredEmplois = emplois
+    .filter((job) => {
+      if (filters.datePosted === '24h' && job.publishedHours > 24) return false;
+      if (filters.datePosted === '7d' && job.publishedHours > 24 * 7) return false;
+      if (filters.datePosted === '30d' && job.publishedHours > 24 * 30) return false;
+      if (filters.remote !== 'all' && job.workMode !== filters.remote) return false;
+      if (filters.salary === 'with-salary' && !job.salaire) return false;
+      if (filters.applicationType !== 'all' && job.applicationType !== filters.applicationType) return false;
+      if (filters.region !== 'all' && job.region !== filters.region) return false;
+      if (filters.city !== 'all' && job.city !== filters.city) return false;
+      if (filters.experience !== 'all' && job.experienceLevel !== filters.experience) return false;
+      if (filters.contract !== 'all' && job.contractType !== filters.contract) return false;
+      if (filters.workTime !== 'all' && job.workTime !== filters.workTime) return false;
+      return true;
+    })
+    .sort((left, right) => {
+      if (filters.sortBy === 'oldest') {
+        return left.publishedHours - right.publishedHours;
+      }
+
+      return right.publishedHours - left.publishedHours;
+    });
+
+  const visibleJobs = searchMode === 'emploi' ? filteredEmplois : emplois;
+  const hasPanelFiltersActive = JSON.stringify(filters) !== JSON.stringify(DEFAULT_HOME_FILTERS);
+  const activeFilterCount = Object.entries(filters).filter(([key, value]) => {
+    const defaultValue = DEFAULT_HOME_FILTERS[key as keyof HomeFilters];
+    return value !== defaultValue;
+  }).length;
+
+  const countMatches = (predicate: (job: LocalJob) => boolean) => emplois.filter(predicate).length;
+  const uniqueRegions = Array.from(new Set(emplois.map((job) => job.region))).sort((left, right) => left.localeCompare(right));
+  const uniqueCities = Array.from(new Set(emplois.map((job) => job.city))).sort((left, right) => left.localeCompare(right));
 
   const navigateToHome = (query: HomeQuery) => {
     const nextUrl = buildLocalizedHomeUrl(localizePath, query);
@@ -209,6 +411,10 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
     setSearchInput('');
     setLocationInput('');
     navigateToHome({ search: '', location: '', page: 1 });
+  };
+
+  const resetFilters = () => {
+    setFilters(DEFAULT_HOME_FILTERS);
   };
 
   const goToPage = (nextPage: number) => {
@@ -322,51 +528,6 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
               </button>
             </div>
           </div>
-
-          <div className="mt-4 flex flex-wrap justify-center items-center gap-2">
-            <span className="text-xs text-gray-400 font-medium">
-              {isEn ? 'Cities:' : 'Villes :'}
-            </span>
-            {(['Douala', 'Yaoundé', 'Bafoussam', 'Bamenda', 'Garoua', 'Bertoua'] as const).map((city) => (
-              <button
-                key={city}
-                onClick={() => {
-                  setLocationInput(city);
-                  navigateToHome({ search: searchInput.trim(), location: city, page: 1 });
-                }}
-                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                  initialQuery.location === city
-                    ? 'bg-[#DA7756] text-white border-[#DA7756]'
-                    : 'bg-white/70 text-gray-600 border-gray-200 hover:border-[#DA7756] hover:text-[#C4623F] backdrop-blur-sm'
-                }`}
-              >
-                {city}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex justify-center gap-8 mt-6 text-sm">
-            <div className="flex items-center gap-2 text-gray-500">
-              <span className="min-w-[2.25rem] h-8 px-2 bg-[#FEEBD6] rounded-lg flex items-center justify-center text-[#C4623F] font-bold text-xs">
-                {heroOfferValue}
-              </span>
-              <span className="font-medium">{heroOfferLabel}</span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-500">
-              <span className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-700">
-                <svg viewBox="0 0 16 20" width="14" height="18" fill="currentColor" aria-hidden="true">
-                  <path d="M8,0.5 L12,2 L14,5 L15,9 L15,13 L14,17 L8,20 L4,18 L3,15 L2,12 L0.5,10 L2,8 L3,5 L6,2 Z"/>
-                </svg>
-              </span>
-              <span className="font-medium">{isEn ? 'Regions' : 'Régions'}</span>
-            </div>
-            <div className="flex items-center gap-2 text-gray-500">
-              <span className="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center text-amber-700">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-              </span>
-              <span className="font-medium">{isEn ? 'Real-time' : 'Temps réel'}</span>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -381,49 +542,127 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
             </div>
 
             {searchMode === 'emploi' && (
-              <div className="p-4 space-y-5">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl border border-[#F2D8C8] bg-[#FFF8F3] px-4 py-4">
+              <div className="p-4 space-y-3 bg-[#FCFCFD]">
+                <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#F2D8C8] bg-[#FFF8F3] px-4 py-3">
+                  <div>
                     <p className="text-[11px] font-bold uppercase tracking-wide text-[#A8502F]">
-                      {isEn ? 'Verified offers' : 'Offres vérifiées'}
+                      {isEn ? 'Filters active' : 'Filtres actifs'}
                     </p>
-                    <p className="mt-2 text-3xl font-extrabold text-black">{totalJobsDisplay}</p>
+                    <p className="mt-1 text-2xl font-extrabold text-black">{activeFilterCount}</p>
                   </div>
-                  <div className="rounded-2xl border border-gray-200 bg-gray-50 px-4 py-4">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500">
-                      Page
-                    </p>
-                    <p className="mt-2 text-3xl font-extrabold text-black">{currentPageLabel}</p>
-                  </div>
+                  <button
+                    onClick={resetFilters}
+                    disabled={!hasPanelFiltersActive}
+                    className="rounded-xl border border-[#EFC7B3] px-3 py-2 text-xs font-bold text-[#A8502F] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+                    type="button"
+                  >
+                    {isEn ? 'Reset filters' : 'Réinitialiser'}
+                  </button>
                 </div>
 
+                <FilterGroup title={isEn ? 'Sort by' : 'Trier par'} defaultOpen>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'Most recent' : 'Plus récentes'} active={filters.sortBy === 'recent'} onClick={() => setFilters((prev) => ({ ...prev, sortBy: 'recent' }))} />
+                    <FilterChoice label={isEn ? 'Oldest first' : 'Plus anciennes'} active={filters.sortBy === 'oldest'} onClick={() => setFilters((prev) => ({ ...prev, sortBy: 'oldest' }))} />
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'Publication date' : 'Date de publication'} defaultOpen>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'Any time' : 'Toutes'} active={filters.datePosted === 'all'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: 'all' }))} count={emplois.length} />
+                    <FilterChoice label={isEn ? 'Last 24 hours' : 'Moins de 24h'} active={filters.datePosted === '24h'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '24h' }))} count={countMatches((job) => job.publishedHours <= 24)} />
+                    <FilterChoice label={isEn ? 'Last 7 days' : 'Moins de 7 jours'} active={filters.datePosted === '7d'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '7d' }))} count={countMatches((job) => job.publishedHours <= 24 * 7)} />
+                    <FilterChoice label={isEn ? 'Last 30 days' : 'Moins de 30 jours'} active={filters.datePosted === '30d'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '30d' }))} count={countMatches((job) => job.publishedHours <= 24 * 30)} />
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'Work mode' : 'Mode de travail'} defaultOpen>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'All modes' : 'Tous les modes'} active={filters.remote === 'all'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'all' }))} count={emplois.length} />
+                    <FilterChoice label={isEn ? 'On-site' : 'Sur site'} active={filters.remote === 'onsite'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'onsite' }))} count={countMatches((job) => job.workMode === 'onsite')} />
+                    <FilterChoice label={isEn ? 'Hybrid' : 'Hybride'} active={filters.remote === 'partial'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'partial' }))} count={countMatches((job) => job.workMode === 'partial')} />
+                    <FilterChoice label={isEn ? 'Remote' : 'Télétravail'} active={filters.remote === 'remote'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'remote' }))} count={countMatches((job) => job.workMode === 'remote')} />
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'Application type' : 'Type de candidature'} defaultOpen>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'All types' : 'Toutes'} active={filters.applicationType === 'all'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'all' }))} count={emplois.length} />
+                    <FilterChoice label={isEn ? 'Apply on Bolo237' : 'Postuler sur Bolo237'} active={filters.applicationType === 'bolo237'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'bolo237' }))} count={countMatches((job) => job.applicationType === 'bolo237')} />
+                    <FilterChoice label={isEn ? 'External company link' : 'Lien entreprise externe'} active={filters.applicationType === 'external'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'external' }))} count={countMatches((job) => job.applicationType === 'external')} />
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'Salary' : 'Salaire'}>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'All offers' : 'Toutes les offres'} active={filters.salary === 'all'} onClick={() => setFilters((prev) => ({ ...prev, salary: 'all' }))} count={emplois.length} />
+                    <FilterChoice label={isEn ? 'Salary displayed' : 'Salaire affiché'} active={filters.salary === 'with-salary'} onClick={() => setFilters((prev) => ({ ...prev, salary: 'with-salary' }))} count={countMatches((job) => Boolean(job.salaire))} />
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'Region' : 'Région'}>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'All regions' : 'Toutes les régions'} active={filters.region === 'all'} onClick={() => setFilters((prev) => ({ ...prev, region: 'all' }))} count={emplois.length} />
+                    {uniqueRegions.map((region) => (
+                      <FilterChoice key={region} label={region} active={filters.region === region} onClick={() => setFilters((prev) => ({ ...prev, region }))} count={countMatches((job) => job.region === region)} />
+                    ))}
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'City' : 'Ville'}>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'All cities' : 'Toutes les villes'} active={filters.city === 'all'} onClick={() => setFilters((prev) => ({ ...prev, city: 'all' }))} count={emplois.length} />
+                    {uniqueCities.map((city) => (
+                      <FilterChoice key={city} label={city} active={filters.city === city} onClick={() => setFilters((prev) => ({ ...prev, city }))} count={countMatches((job) => job.city === city)} />
+                    ))}
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'Experience level' : 'Niveau d\'expérience'}>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'All levels' : 'Tous les niveaux'} active={filters.experience === 'all'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'all' }))} count={emplois.length} />
+                    <FilterChoice label={isEn ? 'Junior' : 'Junior'} active={filters.experience === 'junior'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'junior' }))} count={countMatches((job) => job.experienceLevel === 'junior')} />
+                    <FilterChoice label={isEn ? 'Confirmed' : 'Confirmé'} active={filters.experience === 'confirmed'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'confirmed' }))} count={countMatches((job) => job.experienceLevel === 'confirmed')} />
+                    <FilterChoice label={isEn ? 'Senior' : 'Senior'} active={filters.experience === 'senior'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'senior' }))} count={countMatches((job) => job.experienceLevel === 'senior')} />
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'Contract type' : 'Type de contrat'}>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'All contracts' : 'Tous les contrats'} active={filters.contract === 'all'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'all' }))} count={emplois.length} />
+                    <FilterChoice label="CDI" active={filters.contract === 'cdi'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'cdi' }))} count={countMatches((job) => job.contractType === 'cdi')} />
+                    <FilterChoice label="CDD" active={filters.contract === 'cdd'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'cdd' }))} count={countMatches((job) => job.contractType === 'cdd')} />
+                    <FilterChoice label={isEn ? 'Internship' : 'Stage'} active={filters.contract === 'stage'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'stage' }))} count={countMatches((job) => job.contractType === 'stage')} />
+                    <FilterChoice label="Freelance" active={filters.contract === 'freelance'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'freelance' }))} count={countMatches((job) => job.contractType === 'freelance')} />
+                  </div>
+                </FilterGroup>
+
+                <FilterGroup title={isEn ? 'Working time' : 'Temps de travail'}>
+                  <div className="space-y-2">
+                    <FilterChoice label={isEn ? 'All working times' : 'Tous'} active={filters.workTime === 'all'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'all' }))} count={emplois.length} />
+                    <FilterChoice label={isEn ? 'Full-time' : 'Temps plein'} active={filters.workTime === 'full'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'full' }))} count={countMatches((job) => job.workTime === 'full')} />
+                    <FilterChoice label={isEn ? 'Part-time' : 'Temps partiel'} active={filters.workTime === 'part'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'part' }))} count={countMatches((job) => job.workTime === 'part')} />
+                  </div>
+                </FilterGroup>
+
                 {hasActiveSearch ? (
-                  <div>
+                  <div className="rounded-2xl border border-dashed border-[#F2D8C8] bg-[#FFF8F3] px-4 py-4">
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400">
-                        {isEn ? 'Active search' : 'Recherche active'}
+                        {isEn ? 'Current search' : 'Recherche en cours'}
                       </h3>
                       <button
                         onClick={resetSearch}
                         disabled={isPending}
                         className="text-xs font-bold text-[#C4623F] hover:underline disabled:cursor-not-allowed disabled:opacity-70"
+                        type="button"
                       >
-                        {isEn ? 'Reset search' : 'Réinitialiser la recherche'}
+                        {isEn ? 'Reset search' : 'Effacer'}
                       </button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {initialQuery.search ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#F2D8C8] bg-[#FFF8F3] px-3 py-1.5 text-xs font-semibold text-[#A8502F]">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-                          {initialQuery.search}
-                        </span>
-                      ) : null}
-                      {initialQuery.location ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600">
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-                          {initialQuery.location}
-                        </span>
-                      ) : null}
+                      {initialQuery.search ? <span className="rounded-full border border-[#F2D8C8] bg-white px-3 py-1 text-xs font-bold text-[#A8502F]">{initialQuery.search}</span> : null}
+                      {initialQuery.location ? <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-600">{initialQuery.location}</span> : null}
                     </div>
                   </div>
                 ) : null}
@@ -453,27 +692,36 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
 
         <section className="w-full lg:basis-[72%]">
           <div className="flex justify-between items-center mb-6">
-            {searchMode === 'emploi' && totalActiveJobs > 0 ? (
+            {searchMode === 'emploi' && visibleJobs.length > 0 ? (
               <h2 className="text-[15px] text-gray-600 font-medium">
-                <span className="font-extrabold text-gray-900">{resultsStart}-{resultsEnd}</span>{' '}
-                {isEn ? `of ${totalActiveJobs} verified offers` : `sur ${totalActiveJobs} offres vérifiées`}
+                {hasPanelFiltersActive ? (
+                  <>
+                    <span className="font-extrabold text-gray-900">{visibleJobs.length}</span>{' '}
+                    {isEn ? 'filtered offers on this page' : 'annonces filtrées sur cette page'}
+                  </>
+                ) : (
+                  <>
+                    <span className="font-extrabold text-gray-900">{resultsStart}-{resultsEnd}</span>{' '}
+                    {isEn ? `of ${totalActiveJobs} verified offers` : `sur ${totalActiveJobs} offres vérifiées`}
+                  </>
+                )}
               </h2>
             ) : (
               <h2 className="text-[15px] text-gray-600 font-medium">
                 {showJobLoadingState
                   ? (isEn ? 'Loading verified offers' : 'Chargement des offres vérifiées')
                   : searchMode === 'emploi'
-                  ? hasActiveSearch
-                    ? (isEn ? 'No verified offers match this search' : 'Aucune offre vérifiée ne correspond à cette recherche')
+                  ? hasPanelFiltersActive || hasActiveSearch
+                    ? (isEn ? 'No verified offers match the current filters' : 'Aucune offre vérifiée ne correspond aux filtres actuels')
                     : (isEn ? 'Verified openings' : 'Offres vérifiées')
                   : (isEn ? 'Artisan profiles' : 'Profils artisans')}
               </h2>
             )}
           </div>
 
-          {searchMode === 'emploi' && emplois.length > 0 && (
+          {searchMode === 'emploi' && visibleJobs.length > 0 && (
             <div className="space-y-3">
-              {emplois.map((job) => (
+              {visibleJobs.map((job) => (
                 <Link key={job.id} href={localizePath(`/annonce/${job.id}`)} className="block group">
                   <article className="bg-white p-5 rounded-2xl border border-gray-200 hover:border-[#DA7756] hover:shadow-lg hover:shadow-[#FFF5EF] transition-all duration-200">
                     <div className="flex items-start justify-between gap-4">
@@ -499,7 +747,7 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
 
           {showJobLoadingState && <LoadingJobCards />}
 
-          {searchMode === 'emploi' && totalPages > 1 && emplois.length > 0 && (
+          {searchMode === 'emploi' && totalPages > 1 && visibleJobs.length > 0 && !hasPanelFiltersActive && (
             <div className="mt-8 rounded-2xl border border-gray-200 bg-white px-4 py-4 shadow-sm">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm font-medium text-gray-500">
@@ -530,31 +778,37 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
             </div>
           )}
 
-          {searchMode === 'emploi' && emplois.length === 0 && !showJobLoadingState && (
+          {searchMode === 'emploi' && visibleJobs.length === 0 && !showJobLoadingState && (
             <div className="flex flex-col items-center justify-center py-20 px-8">
               <div className="w-20 h-20 bg-[#FFF5EF] rounded-2xl flex items-center justify-center text-4xl mb-6">📋</div>
               <h4 className="font-bold text-black text-xl mb-2 text-center">
-                {hasActiveSearch
-                  ? (isEn ? 'No verified offer matches this search' : 'Aucune offre vérifiée ne correspond à cette recherche')
+                {hasPanelFiltersActive || hasActiveSearch
+                  ? (isEn ? 'No verified offer matches these filters' : 'Aucune offre vérifiée ne correspond à ces filtres')
                   : (isEn ? 'No offers available yet' : 'Aucune offre disponible pour le moment')}
               </h4>
               <p className="text-gray-500 font-medium text-center max-w-md">
-                {hasActiveSearch
+                {hasPanelFiltersActive || hasActiveSearch
                   ? (isEn
-                      ? 'Try a broader keyword or another city, or reset the search to see the latest verified listings.'
-                      : 'Essayez un mot-clé plus large ou une autre ville, ou réinitialisez la recherche pour voir les dernières offres vérifiées.')
+                      ? 'Try broader filters or reset them to see the latest verified listings.'
+                      : 'Essayez des filtres plus larges ou réinitialisez-les pour revoir les dernières offres vérifiées.')
                   : (isEn
                       ? 'New job listings will appear here as they are published and approved by our team.'
                       : 'Les nouvelles offres apparaîtront ici au fur et à mesure de leur publication et validation par notre équipe.')}
               </p>
 
-              {hasActiveSearch ? (
+              {hasPanelFiltersActive || hasActiveSearch ? (
                 <button
-                  onClick={resetSearch}
+                  onClick={() => {
+                    resetFilters();
+                    if (hasActiveSearch) {
+                      resetSearch();
+                    }
+                  }}
                   disabled={isPending}
                   className="mt-6 rounded-xl bg-[#DA7756] px-6 py-3 text-sm font-bold text-white hover:bg-[#C4623F] transition disabled:cursor-not-allowed disabled:opacity-70"
+                  type="button"
                 >
-                  {isEn ? 'Reset search' : 'Réinitialiser la recherche'}
+                  {isEn ? 'Reset filters' : 'Réinitialiser les filtres'}
                 </button>
               ) : (
                 <Link href={localizePath('/connexion')} className="mt-6 bg-[#DA7756] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#C4623F] transition text-sm">

@@ -139,14 +139,18 @@ const careers = [
 ];
 
 function buildJobDescription(item) {
+  const verifiedAt = '15/04/2026';
+
   return [
     `Entreprise: ${item.company}`,
+    `Verification Bolo237: ${verifiedAt}`,
     '',
     item.summary,
     '',
-    'Ce poste est publie sur Bolo237 pour orienter les candidats vers la candidature officielle de l entreprise.',
+    'Offre de veille recrutement: cette fiche est publiee sur Bolo237 pour orienter les candidats vers la candidature officielle de l entreprise.',
     '',
     `Source officielle: ${item.sourceUrl}`,
+    'Annonce reference: consultez la page carriere officielle pour voir le poste actif le plus recent.',
     `Postuler sur le site de l'entreprise: ${item.applyUrl}`,
   ].join('\n');
 }

@@ -33,6 +33,19 @@ type Offre = {
   saved: boolean;
 };
 
+const TRUSTED_COMPANIES = [
+  'MTN Cameroon',
+  'Orange Cameroun',
+  'SABC - Boissons du Cameroun',
+  'Afriland First Bank',
+  'Ecobank Cameroon',
+  'Eneo Cameroon',
+  'TotalEnergies Cameroun',
+  'Dangote Cement Cameroon',
+  'Nestle Cameroun',
+  'IHS Towers',
+];
+
 const LOGO_COLORS = ['#7C3AED', '#059669', '#D97706', '#DC2626', '#EA580C', '#2563EB', '#0891B2'];
 
 function apiJobToOffre(job: ApiJob, index: number): Offre {
@@ -168,6 +181,24 @@ export default function EmploisFormels() {
   const OFFRES: Offre[] = jobsData && jobsData.jobs.length > 0
     ? jobsData.jobs.map((j, i) => apiJobToOffre(j, i))
     : [];
+
+  const trustedOffers = useMemo(() => {
+    const byCompany = new Map<string, Offre>();
+
+    for (const offer of OFFRES) {
+      if (!TRUSTED_COMPANIES.includes(offer.entreprise)) {
+        continue;
+      }
+
+      if (!byCompany.has(offer.entreprise)) {
+        byCompany.set(offer.entreprise, offer);
+      }
+    }
+
+    return TRUSTED_COMPANIES
+      .map((company) => byCompany.get(company))
+      .filter((offer): offer is Offre => Boolean(offer));
+  }, [OFFRES]);
 
   const toggleSave = async (id: number) => {
     const isSaved = savedIds.includes(id);
@@ -389,6 +420,137 @@ export default function EmploisFormels() {
 
         {/* ── Liste des offres ─────────────────────────────────── */}
         <section style={{ flex: 1, minWidth: 0 }}>
+          {trustedOffers.length > 0 && (
+            <div
+              style={{
+                background: 'linear-gradient(130deg, #0F172A 0%, #1E293B 55%, #2B3442 100%)',
+                borderRadius: '14px',
+                border: '1px solid #334155',
+                padding: '18px 20px',
+                marginBottom: '16px',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
+                <div>
+                  <p style={{ margin: 0, fontSize: '0.74rem', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#93C5FD', fontWeight: 800 }}>
+                    Top recruteurs verifies
+                  </p>
+                  <h2 style={{ margin: '6px 0 0', color: 'white', fontSize: '1.02rem', fontWeight: 800 }}>
+                    Entreprises de reference actuellement visibles sur Bolo237
+                  </h2>
+                </div>
+                <span style={{ color: '#CBD5E1', fontSize: '0.78rem', fontWeight: 700 }}>
+                  {trustedOffers.length}/10 actives
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '10px', marginTop: '14px' }}>
+                {trustedOffers.map((offre) => (
+                  <Link
+                    key={`trusted-${offre.id}`}
+                    href={localizePath(`/annonce/${offre.id}`)}
+                    style={{
+                      textDecoration: 'none',
+                      border: '1px solid #334155',
+                      background: 'rgba(15,23,42,0.65)',
+                      borderRadius: '10px',
+                      padding: '10px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                    }}
+                  >
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                      {offre.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={offre.logoUrl}
+                          alt={offre.entreprise}
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '8px',
+                            objectFit: 'contain',
+                            background: '#fff',
+                            border: '1px solid #CBD5E1',
+                            padding: '3px',
+                          }}
+                        />
+                      ) : (
+                        <div
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '8px',
+                            background: '#1E293B',
+                            border: '1px solid #475569',
+                            color: '#E2E8F0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 900,
+                            fontSize: '0.7rem',
+                          }}
+                        >
+                          {offre.logoInitiales}
+                        </div>
+                      )}
+                      <span
+                        style={{
+                          position: 'absolute',
+                          right: '-3px',
+                          bottom: '-3px',
+                          width: '15px',
+                          height: '15px',
+                          borderRadius: '50%',
+                          background: '#059669',
+                          border: '2px solid #0F172A',
+                          color: '#fff',
+                          fontSize: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontWeight: 700,
+                        }}
+                      >
+                        ✓
+                      </span>
+                    </div>
+
+                    <div style={{ minWidth: 0 }}>
+                      <p
+                        style={{
+                          margin: 0,
+                          color: 'white',
+                          fontSize: '0.82rem',
+                          fontWeight: 700,
+                          lineHeight: 1.3,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {offre.entreprise}
+                      </p>
+                      <p
+                        style={{
+                          margin: '2px 0 0',
+                          color: '#94A3B8',
+                          fontSize: '0.73rem',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Voir l'annonce
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Entête résultats */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '8px' }}>
             <p style={{ fontSize: '0.95rem', color: '#0F172A', fontWeight: 600, margin: 0 }}>

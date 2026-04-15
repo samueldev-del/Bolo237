@@ -184,6 +184,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
 
   const canonicalJobUrl = `https://www.bolo237.com/${locale}/annonce/${id}`;
   const externalApplyUrl = apiJob ? extractExternalApplyUrl(apiJob.description) : null;
+  const isExternalOnlyApplication = Boolean(externalApplyUrl);
   const jobPostingSchema = apiJob
     ? {
         '@context': 'https://schema.org',
@@ -241,6 +242,11 @@ export default function OffreEmploiPage({ params }: JobParams) {
   };
 
   const handleApplyClick = () => {
+    if (externalApplyUrl) {
+      window.open(externalApplyUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+
     if (!apiJob) {
       setApplyMessage(locale === 'fr' ? 'Annonce indisponible.' : 'Job not available.');
       return;
@@ -396,15 +402,25 @@ export default function OffreEmploiPage({ params }: JobParams) {
                   {locale === 'fr' ? "Postuler sur le site de l'entreprise" : "Apply on company site"}
                 </a>
               )}
-              <button
-                onClick={handleApplyClick}
-                disabled={maskedByReports || isApplying}
-                className="inline-flex bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
-              >
-                {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
-              </button>
+              {!isExternalOnlyApplication && (
+                <button
+                  onClick={handleApplyClick}
+                  disabled={maskedByReports || isApplying}
+                  className="inline-flex bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
+                >
+                  {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
+                </button>
+              )}
             </div>
           </div>
+
+          {isExternalOnlyApplication && (
+            <p className="mt-4 text-xs font-semibold text-zinc-500">
+              {locale === 'fr'
+                ? 'Cette offre accepte uniquement les candidatures via le site officiel de l\'entreprise.'
+                : 'This listing only accepts applications via the official company website.'}
+            </p>
+          )}
         </div>
       </header>
 
@@ -452,13 +468,15 @@ export default function OffreEmploiPage({ params }: JobParams) {
                   {locale === 'fr' ? "Postuler sur le site de l'entreprise" : "Apply on company site"}
                 </a>
               )}
-              <button
-                onClick={handleApplyClick}
-                disabled={maskedByReports || isApplying}
-                className="bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
-              >
-                {isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
-              </button>
+              {!isExternalOnlyApplication && (
+                <button
+                  onClick={handleApplyClick}
+                  disabled={maskedByReports || isApplying}
+                  className="bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
+                >
+                  {isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
+                </button>
+              )}
             </div>
           </div>
 
@@ -505,18 +523,20 @@ export default function OffreEmploiPage({ params }: JobParams) {
               {locale === 'fr' ? "Postuler sur le site de l'entreprise" : "Apply on company site"}
             </a>
           )}
-          <button
-            onClick={handleApplyClick}
-            disabled={maskedByReports || isApplying}
-            className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
-          >
-            {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.applyNow}
-          </button>
+          {!isExternalOnlyApplication && (
+            <button
+              onClick={handleApplyClick}
+              disabled={maskedByReports || isApplying}
+              className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
+            >
+              {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.applyNow}
+            </button>
+          )}
         </div>
       </div>
 
       {/* Application Review Modal */}
-      {showApplicationReview && (
+      {showApplicationReview && !isExternalOnlyApplication && (
         <div className="fixed inset-0 bg-black/50 z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-xl">
             <div className="p-6 md:p-8">

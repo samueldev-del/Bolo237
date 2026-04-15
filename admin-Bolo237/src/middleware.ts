@@ -15,9 +15,15 @@ let cachedKeyPromise: Promise<CryptoKey> | null = null;
 function isPublicAsset(pathname: string) {
   return (
     pathname.startsWith("/_next/") ||
+    pathname.startsWith("/icons/") ||
+    pathname === "/manifest.json" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/sw.js" ||
+    pathname === "/offline.html" ||
     pathname.startsWith("/favicon") ||
     pathname.endsWith(".svg") ||
     pathname.endsWith(".ico") ||
+    pathname.endsWith(".json") ||
     pathname.endsWith(".png") ||
     pathname.endsWith(".jpg") ||
     pathname.endsWith(".jpeg") ||
@@ -137,6 +143,6 @@ export const config = {
     /*
      * Match all request paths except static files
      */
-    "/((?!monitoring|_next/static|_next/image|favicon.ico).*)",
+    "/((?!monitoring|_next/static|_next/image|favicon.ico|manifest.json|manifest.webmanifest|sw.js|offline.html|icons/).*)",
   ],
 };

@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { usePathname } from "next/navigation";
 import {
   fetchAdminInboxSummary,
   type AdminInboxSummary,
@@ -43,11 +44,13 @@ function getInitialPermission(): BrowserPermission {
 }
 
 export function AdminInboxProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [summary, setSummary] = useState<AdminInboxSummary | null>(null);
   const [sync, setSync] = useState<AdminInboxSync | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [notificationPermission, setNotificationPermission] = useState<BrowserPermission>(getInitialPermission);
   const previousUnreadRef = useRef<number | null>(null);
+  const isAuthenticatedRoute = pathname !== "/login" && pathname !== "/deconnexion";
 
   const applySnapshot = useCallback((snapshot: InboxSnapshot, options?: { notify?: boolean }) => {
     startTransition(() => {
@@ -85,6 +88,13 @@ export function AdminInboxProvider({ children }: { children: React.ReactNode }) 
 
   const refreshSummary = useCallback(
     async (options: { force?: boolean; silent?: boolean; notify?: boolean } = {}) => {
+      if (!isAuthenticatedRoute) {
+        if (!options.silent) {
+          setIsLoading(false);
+        }
+        return;
+      }
+
       if (!options.silent) {
         setIsLoading(true);
       }
@@ -92,16 +102,27 @@ export function AdminInboxProvider({ children }: { children: React.ReactNode }) 
       try {
         const snapshot = await fetchAdminInboxSummary({ force: options.force });
         applySnapshot(snapshot, { notify: options.notify });
+      } catch {
+        // Login and session transitions can trigger expected 401 responses.
+        if (!options.silent) {
+          setSummary(null);
+          setSync(null);
+        }
       } finally {
         if (!options.silent) {
           setIsLoading(false);
         }
       }
     },
-    [applySnapshot],
+    [applySnapshot, isAuthenticatedRoute],
   );
 
   useEffect(() => {
+    if (!isAuthenticatedRoute) {
+      setIsLoading(false);
+      return;
+    }
+
     void refreshSummary({ notify: false });
 
     const intervalId = window.setInterval(() => {
@@ -111,7 +132,7 @@ export function AdminInboxProvider({ children }: { children: React.ReactNode }) 
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [refreshSummary]);
+  }, [isAuthenticatedRoute, refreshSummary]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("Notification" in window)) {

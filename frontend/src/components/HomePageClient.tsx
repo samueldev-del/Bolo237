@@ -40,48 +40,6 @@ type LocalJob = {
   temps: string;
 };
 
-const TRUSTED_RECRUITERS = [
-  {
-    company: 'MTN Cameroon',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/93/New-mtn-logo.svg',
-  },
-  {
-    company: 'Orange Cameroun',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/c/c8/Orange_logo.svg',
-  },
-  {
-    company: 'SABC - Boissons du Cameroun',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/fr/4/4d/Boissons_du_Cameroun_logo.png',
-  },
-  {
-    company: 'Afriland First Bank',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/7b/Afriland_First_Bank_logo.png',
-  },
-  {
-    company: 'Ecobank Cameroon',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/9d/Ecobank_logo.svg',
-  },
-  {
-    company: 'Eneo Cameroon',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/fr/2/29/Eneo_Cameroon_logo.png',
-  },
-  {
-    company: 'TotalEnergies Cameroun',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/7/77/TotalEnergies_logo.svg',
-  },
-  {
-    company: 'Dangote Cement Cameroon',
-    logoUrl: 'https://www.dangotecement.com/wp-content/uploads/2021/03/small_Dangote-Cement-logo-1-1.png',
-  },
-  {
-    company: 'Nestle Cameroun',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/1/16/Nestl%C3%A9.svg',
-  },
-  {
-    company: 'IHS Towers',
-    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/9/9c/IHS_Holding_logo.svg',
-  },
-];
 
 function timeAgo(createdAt: string, isEn: boolean): string {
   const diff = Date.now() - new Date(createdAt).getTime();
@@ -412,54 +370,6 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
         </div>
       </section>
 
-      <section className="max-w-[1400px] mx-auto w-full px-4 mt-8">
-        <div className="rounded-3xl border border-[#E2E8F0] bg-white p-5 md:p-6 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#DA7756]">
-                {isEn ? 'Trusted recruiters' : 'Top recruteurs verifies'}
-              </p>
-              <h2 className="mt-1 text-lg font-extrabold text-black">
-                {isEn
-                  ? 'Directly identify top companies hiring on Bolo237'
-                  : 'Identifiez directement les grandes entreprises qui recrutent sur Bolo237'}
-              </h2>
-            </div>
-            <Link
-              href={localizePath('/emplois')}
-              className="rounded-xl border border-[#E2E8F0] px-4 py-2 text-sm font-bold text-[#C4623F] hover:bg-[#FFF5EF] transition"
-            >
-              {isEn ? 'View all offers' : 'Voir toutes les offres'}
-            </Link>
-          </div>
-
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {TRUSTED_RECRUITERS.map((item) => (
-              <Link
-                key={item.company}
-                href={`${localizePath('/emplois')}?search=${encodeURIComponent(item.company)}`}
-                className="group rounded-2xl border border-gray-200 bg-[#FAFAFA] px-3 py-3 hover:border-[#DA7756] hover:bg-white transition"
-              >
-                <div className="flex items-center gap-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={item.logoUrl}
-                    alt={item.company}
-                    className="h-9 w-9 rounded-lg border border-gray-200 bg-white object-contain p-1"
-                  />
-                  <span className="inline-flex h-5 items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 text-[10px] font-black uppercase tracking-wide text-emerald-700">
-                    ✓ Certifie
-                  </span>
-                </div>
-                <p className="mt-2 line-clamp-2 text-xs font-bold text-gray-700 group-hover:text-[#A8502F]">
-                  {item.company}
-                </p>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
       <div className="max-w-[1400px] w-full mx-auto px-4 flex flex-col lg:flex-row gap-8 flex-grow mb-16 -mt-2">
         <aside className="w-full lg:basis-[28%] lg:max-w-none shrink-0 space-y-4 h-fit lg:sticky lg:top-24">
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
@@ -467,7 +377,7 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
               <span className="w-5 h-5 bg-[#FEEBD6] rounded flex items-center justify-center text-[#C4623F]">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
               </span>
-              {isEn ? 'Search summary' : 'Résumé de recherche'}
+              {isEn ? 'Filter listings' : 'Filtrer annonces'}
             </div>
 
             {searchMode === 'emploi' && (

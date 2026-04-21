@@ -79,7 +79,7 @@ export default function PrivacyRightsPanel() {
 
     const syncSession = async () => {
       try {
-        const liveUser = await fetchSessionUser();
+        const liveUser = await fetchSessionUser({ captureServerErrors: false });
         if (cancelled) return;
         const nextUser: SessionUser = {
           id: liveUser.id,
@@ -270,6 +270,16 @@ export default function PrivacyRightsPanel() {
             <p className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
               {exportFeedback}
             </p>
+          )}
+          {exportReference && (
+            <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+              <p className="font-bold">
+                {isEn ? 'Export reference generated.' : 'Reference d export generee.'}
+              </p>
+              <p className="mt-1">
+                {isEn ? 'Reference:' : 'Reference :'} <span className="font-mono text-xs">{exportReference}</span>
+              </p>
+            </div>
           )}
           {exportError && (
             <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">

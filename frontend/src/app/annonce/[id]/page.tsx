@@ -1,11 +1,20 @@
 "use client";
 
-import { use, useState, useEffect } from 'react';
+import { use, useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
 import { applyToJob, fetchJob, fetchUserProfile } from '@/lib/api';
+import {
+  extractExternalApplyUrl,
+  getContractLabel,
+  getExperienceLabel,
+  getWorkModeLabel,
+  getWorkTimeLabel,
+  mapApiJobToListing,
+  sanitizeJobDescription,
+} from '@/lib/job-listings';
 import { useApi } from '@/lib/useApi';
 
 type JobParams = {
@@ -14,28 +23,41 @@ type JobParams = {
   }>;
 };
 
-function extractExternalApplyUrl(description: string): string | null {
-  const text = String(description || "");
-  if (!text) {
-    return null;
-  }
-
-  const markerPattern = /(postuler sur le site de l'entreprise|lien de candidature|apply on company site)\s*[:\-]\s*(https?:\/\/[^\s]+)/i;
-  const markerMatch = text.match(markerPattern);
-  if (markerMatch?.[2]) {
-    return markerMatch[2].trim();
-  }
-
-  return null;
-}
-
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('fr-FR', {
+function formatDate(dateStr: string, isEn: boolean): string {
+  return new Date(dateStr).toLocaleDateString(isEn ? 'en-GB' : 'fr-FR', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   });
+}
+
+function splitDescription(description: string): { paragraphs: string[]; bulletItems: string[] } {
+  const normalized = String(description || '').replace(/\r\n/g, '\n').trim();
+  if (!normalized) {
+    return { paragraphs: [], bulletItems: [] };
+  }
+
+  const sections = normalized.split(/\n{2,}/).map((section) => section.trim()).filter(Boolean);
+  const paragraphs: string[] = [];
+  const bulletItems: string[] = [];
+
+  sections.forEach((section) => {
+    const lines = section.split('\n').map((line) => line.trim()).filter(Boolean);
+    const bulletLines = lines.filter((line) => /^(?:[-*•]|\d+\.)\s+/.test(line));
+
+    if (bulletLines.length === lines.length && bulletLines.length > 0) {
+      bulletItems.push(...bulletLines.map((line) => line.replace(/^(?:[-*•]|\d+\.)\s+/, '').trim()));
+      return;
+    }
+
+    paragraphs.push(lines.join(' '));
+  });
+
+  if (paragraphs.length === 0 && bulletItems.length === 0) {
+    paragraphs.push(normalized);
+  }
+
+  return { paragraphs, bulletItems };
 }
 
 type UserProfile = {
@@ -54,7 +76,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
   const { id } = use(params);
   const numericId = parseInt(id, 10);
   const { t, localizePath, locale } = useLocale();
-  const [translated, setTranslated] = useState(false);
+  const isEn = locale === 'en';
   const [maskedByReports, setMaskedByReports] = useState(false);
   const [applyMessage, setApplyMessage] = useState('');
   const [isApplying, setIsApplying] = useState(false);
@@ -120,32 +142,44 @@ export default function OffreEmploiPage({ params }: JobParams) {
     }
   }, [showApplicationReview, locale]);
 
-  // Construire les données d'affichage depuis l'API
-  const annonce = apiJob
-    ? {
-        id,
-        titre: apiJob.title,
-        entreprise: apiJob.company,
-        logo: (apiJob.company || '??').slice(0, 2).toUpperCase(),
-        logoUrl: apiJob.author?.photoUrl || null,
-        isVerified: apiJob.author?.isVerified || false,
-        contrat: 'CDI',
-        lieu: apiJob.location,
-        mode: 'Sur site',
-        salaire: apiJob.salary || (locale === 'fr' ? 'Non communiqué' : 'Not disclosed'),
-        publication: formatDate(apiJob.createdAt),
-        limite: '-',
-        description: apiJob.description,
-        entrepriseResume: `${apiJob.company} — ${apiJob.location}`,
-      }
-    : null;
+  const annonce = useMemo(() => {
+    if (!apiJob) {
+      return null;
+    }
+
+    const listing = mapApiJobToListing(apiJob, 0, isEn);
+    const description = sanitizeJobDescription(apiJob.description || '');
+    const companySummary = listing.isVerified
+      ? (isEn
+          ? `${apiJob.company} has a verified employer profile on Bolo237 and is currently hiring in ${listing.location}.`
+          : `${apiJob.company} dispose d'un profil employeur verifie sur Bolo237 et recrute actuellement a ${listing.location}.`)
+      : (isEn
+          ? `${apiJob.company} is actively hiring in ${listing.location} through Bolo237.`
+          : `${apiJob.company} recrute actuellement a ${listing.location} via Bolo237.`);
+
+    return {
+      id: apiJob.id,
+      title: apiJob.title,
+      company: apiJob.company,
+      listing,
+      publication: formatDate(apiJob.createdAt, isEn),
+      deadline: isEn ? 'Not specified' : 'Non precisee',
+      description,
+      companySummary,
+    };
+  }, [apiJob, isEn]);
+
+  const descriptionContent = useMemo(
+    () => splitDescription(annonce?.description || ''),
+    [annonce?.description],
+  );
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#f5f7f8] flex items-center justify-center">
+      <div className="min-h-screen bg-[#F4F7FB] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-8 h-8 border-4 border-[#C4623F] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">{locale === 'fr' ? 'Chargement...' : 'Loading...'}</p>
+          <div className="w-8 h-8 border-4 border-[#0F4C81] border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">{isEn ? 'Loading...' : 'Chargement...'}</p>
         </div>
       </div>
     );
@@ -153,7 +187,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
 
   if (!annonce) {
     return (
-      <div className="min-h-screen bg-[#f5f7f8]">
+      <div className="min-h-screen bg-[#F4F7FB]">
         <nav className="bg-white border-b border-gray-200 px-4 py-3">
           <div className="max-w-5xl mx-auto">
             <Link href={localizePath('/')} className="font-bold text-lg text-[#C4623F]">Bolo237</Link>
@@ -166,32 +200,18 @@ export default function OffreEmploiPage({ params }: JobParams) {
               {locale === 'fr' ? 'Annonce introuvable' : 'Listing not found'}
             </h1>
             <p className="text-gray-500 mb-6">
-              {locale === 'fr'
+              {!isEn
                 ? 'Cette offre n\u2019existe plus ou a \u00e9t\u00e9 retir\u00e9e.'
                 : 'This listing no longer exists or has been removed.'}
             </p>
             <Link href={localizePath('/emplois')} className="inline-block bg-[#C4623F] text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition">
-              {locale === 'fr' ? 'Voir les offres' : 'Browse jobs'}
+              {isEn ? 'Browse jobs' : 'Voir les offres'}
             </Link>
           </div>
         </div>
       </div>
     );
   }
-
-  const display = translated
-    ? {
-        titre: annonce.titre,
-        entreprise: annonce.entreprise,
-        description: annonce.description,
-        entrepriseResume: annonce.entrepriseResume,
-      }
-    : {
-        titre: annonce.titre,
-        entreprise: annonce.entreprise,
-        description: annonce.description,
-        entrepriseResume: annonce.entrepriseResume,
-      };
 
   const canonicalJobUrl = `https://www.bolo237.com/${locale}/annonce/${id}`;
   const externalApplyUrl = apiJob ? extractExternalApplyUrl(apiJob.description) : null;
@@ -201,7 +221,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
         '@context': 'https://schema.org',
         '@type': 'JobPosting',
         title: apiJob.title,
-        description: apiJob.description,
+        description: annonce.description,
         datePosted: apiJob.createdAt,
         employmentType: 'FULL_TIME',
         hiringOrganization: {
@@ -246,7 +266,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
       {
         '@type': 'ListItem',
         position: 3,
-        name: annonce.titre,
+        name: annonce.title,
         item: canonicalJobUrl,
       },
     ],
@@ -259,23 +279,34 @@ export default function OffreEmploiPage({ params }: JobParams) {
     }
 
     if (!apiJob) {
-      setApplyMessage(locale === 'fr' ? 'Annonce indisponible.' : 'Job not available.');
+      setApplyMessage(isEn ? 'Job not available.' : 'Annonce indisponible.');
       return;
     }
 
     let candidateId = 0;
+    let userRole = '';
     try {
       const raw = localStorage.getItem('bolo237-user');
       if (raw) {
         const user = JSON.parse(raw);
         candidateId = Number(user.id || 0);
+        userRole = String(user.role || localStorage.getItem('bolo237-account-role') || '').toUpperCase();
       }
     } catch {
       // ignore parse errors
     }
 
+    if (userRole === 'ENTREPRISE' || userRole === 'ARTISAN') {
+      setApplyMessage(
+        isEn
+          ? 'Companies and artisans cannot apply to job listings. Browse the CV database to find candidates.'
+          : 'Les entreprises et artisans ne postulent pas aux offres. Consultez la CVtheque pour trouver des candidats.'
+      );
+      return;
+    }
+
     if (!candidateId) {
-      setApplyMessage(locale === 'fr' ? 'Connectez-vous pour postuler.' : 'Please sign in before applying.');
+      setApplyMessage(isEn ? 'Please sign in before applying.' : 'Connectez-vous pour postuler.');
       return;
     }
 
@@ -288,9 +319,9 @@ export default function OffreEmploiPage({ params }: JobParams) {
 
     if (userProfile.missingItems.length > 0) {
       setApplyMessage(
-        locale === 'fr'
-          ? `Dossier incomplet: ${userProfile.missingItems.join(', ')}.`
-          : `Incomplete application file: ${userProfile.missingItems.join(', ')}.`
+        isEn
+          ? `Incomplete application file: ${userProfile.missingItems.join(', ')}.`
+          : `Dossier incomplet: ${userProfile.missingItems.join(', ')}.`
       );
       return;
     }
@@ -306,20 +337,52 @@ export default function OffreEmploiPage({ params }: JobParams) {
       });
       setShowApplicationReview(false);
       setApplyMessage(
-        locale === 'fr'
-          ? 'Candidature envoyee. L entreprise a ete notifiee.'
-          : 'Application sent. The company has been notified.'
+        isEn
+          ? 'Application sent. The company has been notified.'
+          : 'Candidature envoyee. L entreprise a ete notifiee.'
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      setApplyMessage((locale === 'fr' ? 'Echec candidature: ' : 'Application failed: ') + message);
+      setApplyMessage((isEn ? 'Application failed: ' : 'Echec candidature: ') + message);
     } finally {
       setIsApplying(false);
     }
   };
 
+  const heroHighlights = [
+    {
+      label: isEn ? 'Location' : 'Lieu',
+      value: annonce.listing.location || (isEn ? 'Not specified' : 'Non precise'),
+      icon: <LocationIcon />,
+    },
+    {
+      label: isEn ? 'Work mode' : 'Mode de travail',
+      value: getWorkModeLabel(annonce.listing.workMode, isEn),
+      icon: <BriefcaseIcon />,
+    },
+    {
+      label: isEn ? 'Salary' : 'Salaire',
+      value: annonce.listing.salary || (isEn ? 'Not disclosed' : 'Non communique'),
+      icon: <MoneyIcon />,
+    },
+    {
+      label: isEn ? 'Schedule' : 'Temps de travail',
+      value: getWorkTimeLabel(annonce.listing.workTime, isEn),
+      icon: <ClockIcon />,
+    },
+  ];
+
+  const overviewItems = [
+    { label: isEn ? 'Contract type' : 'Type de contrat', value: getContractLabel(annonce.listing.contractType, isEn), icon: <ContractIcon /> },
+    { label: isEn ? 'Experience' : 'Experience', value: getExperienceLabel(annonce.listing.experienceLevel, isEn), icon: <ExperienceIcon /> },
+    { label: isEn ? 'Work mode' : 'Mode de travail', value: getWorkModeLabel(annonce.listing.workMode, isEn), icon: <BriefcaseIcon /> },
+    { label: isEn ? 'Working time' : 'Temps de travail', value: getWorkTimeLabel(annonce.listing.workTime, isEn), icon: <ClockIcon /> },
+    { label: isEn ? 'Application' : 'Candidature', value: isExternalOnlyApplication ? (isEn ? 'Company website' : 'Site entreprise') : 'Bolo237', icon: <ApplyIcon /> },
+    { label: isEn ? 'Reference' : 'Reference', value: `#${annonce.id}`, icon: <HashIcon /> },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#f5f7f8] text-black pb-24 md:pb-10">
+    <div className="min-h-screen bg-[#F4F7FB] text-slate-950 pb-24 md:pb-10">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
@@ -330,184 +393,240 @@ export default function OffreEmploiPage({ params }: JobParams) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingSchema) }}
         />
       )}
-      <nav className="bg-white border-b border-gray-200 px-4 py-3">
+      <nav className="border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href={localizePath('/')}>
             <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
           </Link>
-          <button onClick={() => window.history.back()} className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-600 hover:text-[#C4623F] transition">
+          <button onClick={() => window.history.back()} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-[#0F4C81] transition">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
-            {locale === 'fr' ? 'Retour' : 'Back'}
+            {isEn ? 'Back' : 'Retour'}
           </button>
         </div>
       </nav>
 
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-8 md:py-10">
-          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
-            <div className="flex items-start gap-4">
-              <div className="relative shrink-0">
-                {'logoUrl' in annonce && annonce.logoUrl ? (
-                  /* eslint-disable-next-line @next/next/no-img-element */
-                  <img
-                    src={annonce.logoUrl}
-                    alt={annonce.entreprise}
-                    className="w-14 h-14 rounded-xl object-contain bg-white border border-gray-200 p-1"
-                  />
-                ) : (
-                  <div className="w-14 h-14 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center font-extrabold text-[#C4623F]">
-                    {annonce.logo}
-                  </div>
-                )}
-                {'isVerified' in annonce && annonce.isVerified && (
-                  <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-green-600 border-2 border-white flex items-center justify-center text-[9px] text-white font-bold">&#10003;</span>
-                )}
+      <main className="max-w-6xl mx-auto px-4 py-6 md:py-8">
+        <Link href={localizePath('/emplois')} className="mb-4 inline-flex items-center gap-2 text-sm font-bold text-slate-500 transition hover:text-[#0F4C81]">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+          {isEn ? 'Back to jobs' : 'Retour aux offres'}
+        </Link>
+
+        <section className="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_28px_80px_-42px_rgba(15,23,42,0.45)]">
+          <div className="border-b border-slate-100 bg-[radial-gradient(circle_at_top_left,rgba(15,76,129,0.14),transparent_44%),linear-gradient(180deg,#FFFFFF_0%,#F7FAFC_100%)] px-6 py-7 md:px-8 md:py-8">
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start">
+              <div>
+                <div className="mb-4 flex flex-wrap items-center gap-2">
+                  <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] ${annonce.listing.applicationType === 'bolo237' ? 'bg-[#E8F1FA] text-[#0F4C81]' : 'bg-[#FFF3EA] text-[#B45309]'}`}>
+                    {annonce.listing.applicationType === 'bolo237'
+                      ? (isEn ? 'Quick apply' : 'Candidature rapide')
+                      : (isEn ? 'Company website' : 'Site entreprise')}
+                  </span>
+                  {annonce.listing.isNew ? (
+                    <span className="rounded-full bg-[#E8F8EF] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-emerald-700">
+                      {isEn ? 'New' : 'Nouveau'}
+                    </span>
+                  ) : null}
+                  <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                    {annonce.listing.postedLabel}
+                  </span>
+                </div>
+
+                <h1 className="max-w-4xl text-3xl font-extrabold leading-tight text-slate-950 md:text-[2.6rem]">
+                  {annonce.title}
+                </h1>
+
+                <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-slate-600">
+                  <span className="flex items-center gap-2 font-bold text-slate-900">
+                    <BuildingIcon />
+                    {annonce.company}
+                  </span>
+                  {annonce.listing.isVerified ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
+                      <ShieldCheckIcon />
+                      {isEn ? 'Verified employer' : 'Employeur verifie'}
+                    </span>
+                  ) : null}
+                  <span className="inline-flex items-center gap-2">
+                    <LocationIcon />
+                    {annonce.listing.location}
+                  </span>
+                </div>
+
+                <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600 md:text-[15px]">
+                  {descriptionContent.paragraphs[0] || annonce.companySummary}
+                </p>
+
+                <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {heroHighlights.map((item) => (
+                    <HeroFact key={item.label} label={item.label} value={item.value} icon={item.icon} />
+                  ))}
+                </div>
               </div>
 
-              <div>
-                <h1 className="text-3xl md:text-4xl font-extrabold leading-tight text-black">{display.titre}</h1>
-                <p className="text-gray-600 font-bold mt-2 flex items-center gap-2">
-                  {display.entreprise}
-                  {'isVerified' in annonce && annonce.isVerified && (
-                    <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 text-[11px] font-bold px-2 py-0.5 rounded-full border border-green-200">
-                      <svg className="w-3 h-3" viewBox="0 0 24 24" fill="#059669"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                      Certifie
-                    </span>
-                  )}
-                </p>
-                <button
-                  onClick={() => setTranslated((s) => !s)}
-                  className="mt-3 inline-flex text-xs font-extrabold text-[#C4623F] bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-full hover:bg-orange-100 transition"
-                >
-                  ✨ {locale === 'fr' ? (translated ? 'Voir la version originale' : t.home.translateAd) : (translated ? 'Show original version' : t.home.translateAd)}
-                </button>
+              <aside className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex items-start gap-4">
+                  <div className="relative shrink-0">
+                    {annonce.listing.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={annonce.listing.logoUrl}
+                        alt={annonce.company}
+                        className="h-[84px] w-[84px] rounded-[22px] border border-slate-200 bg-white p-2.5 object-contain"
+                      />
+                    ) : (
+                      <div
+                        style={{ backgroundColor: `${annonce.listing.logoColor}18`, borderColor: `${annonce.listing.logoColor}30`, color: annonce.listing.logoColor }}
+                        className="flex h-[84px] w-[84px] items-center justify-center rounded-[22px] border text-xl font-black"
+                      >
+                        {annonce.listing.logoInitials}
+                      </div>
+                    )}
+                    {annonce.listing.isVerified ? (
+                      <span className="absolute -bottom-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-[11px] font-bold text-white">✓</span>
+                    ) : null}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-400">
+                      {isEn ? 'Employer' : 'Employeur'}
+                    </p>
+                    <h2 className="mt-1 text-lg font-extrabold text-slate-950">{annonce.company}</h2>
+                    <p className="mt-1 text-sm text-slate-500">{annonce.listing.location}</p>
+                  </div>
+                </div>
 
-                <div className="flex flex-wrap gap-2 mt-4 text-sm font-bold">
-                  <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700">{annonce.contrat}</span>
-                  <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-700">{annonce.lieu}</span>
-                  <span className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">{annonce.mode}</span>
-                  <span className="px-3 py-1 rounded-full bg-orange-50 text-[#C4623F] border border-orange-100">{annonce.salaire}</span>
+                <div className="mt-5 space-y-3 border-t border-slate-100 pt-5">
+                  <SidebarStat label={isEn ? 'Published' : 'Publication'} value={annonce.publication} />
+                  <SidebarStat label={isEn ? 'Reference' : 'Reference'} value={`#${annonce.id}`} />
+                  <SidebarStat label={isEn ? 'Application route' : 'Mode de candidature'} value={isExternalOnlyApplication ? (isEn ? 'Company website' : 'Site entreprise') : 'Bolo237'} />
+                </div>
+
+                <div className="mt-5 grid gap-3">
+                  {externalApplyUrl ? (
+                    <a
+                      href={externalApplyUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-slate-800"
+                    >
+                      {isEn ? 'Apply on company site' : "Postuler sur le site de l'entreprise"}
+                    </a>
+                  ) : null}
+
+                  {!isExternalOnlyApplication ? (
+                    <button
+                      onClick={handleApplyClick}
+                      disabled={maskedByReports || isApplying}
+                      className="inline-flex items-center justify-center rounded-2xl bg-[#0F4C81] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#0C3E69] disabled:cursor-not-allowed disabled:bg-slate-300"
+                    >
+                      {maskedByReports ? t.security.adMaskedCta : isApplying ? (isEn ? 'Sending...' : 'Envoi...') : t.security.applyNow}
+                    </button>
+                  ) : null}
+                </div>
+
+                {isExternalOnlyApplication ? (
+                  <p className="mt-4 text-xs font-semibold leading-5 text-slate-500">
+                    {isEn
+                      ? 'Applications for this role are handled on the company website.'
+                      : 'Les candidatures pour ce poste sont gerees sur le site de l entreprise.'}
+                  </p>
+                ) : null}
+
+                {applyMessage ? (
+                  <div className={`mt-4 rounded-2xl border px-4 py-3 text-sm font-semibold ${applyMessage.toLowerCase().includes('echec') || applyMessage.toLowerCase().includes('failed') ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                    {applyMessage}
+                  </div>
+                ) : null}
+              </aside>
+            </div>
+          </div>
+
+          <div className="grid gap-6 px-6 py-7 md:px-8 md:py-8 lg:grid-cols-[minmax(0,1fr)_300px]">
+            <div className="space-y-6">
+              {maskedByReports ? (
+                <div className="rounded-[24px] border border-red-200 bg-red-50 p-5">
+                  <p className="text-sm font-extrabold text-red-700">{t.security.autoMaskedAd}</p>
+                </div>
+              ) : null}
+
+              <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-5">
+                <p className="text-sm font-extrabold text-amber-800">{t.security.redJobWarning}</p>
+              </div>
+
+              <article className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
+                <SectionTitle title={isEn ? 'About the role' : 'A propos du poste'} subtitle={isEn ? 'Core mission, context and what the company expects from the candidate.' : 'Mission, contexte et attentes de l employeur pour ce poste.'} />
+                <div className="mt-5 space-y-4 text-[15px] leading-8 text-slate-700">
+                  {descriptionContent.paragraphs.map((paragraph, index) => (
+                    <p key={`${paragraph.slice(0, 40)}-${index}`}>{paragraph}</p>
+                  ))}
+                  {descriptionContent.paragraphs.length === 0 ? (
+                    <p>{isEn ? 'No detailed description has been provided yet.' : 'Aucune description detaillee n a encore ete fournie.'}</p>
+                  ) : null}
+                </div>
+
+                {descriptionContent.bulletItems.length > 0 ? (
+                  <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+                    <h3 className="text-sm font-extrabold uppercase tracking-[0.14em] text-slate-500">
+                      {isEn ? 'Key points' : 'Points cles'}
+                    </h3>
+                    <ul className="mt-4 space-y-3">
+                      {descriptionContent.bulletItems.map((item) => (
+                        <li key={item} className="flex items-start gap-3 text-sm leading-6 text-slate-700">
+                          <span className="mt-1 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#E8F1FA] text-[#0F4C81]">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </article>
+
+              <article className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
+                <SectionTitle title={isEn ? 'Apply with a complete profile' : 'Postulez avec un dossier complet'} subtitle={isEn ? 'A well-prepared candidate file improves response quality and cuts back-and-forth.' : 'Un dossier candidat bien prepare ameliore la qualite des retours et reduit les allers-retours.'} />
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <HeroFact label={isEn ? 'Step 1' : 'Etape 1'} value={isEn ? 'Check your profile and contact details.' : 'Verifiez votre profil et vos coordonnees.'} icon={<ProfileIcon />} />
+                  <HeroFact label={isEn ? 'Step 2' : 'Etape 2'} value={isEn ? 'Upload your CV and add your skills.' : 'Ajoutez votre CV et vos competences.'} icon={<DocumentIcon />} />
+                  <HeroFact label={isEn ? 'Step 3' : 'Etape 3'} value={isEn ? 'Send the application once everything is complete.' : 'Envoyez votre candidature une fois le dossier complet.'} icon={<ApplyIcon />} />
+                </div>
+              </article>
+
+              <div className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
+                <SectionTitle title={t.security.antiFraudTitle} subtitle={isEn ? 'Report suspicious behavior directly from this listing.' : 'Signalez un comportement suspect directement depuis cette annonce.'} />
+                <div className="mt-5">
+                  <FraudReportButton
+                    targetType="annonce"
+                    targetId={String(annonce.id)}
+                    onAutoMaskedChange={setMaskedByReports}
+                  />
                 </div>
               </div>
             </div>
 
-            <div className="hidden md:flex items-center gap-3">
-              {externalApplyUrl && (
-                <a
-                  href={externalApplyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center bg-black hover:bg-zinc-800 text-white font-extrabold px-6 py-3 rounded-xl shadow-sm transition"
-                >
-                  {locale === 'fr' ? "Postuler sur le site de l'entreprise" : "Apply on company site"}
-                </a>
-              )}
-              {!isExternalOnlyApplication && (
-                <button
-                  onClick={handleApplyClick}
-                  disabled={maskedByReports || isApplying}
-                  className="inline-flex bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
-                >
-                  {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
-                </button>
-              )}
-            </div>
+            <aside className="space-y-4 lg:sticky lg:top-6 lg:h-fit">
+              <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                <SectionTitle title={isEn ? 'Job overview' : 'Vue d ensemble'} subtitle={isEn ? 'The essentials at a glance.' : 'Les informations essentielles en un coup d oeil.'} />
+                <div className="mt-5 space-y-3">
+                  {overviewItems.map((item) => (
+                    <SidebarInfoRow key={item.label} icon={item.icon} label={item.label} value={item.value} />
+                  ))}
+                </div>
+              </article>
+
+              <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                <SectionTitle title={isEn ? 'About the company' : 'A propos de l entreprise'} subtitle={isEn ? 'Public employer details visible on Bolo237.' : 'Informations publiques de l employeur visibles sur Bolo237.'} />
+                <p className="mt-4 text-sm leading-7 text-slate-600">{annonce.companySummary}</p>
+              </article>
+
+              <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+                <SectionTitle title={isEn ? 'Timeline' : 'Chronologie'} subtitle={isEn ? 'Publishing and application references for this listing.' : 'Reperes de publication et de candidature pour cette annonce.'} />
+                <div className="mt-5 space-y-3">
+                  <SidebarStat label={isEn ? 'Published' : 'Publication'} value={annonce.publication} />
+                  <SidebarStat label={isEn ? 'Deadline' : 'Date limite'} value={annonce.deadline} />
+                  <SidebarStat label={isEn ? 'Job ID' : 'ID annonce'} value={`#${annonce.id}`} />
+                </div>
+              </article>
+            </aside>
           </div>
-
-          {isExternalOnlyApplication && (
-            <p className="mt-4 text-xs font-semibold text-zinc-500">
-              {locale === 'fr'
-                ? 'Cette offre accepte uniquement les candidatures via le site officiel de l\'entreprise.'
-                : 'This listing only accepts applications via the official company website.'}
-            </p>
-          )}
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 py-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <section className="md:col-span-2 space-y-6">
-          {maskedByReports && (
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
-              <p className="text-red-700 font-extrabold text-sm">
-                {t.security.autoMaskedAd}
-              </p>
-            </div>
-          )}
-
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
-            <p className="text-red-700 font-extrabold text-sm">
-              {t.security.redJobWarning}
-            </p>
-          </div>
-
-          <div className="bg-white border border-gray-200 rounded-2xl p-5">
-            <h2 className="text-base font-extrabold text-black mb-3">
-              {t.security.antiFraudTitle}
-            </h2>
-            <FraudReportButton
-              targetType="annonce"
-              targetId={id}
-              onAutoMaskedChange={setMaskedByReports}
-            />
-          </div>
-
-          <article className="bg-white border border-gray-200 rounded-2xl p-6 md:p-8">
-            <h2 className="text-xl font-extrabold mb-3">{locale === 'fr' ? 'À propos du poste' : 'About this role'}</h2>
-            <p className="text-gray-700 leading-relaxed whitespace-pre-line">{display.description}</p>
-          </article>
-
-          <div className="hidden md:flex justify-end">
-            <div className="flex items-center gap-3">
-              {externalApplyUrl && (
-                <a
-                  href={externalApplyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center bg-black hover:bg-zinc-800 text-white font-extrabold px-6 py-3 rounded-xl shadow-sm transition"
-                >
-                  {locale === 'fr' ? "Postuler sur le site de l'entreprise" : "Apply on company site"}
-                </a>
-              )}
-              {!isExternalOnlyApplication && (
-                <button
-                  onClick={handleApplyClick}
-                  disabled={maskedByReports || isApplying}
-                  className="bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold px-8 py-3 rounded-xl shadow-sm transition"
-                >
-                  {isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.apply}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {applyMessage && (
-            <div className={`rounded-xl p-3 text-sm font-semibold ${applyMessage.toLowerCase().includes('echec') || applyMessage.toLowerCase().includes('failed') ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>
-              {applyMessage}
-            </div>
-          )}
         </section>
-
-        <aside className="space-y-4 md:sticky md:top-6 h-fit">
-          <article className="bg-white border border-gray-200 rounded-2xl p-5">
-            <h3 className="text-base font-extrabold mb-2">{locale === 'fr' ? "À propos de l'entreprise" : 'About the company'}</h3>
-            <p className="text-sm text-gray-700 leading-relaxed">{display.entrepriseResume}</p>
-          </article>
-
-          <article className="bg-white border border-gray-200 rounded-2xl p-5">
-            <h3 className="text-base font-extrabold mb-3">{locale === 'fr' ? 'Informations' : 'Information'}</h3>
-            <div className="space-y-2 text-sm text-gray-700">
-              <p>
-                <span className="font-bold text-black">{locale === 'fr' ? 'Publication :' : 'Published:'}</span> {annonce.publication}
-              </p>
-              <p>
-                <span className="font-bold text-black">{locale === 'fr' ? 'Date limite :' : 'Deadline:'}</span> {annonce.limite}
-              </p>
-              <p>
-                <span className="font-bold text-black">{locale === 'fr' ? 'Référence :' : 'Reference:'}</span> #{annonce.id}
-              </p>
-            </div>
-          </article>
-        </aside>
       </main>
 
       {/* Mobile fixed apply button */}
@@ -520,7 +639,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
               rel="noopener noreferrer"
               className="w-full text-center bg-black hover:bg-zinc-800 text-white font-extrabold py-3 rounded-xl transition"
             >
-              {locale === 'fr' ? "Postuler sur le site de l'entreprise" : "Apply on company site"}
+              {isEn ? 'Apply on company site' : "Postuler sur le site de l'entreprise"}
             </a>
           )}
           {!isExternalOnlyApplication && (
@@ -529,7 +648,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
               disabled={maskedByReports || isApplying}
               className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
             >
-              {maskedByReports ? t.security.adMaskedCta : isApplying ? (locale === 'fr' ? 'Envoi...' : 'Sending...') : t.security.applyNow}
+              {maskedByReports ? t.security.adMaskedCta : isApplying ? (isEn ? 'Sending...' : 'Envoi...') : t.security.applyNow}
             </button>
           )}
         </div>
@@ -543,7 +662,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-extrabold text-black">
-                  {locale === 'fr' ? 'Verifiez votre dossier de candidature' : 'Review your application'}
+                  {isEn ? 'Review your application' : 'Verifiez votre dossier de candidature'}
                 </h2>
                 <button
                   onClick={() => setShowApplicationReview(false)}
@@ -556,16 +675,16 @@ export default function OffreEmploiPage({ params }: JobParams) {
               {/* Applying to */}
               <div className="bg-gray-50 rounded-xl p-4 mb-6">
                 <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">
-                  {locale === 'fr' ? 'Poste' : 'Position'}
+                  {isEn ? 'Position' : 'Poste'}
                 </p>
-                <p className="font-extrabold text-black">{display.titre}</p>
-                <p className="text-sm text-gray-600">{display.entreprise}</p>
+                <p className="font-extrabold text-black">{annonce.title}</p>
+                <p className="text-sm text-gray-600">{annonce.company}</p>
               </div>
 
               {/* User profile summary */}
               <div className="mb-6">
                 <h3 className="text-sm font-extrabold text-gray-500 uppercase tracking-wide mb-3">
-                  {locale === 'fr' ? 'Votre profil' : 'Your profile'}
+                  {isEn ? 'Your profile' : 'Votre profil'}
                 </h3>
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
@@ -573,12 +692,12 @@ export default function OffreEmploiPage({ params }: JobParams) {
                       {userProfile?.name ? userProfile.name.charAt(0).toUpperCase() : '?'}
                     </div>
                     <div>
-                      <p className="font-bold text-black">{userProfile?.name || (locale === 'fr' ? 'Nom non renseigne' : 'Name not set')}</p>
+                      <p className="font-bold text-black">{userProfile?.name || (isEn ? 'Name not set' : 'Nom non renseigne')}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                        <p className="text-sm text-gray-500">{userProfile?.title || (locale === 'fr' ? 'Titre non renseigne' : 'Title not set')}</p>
+                        <p className="text-sm text-gray-500">{userProfile?.title || (isEn ? 'Title not set' : 'Titre non renseigne')}</p>
                         {userProfile?.isVerified && (
                           <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-extrabold text-emerald-700">
-                            ✓ {locale === 'fr' ? 'Certifie' : 'Certified'}
+                            ✓ {isEn ? 'Certified' : 'Certifie'}
                           </span>
                         )}
                       </div>
@@ -586,7 +705,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
                   </div>
                   {userProfile?.skills && (
                     <div className="mt-2">
-                      <p className="text-xs font-bold text-gray-500 mb-1">{locale === 'fr' ? 'Competences' : 'Skills'}</p>
+                      <p className="text-xs font-bold text-gray-500 mb-1">{isEn ? 'Skills' : 'Competences'}</p>
                       <p className="text-sm text-gray-700">{userProfile.skills}</p>
                     </div>
                   )}
@@ -596,11 +715,11 @@ export default function OffreEmploiPage({ params }: JobParams) {
               {/* Checklist */}
               <div className="mb-6">
                 <h3 className="text-sm font-extrabold text-gray-500 uppercase tracking-wide mb-3">
-                  {locale === 'fr' ? 'Checklist' : 'Checklist'}
+                  {isEn ? 'Checklist' : 'Checklist'}
                 </h3>
                 {isLoadingReview && (
                   <p className="text-xs font-semibold text-gray-500 mb-3">
-                    {locale === 'fr' ? 'Verification du dossier en cours...' : 'Checking your application file...'}
+                    {isEn ? 'Checking your application file...' : 'Verification du dossier en cours...'}
                   </p>
                 )}
                 <div className="space-y-3">
@@ -613,7 +732,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
                       )}
                     </div>
                     <span className={`text-sm font-semibold ${userProfile?.profileComplete ? 'text-black' : 'text-gray-400'}`}>
-                      {locale === 'fr' ? 'Profil complet' : 'Profile complete'}
+                      {isEn ? 'Profile complete' : 'Profil complet'}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -625,7 +744,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
                       )}
                     </div>
                     <span className={`text-sm font-semibold ${userProfile?.cvUploaded ? 'text-black' : 'text-gray-400'}`}>
-                      {locale === 'fr' ? 'CV telecharge' : 'CV uploaded'}
+                      {isEn ? 'CV uploaded' : 'CV telecharge'}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -637,7 +756,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
                       )}
                     </div>
                     <span className={`text-sm font-semibold ${userProfile?.phoneVerified ? 'text-black' : 'text-gray-400'}`}>
-                      {locale === 'fr' ? 'Telephone verifie' : 'Phone verified'}
+                      {isEn ? 'Phone verified' : 'Telephone verifie'}
                     </span>
                   </div>
                 </div>
@@ -646,7 +765,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
               {userProfile && userProfile.missingItems.length > 0 && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6">
                   <p className="text-sm font-extrabold text-amber-800 mb-2">
-                    {locale === 'fr' ? 'Elements a completer avant envoi' : 'Complete these items before submitting'}
+                    {isEn ? 'Complete these items before submitting' : 'Elements a completer avant envoi'}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {userProfile.missingItems.map((item) => (
@@ -664,7 +783,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
                 className="inline-flex items-center gap-1.5 text-sm font-bold text-[#C4623F] hover:underline mb-6"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                {locale === 'fr' ? 'Completer mon profil' : 'Complete my profile'}
+                {isEn ? 'Complete my profile' : 'Completer mon profil'}
               </Link>
 
               {/* Action buttons */}
@@ -675,15 +794,15 @@ export default function OffreEmploiPage({ params }: JobParams) {
                   className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
                 >
                   {isApplying
-                    ? (locale === 'fr' ? 'Envoi en cours...' : 'Sending...')
-                    : (locale === 'fr' ? 'Confirmer et envoyer' : 'Confirm and send')
+                    ? (isEn ? 'Sending...' : 'Envoi en cours...')
+                    : (isEn ? 'Confirm and send' : 'Confirmer et envoyer')
                   }
                 </button>
                 <button
                   onClick={() => setShowApplicationReview(false)}
                   className="w-full text-gray-600 font-bold py-2 rounded-xl hover:bg-gray-50 transition"
                 >
-                  {locale === 'fr' ? 'Annuler' : 'Cancel'}
+                  {isEn ? 'Cancel' : 'Annuler'}
                 </button>
               </div>
 
@@ -698,5 +817,168 @@ export default function OffreEmploiPage({ params }: JobParams) {
         </div>
       )}
     </div>
+  );
+}
+
+function SectionTitle({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div>
+      <h2 className="text-lg font-extrabold text-slate-950 md:text-xl">{title}</h2>
+      <p className="mt-1 text-sm leading-6 text-slate-500">{subtitle}</p>
+    </div>
+  );
+}
+
+function HeroFact({ label, value, icon }: { label: string; value: string; icon: ReactNode }) {
+  return (
+    <div className="rounded-[24px] border border-slate-200 bg-white/90 px-4 py-4 shadow-sm">
+      <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-400">
+        <span className="text-slate-500">{icon}</span>
+        <span>{label}</span>
+      </div>
+      <p className="text-sm font-semibold leading-6 text-slate-800">{value}</p>
+    </div>
+  );
+}
+
+function SidebarStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+      <span className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{label}</span>
+      <span className="text-right text-sm font-semibold text-slate-800">{value}</span>
+    </div>
+  );
+}
+
+function SidebarInfoRow({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3.5 py-3">
+      <span className="mt-0.5 text-slate-500">{icon}</span>
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-[0.14em] text-slate-400">{label}</p>
+        <p className="mt-1 text-sm font-semibold leading-6 text-slate-800">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function BuildingIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 21h18" />
+      <path d="M5 21V7l7-4 7 4v14" />
+      <path d="M9 10h.01" />
+      <path d="M15 10h.01" />
+      <path d="M9 14h.01" />
+      <path d="M15 14h.01" />
+    </svg>
+  );
+}
+
+function LocationIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 21s-6-4.35-6-10a6 6 0 1 1 12 0c0 5.65-6 10-6 10Z" />
+      <circle cx="12" cy="11" r="2.2" />
+    </svg>
+  );
+}
+
+function MoneyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 3v18" />
+      <path d="M16.5 7.5c0-1.93-2.01-3.5-4.5-3.5S7.5 5.57 7.5 7.5 9.51 11 12 11s4.5 1.57 4.5 3.5S14.49 18 12 18s-4.5-1.57-4.5-3.5" />
+    </svg>
+  );
+}
+
+function ClockIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
+}
+
+function BriefcaseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M3 12h18" />
+    </svg>
+  );
+}
+
+function ContractIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M3 6h.01" />
+      <path d="M3 12h.01" />
+      <path d="M3 18h.01" />
+    </svg>
+  );
+}
+
+function ExperienceIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M12 20V10" />
+      <path d="M18 20V4" />
+      <path d="M6 20v-4" />
+    </svg>
+  );
+}
+
+function ApplyIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </svg>
+  );
+}
+
+function HashIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 9h16" />
+      <path d="M4 15h16" />
+      <path d="M10 3 8 21" />
+      <path d="m16 3-2 18" />
+    </svg>
+  );
+}
+
+function ProfileIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="8" r="4" />
+      <path d="M6 20a6 6 0 0 1 12 0" />
+    </svg>
+  );
+}
+
+function DocumentIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <path d="M14 2v6h6" />
+      <path d="M8 13h8" />
+      <path d="M8 17h8" />
+    </svg>
+  );
+}
+
+function ShieldCheckIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 2 4 5v6c0 5 3.4 9.74 8 11 4.6-1.26 8-6 8-11V5l-8-3Zm-1.1 13.2-3-3 1.4-1.4 1.6 1.6 3.8-3.8 1.4 1.4-5.2 5.2Z" />
+    </svg>
   );
 }

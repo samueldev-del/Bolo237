@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useTransition, type KeyboardEvent, type ReactNode } from 'react';
+import { Suspense, useMemo, useState, useTransition, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
@@ -8,6 +8,7 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchJobs, type ApiJob, type JobsResponse } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
+import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 
 const HOME_JOBS_PER_PAGE = 10;
 const DEFAULT_HOME_QUERY: HomeQuery = {
@@ -296,6 +297,13 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
   const [isPending, startTransition] = useTransition();
   const isEn = locale === 'en';
   const [searchMode, setSearchMode] = useState<'emploi' | 'artisan'>('emploi');
+
+  const roleSnapshot = useSyncExternalStore(
+    subscribeToSessionStorage,
+    () => getSessionStorageValue('bolo237-account-role'),
+    () => undefined,
+  );
+  const isEnterprise = useMemo(() => roleSnapshot === 'entreprise', [roleSnapshot]);
   const [searchInput, setSearchInput] = useState(initialQuery.search);
   const [locationInput, setLocationInput] = useState(initialQuery.location);
   const [filters, setFilters] = useState<HomeFilters>(DEFAULT_HOME_FILTERS);
@@ -438,6 +446,37 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
   return (
     <div className="w-full font-sans bg-white text-black min-h-screen flex flex-col">
       <Header />
+
+      {isEnterprise && (
+        <div className="bg-green-700 text-white px-4 py-3">
+          <div className="max-w-[1400px] mx-auto flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6">
+            <div className="flex-1">
+              <p className="text-sm font-bold">
+                {isEn ? 'You are logged in as a recruiter.' : 'Vous êtes connecté en tant que recruteur.'}
+              </p>
+              <p className="text-xs text-green-200 mt-0.5">
+                {isEn
+                  ? 'Use your dashboard to post jobs, manage applications, and browse candidate CVs.'
+                  : 'Utilisez votre tableau de bord pour publier des offres, gérer les candidatures et explorer les CVs.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 shrink-0">
+              <Link
+                href={localizePath('/dashboard-entreprise')}
+                className="inline-flex items-center gap-1.5 bg-white text-green-800 font-bold text-xs px-4 py-2 rounded-lg hover:bg-green-50 transition"
+              >
+                {isEn ? 'My dashboard' : 'Mon tableau de bord'}
+              </Link>
+              <Link
+                href={localizePath('/cvtheque')}
+                className="inline-flex items-center gap-1.5 bg-green-600 border border-green-500 text-white font-bold text-xs px-4 py-2 rounded-lg hover:bg-green-500 transition"
+              >
+                {isEn ? 'Browse CVs' : 'CVthèque'}
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#FFF5EF] via-white to-[#FEEBD6]"></div>

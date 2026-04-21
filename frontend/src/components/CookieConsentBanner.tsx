@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useLocale } from '@/components/LocaleProvider';
 
 type CookieConsent = {
@@ -85,43 +85,49 @@ function persistConsent(consent: CookieConsent) {
 export default function CookieConsentBanner() {
   const { locale } = useLocale();
   const isEn = locale === 'en';
-  const [isMounted, setIsMounted] = useState(false);
-  const [showBanner, setShowBanner] = useState(false);
+  const isMounted = useSyncExternalStore(
+    () => () => undefined,
+    () => true,
+    () => false,
+  );
+  const [bannerOverride, setBannerOverride] = useState<boolean | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [functionalEnabled, setFunctionalEnabled] = useState(false);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
 
-  useEffect(() => {
-    const stored = parseStoredConsent(window.localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY)) || readConsentFromCookie();
-    const fresh = isConsentFresh(stored);
+  const activeConsent = isMounted
+    ? (() => {
+        const stored = parseStoredConsent(window.localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY)) || readConsentFromCookie();
+        return isConsentFresh(stored) ? stored : null;
+      })()
+    : null;
 
-    if (stored && fresh) {
-      setFunctionalEnabled(stored.functional);
-      setAnalyticsEnabled(stored.analytics);
-      setShowBanner(false);
-    } else {
-      setShowBanner(true);
-      setShowSettings(false);
-    }
+  const showBanner = bannerOverride ?? !activeConsent;
 
-    setIsMounted(true);
-  }, []);
+  const openSettings = () => {
+    setFunctionalEnabled(activeConsent?.functional ?? false);
+    setAnalyticsEnabled(activeConsent?.analytics ?? false);
+    setBannerOverride(true);
+    setShowSettings(true);
+  };
 
   useEffect(() => {
     if (typeof window === 'undefined') {
       return undefined;
     }
 
-    const openSettings = () => {
-      setShowBanner(true);
+    const handleOpenSettings = () => {
+      setFunctionalEnabled(activeConsent?.functional ?? false);
+      setAnalyticsEnabled(activeConsent?.analytics ?? false);
+      setBannerOverride(true);
       setShowSettings(true);
     };
 
-    window.addEventListener(COOKIE_SETTINGS_EVENT, openSettings);
+    window.addEventListener(COOKIE_SETTINGS_EVENT, handleOpenSettings);
     return () => {
-      window.removeEventListener(COOKIE_SETTINGS_EVENT, openSettings);
+      window.removeEventListener(COOKIE_SETTINGS_EVENT, handleOpenSettings);
     };
-  }, []);
+  }, [activeConsent]);
 
   const copy = useMemo(() => ({
     title: isEn ? 'Cookie settings' : 'Paramètres cookies',
@@ -161,7 +167,7 @@ export default function CookieConsentBanner() {
     persistConsent(consent);
     setFunctionalEnabled(functional);
     setAnalyticsEnabled(analytics);
-    setShowBanner(false);
+    setBannerOverride(false);
     setShowSettings(false);
   };
 
@@ -173,10 +179,7 @@ export default function CookieConsentBanner() {
     <>
       <button
         type="button"
-        onClick={() => {
-          setShowBanner(true);
-          setShowSettings(true);
-        }}
+        onClick={openSettings}
         className="fixed bottom-[5.5rem] left-4 md:bottom-6 z-[68] rounded-full border border-[#E8C4B0] bg-white px-4 py-2 text-xs font-extrabold text-[#8A442A] shadow-lg hover:bg-[#FFF5EF]"
       >
         {copy.manage}
@@ -254,7 +257,7 @@ export default function CookieConsentBanner() {
                   if (showSettings) {
                     saveConsent(functionalEnabled, analyticsEnabled);
                   } else {
-                    setShowSettings(true);
+                    openSettings();
                   }
                 }}
                 className="rounded-full border border-[#E8C4B0] bg-[#FFF5EF] px-4 py-2 text-sm font-extrabold text-[#8A442A] hover:bg-[#FEEBD6]"

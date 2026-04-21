@@ -110,7 +110,9 @@ export default function DashboardArtisan() {
   const isEn = locale === 'en';
 
   /* ---------- user info from localStorage ---------- */
-  const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed'>('checking');
+  const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed' | 'unavailable'>('checking');
+  const [accessError, setAccessError] = useState('');
+  const [accessRetryToken, setAccessRetryToken] = useState(0);
   const [userName, setUserName] = useState(() => {
     if (typeof window === 'undefined') return '';
     try {
@@ -263,7 +265,7 @@ export default function DashboardArtisan() {
         }
 
         try {
-          const sessionUser = await fetchSessionUser();
+          const sessionUser = await fetchSessionUser({ captureServerErrors: false });
           if (!active) return;
 
           const sessionRole = String(sessionUser.role || '').toUpperCase();
@@ -289,6 +291,7 @@ export default function DashboardArtisan() {
 
           mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
           applyUser(sessionUser as unknown as Record<string, unknown>);
+          setAccessError('');
           setAccessStatus('allowed');
           return;
         } catch (err) {
@@ -298,9 +301,20 @@ export default function DashboardArtisan() {
             continue;
           }
 
+          if (!active) return;
+
           if (storedUser) {
+            setAccessError('');
             setAccessStatus('allowed');
+            return;
           }
+
+          setAccessError(
+            isEn
+              ? 'We cannot confirm your artisan session right now. Please try again in a moment.'
+              : 'Nous ne pouvons pas verifier votre session artisan pour le moment. Reessayez dans un instant.'
+          );
+          setAccessStatus('unavailable');
           return;
         }
       }
@@ -308,6 +322,7 @@ export default function DashboardArtisan() {
       if (!active) return;
 
       if (storedUser) {
+        setAccessError('');
         setAccessStatus('allowed');
         return;
       }
@@ -325,7 +340,7 @@ export default function DashboardArtisan() {
     return () => {
       active = false;
     };
-  }, [localizePath]);
+  }, [accessRetryToken, isEn, localizePath]);
 
   useEffect(() => {
     if (accessStatus !== 'allowed') {
@@ -580,6 +595,43 @@ export default function DashboardArtisan() {
   /* ================================================================ */
   /*  RENDER                                                           */
   /* ================================================================ */
+  if (accessStatus === 'unavailable') {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-xl text-amber-700">
+            !
+          </div>
+          <h1 className="mt-4 text-xl font-extrabold text-gray-900">
+            {isEn ? 'Session service temporarily unavailable' : 'Service de session temporairement indisponible'}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            {accessError || (isEn ? 'Please retry in a few moments.' : 'Reessayez dans quelques instants.')}
+          </p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                setAccessError('');
+                setAccessStatus('checking');
+                setAccessRetryToken((value) => value + 1);
+              }}
+              className="inline-flex items-center justify-center rounded-2xl bg-amber-500 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-amber-600"
+            >
+              {isEn ? 'Retry access check' : 'Relancer la verification'}
+            </button>
+            <Link
+              href={`${localizePath('/connexion')}?role=artisan`}
+              className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-extrabold text-gray-700 transition hover:border-gray-300 hover:text-gray-900"
+            >
+              {isEn ? 'Go to artisan sign in' : 'Aller a la connexion artisan'}
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (accessStatus !== 'allowed') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">

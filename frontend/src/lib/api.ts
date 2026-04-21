@@ -207,7 +207,22 @@ function captureApiException(error: unknown, context: Record<string, unknown>) {
   });
 }
 
-async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
+type ApiFetchOptions = RequestInit & {
+  captureServerErrors?: boolean;
+};
+
+function buildApiHeaders(headersInit?: HeadersInit, body?: BodyInit | null): Headers {
+  const headers = new Headers(headersInit);
+
+  if (!(body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  return headers;
+}
+
+async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> {
+  const { captureServerErrors = true, headers, body, ...requestOptions } = options ?? {};
   const method = String(options?.method || 'GET').toUpperCase();
   let res: Response;
 
@@ -215,8 +230,9 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     res = await fetch(buildApiUrl(path), {
       cache: 'no-store',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      ...options,
+      ...requestOptions,
+      headers: buildApiHeaders(headers, body),
+      body,
     });
   } catch (error) {
     captureApiException(error, { kind: 'network', method, path });
@@ -225,7 +241,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    if (res.status >= 500) {
+    if (captureServerErrors && res.status >= 500) {
       captureApiException(new Error(body.error || `API error ${res.status}`), {
         kind: 'response',
         method,
@@ -371,8 +387,10 @@ export async function loginUser(data: {
   });
 }
 
-export async function fetchSessionUser(): Promise<ApiUser & { phone?: string | null; isBanned?: boolean }> {
-  return apiFetch('/api/auth/me');
+export async function fetchSessionUser(options?: { captureServerErrors?: boolean }): Promise<ApiUser & { phone?: string | null; isBanned?: boolean }> {
+  return apiFetch('/api/auth/me', {
+    captureServerErrors: options?.captureServerErrors,
+  });
 }
 
 export async function logoutUser(): Promise<void> {

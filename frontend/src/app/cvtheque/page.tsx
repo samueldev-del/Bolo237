@@ -66,18 +66,20 @@ export default function CvthequePage() {
     const loadCandidates = async () => {
       try {
         const rows = await fetchCandidateProfiles();
-        const mapped = rows.map((cand) => ({
-          id: cand.id,
-          nom: cand.nom,
-          titre: cand.titre,
-          localisation: cand.localisation,
-          experience: cand.experience,
-          disponibilite: cand.disponibilite,
-          etudes: cand.etudes,
-          cvMajJours: cand.cvMajJours,
-          competences: cand.competences,
-          disponibleNow: cand.disponibleNow,
-        })) as Candidate[];
+        const mapped = rows
+          .filter((cand) => cand.userId && cand.userId > 0)
+          .map((cand) => ({
+            id: cand.id,
+            nom: cand.nom,
+            titre: cand.titre,
+            localisation: cand.localisation,
+            experience: cand.experience,
+            disponibilite: cand.disponibilite,
+            etudes: cand.etudes,
+            cvMajJours: cand.cvMajJours,
+            competences: cand.competences,
+            disponibleNow: cand.disponibleNow,
+          })) as Candidate[];
         setApiCandidats(mapped);
       } catch {
         setApiCandidats([]);

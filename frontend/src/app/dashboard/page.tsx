@@ -7,7 +7,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, ApiError, type ApiJob, type UserApplication } from '@/lib/api';
-import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser } from '@/lib/session';
+import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser, persistPhotoUrl } from '@/lib/session';
 
 type CvFormData = {
   fullName: string;
@@ -50,6 +50,10 @@ export default function DashboardCandidat() {
   const [aiDraft, setAiDraft] = useState<CvFormData | null>(null);
   const [profilePhotoUrl, setProfilePhotoUrl] = useState('');
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const cvFileInputRef = useRef<HTMLInputElement | null>(null);
+  const docFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploadingCv, setIsUploadingCv] = useState(false);
+  const [uploadedDocuments, setUploadedDocuments] = useState<{ name: string; url: string; type: string; uploadedAt: string }[]>([]);
   const [cvData, setCvData] = useState<CvFormData>({
     fullName: '',
     title: '',
@@ -62,6 +66,17 @@ export default function DashboardCandidat() {
     skillsText: '',
     languagesText: '',
   });
+
+  useEffect(() => {
+    try {
+      const docsRaw = localStorage.getItem('bolo237-documents');
+      if (docsRaw) {
+        setUploadedDocuments(JSON.parse(docsRaw));
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     try {
@@ -162,7 +177,7 @@ export default function DashboardCandidat() {
         }
 
         try {
-          const sessionUser = await fetchSessionUser();
+          const sessionUser = await fetchSessionUser({ captureServerErrors: false });
           const sessionRole = String(sessionUser.role || '').toUpperCase();
           if (sessionRole === 'ENTREPRISE') {
             mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
@@ -442,6 +457,48 @@ export default function DashboardCandidat() {
     !cvData.skillsText.trim() && (isEn ? 'List 6 to 8 practical skills recruiters search for.' : 'Listez 6 a 8 competences pratiques recherchees.'),
   ].filter(Boolean) as string[];
 
+  const handleCvFileUpload = async (file: File | null) => {
+    if (!file) return;
+    setIsUploadingCv(true);
+    setCvActionMessage('');
+    try {
+      const uploaded = await uploadFile(file, 'candidate-cvs');
+      const doc = { name: file.name, url: uploaded.url, type: 'cv', uploadedAt: new Date().toISOString() };
+      const next = [doc, ...uploadedDocuments.filter((d) => d.type !== 'cv')];
+      setUploadedDocuments(next);
+      localStorage.setItem('bolo237-documents', JSON.stringify(next));
+      mergeStoredUser({ cvUploaded: true });
+      setCvActionMessage(isEn ? 'CV uploaded successfully.' : 'CV telecharge avec succes.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Upload failed';
+      setCvActionMessage((isEn ? 'CV upload failed: ' : 'Echec telechargement CV: ') + message);
+    } finally {
+      setIsUploadingCv(false);
+    }
+  };
+
+  const handleDocumentUpload = async (file: File | null) => {
+    if (!file) return;
+    setCvActionMessage('');
+    try {
+      const uploaded = await uploadFile(file, 'candidate-documents');
+      const doc = { name: file.name, url: uploaded.url, type: 'document', uploadedAt: new Date().toISOString() };
+      const next = [...uploadedDocuments, doc];
+      setUploadedDocuments(next);
+      localStorage.setItem('bolo237-documents', JSON.stringify(next));
+      setCvActionMessage(isEn ? 'Document uploaded successfully.' : 'Document telecharge avec succes.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Upload failed';
+      setCvActionMessage((isEn ? 'Document upload failed: ' : 'Echec telechargement: ') + message);
+    }
+  };
+
+  const handleRemoveDocument = (index: number) => {
+    const next = uploadedDocuments.filter((_, i) => i !== index);
+    setUploadedDocuments(next);
+    localStorage.setItem('bolo237-documents', JSON.stringify(next));
+  };
+
   const handlePhotoUpload = async (file: File | null) => {
     if (!file) return;
     setIsUploadingPhoto(true);
@@ -450,6 +507,7 @@ export default function DashboardCandidat() {
       const uploaded = await uploadFile(file, 'candidate-photos');
       setProfilePhotoUrl(uploaded.url);
       mergeStoredUser({ photoUrl: uploaded.url });
+      persistPhotoUrl('photoUrl', uploaded.url);
       setCvActionMessage(isEn ? 'Photo uploaded successfully.' : 'Photo telechargee avec succes.');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Upload failed';
@@ -859,10 +917,26 @@ export default function DashboardCandidat() {
 
           {/* CV upload / builder cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-            <button className="border-2 border-dashed border-gray-200 rounded-2xl p-5 sm:p-6 text-center bg-gray-50/50 hover:bg-gray-100/70 hover:border-gray-300 transition group">
+            <input
+              ref={cvFileInputRef}
+              type="file"
+              accept=".pdf,.doc,.docx"
+              className="hidden"
+              onChange={(e) => handleCvFileUpload(e.target.files?.[0] || null)}
+            />
+            <button
+              onClick={() => cvFileInputRef.current?.click()}
+              disabled={isUploadingCv}
+              className="border-2 border-dashed border-gray-200 rounded-2xl p-5 sm:p-6 text-center bg-gray-50/50 hover:bg-gray-100/70 hover:border-green-300 transition group disabled:opacity-60"
+            >
               <p className="text-3xl sm:text-4xl mb-2">&#128196;</p>
-              <h3 className="font-extrabold mb-1 text-sm sm:text-base group-hover:text-green-700 transition">{isEn ? 'Upload a CV (PDF)' : 'Uploader un CV (PDF)'}</h3>
-              <p className="text-xs sm:text-sm text-gray-500">{isEn ? 'Import an existing file' : 'Importer un fichier deja pret'}</p>
+              <h3 className="font-extrabold mb-1 text-sm sm:text-base group-hover:text-green-700 transition">
+                {isUploadingCv ? (isEn ? 'Uploading...' : 'Telechargement...') : (isEn ? 'Upload a CV (PDF)' : 'Uploader un CV (PDF)')}
+              </h3>
+              <p className="text-xs sm:text-sm text-gray-500">{isEn ? 'PDF, DOC — import an existing file' : 'PDF, DOC — importer un fichier deja pret'}</p>
+              {uploadedDocuments.find((d) => d.type === 'cv') && (
+                <p className="text-xs font-bold text-green-600 mt-1">&#10003; {isEn ? 'CV on file' : 'CV enregistre'}</p>
+              )}
             </button>
             <button
               onClick={() => {
@@ -1308,6 +1382,101 @@ export default function DashboardCandidat() {
               <Link href={localizePath('/emplois')} className="inline-block mt-4 text-sm font-bold text-green-700 hover:text-green-800 transition">
                 {isEn ? 'Explore jobs' : 'Explorer les offres'} &rarr;
               </Link>
+            </div>
+          )}
+        </section>
+
+        {/* ════════════ MES DOCUMENTS ════════════ */}
+        <section className="bg-white rounded-2xl shadow-sm shadow-gray-200/60 p-5 sm:p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+            <h2 className="text-lg sm:text-xl md:text-2xl font-extrabold flex items-center gap-2">
+              <span role="img" aria-label="folder">&#128193;</span>
+              {isEn ? 'My Documents' : 'Mes Documents'}
+            </h2>
+            <div className="flex gap-2">
+              <input
+                ref={docFileInputRef}
+                type="file"
+                accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                className="hidden"
+                onChange={(e) => handleDocumentUpload(e.target.files?.[0] || null)}
+              />
+              <button
+                onClick={() => docFileInputRef.current?.click()}
+                className="px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-green-50 text-green-700 border border-green-100 hover:bg-green-100 transition"
+              >
+                <span className="mr-1.5">+</span>
+                {isEn ? 'Add document' : 'Ajouter un document'}
+              </button>
+            </div>
+          </div>
+          {uploadedDocuments.length > 0 ? (
+            <div className="space-y-2">
+              {uploadedDocuments.map((doc, index) => {
+                const uploadDate = new Date(doc.uploadedAt).toLocaleDateString(isEn ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
+                const icon = doc.type === 'cv' ? '&#128196;' : '&#128196;';
+                return (
+                  <div key={index} className="border border-gray-200 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3 hover:border-gray-300 transition">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-xl shrink-0" dangerouslySetInnerHTML={{ __html: icon }} />
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-black truncate">{doc.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {doc.type === 'cv' ? 'CV' : isEn ? 'Document' : 'Document'} &bull; {uploadDate}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <a
+                        href={doc.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100 transition"
+                      >
+                        {isEn ? 'View' : 'Voir'}
+                      </a>
+                      <a
+                        href={doc.url}
+                        download={doc.name}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 border border-blue-100 text-blue-700 hover:bg-blue-100 transition"
+                      >
+                        {isEn ? 'Download' : 'Telecharger'}
+                      </a>
+                      <button
+                        onClick={() => handleRemoveDocument(index)}
+                        className="p-1.5 rounded-lg text-xs font-bold text-red-500 hover:bg-red-50 transition"
+                        title={isEn ? 'Remove' : 'Supprimer'}
+                      >
+                        &#10005;
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-10 sm:py-12">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-gray-50 flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl sm:text-4xl" role="img" aria-label="folder">&#128193;</span>
+              </div>
+              <h4 className="font-bold text-black text-sm sm:text-[15px] mb-2">{isEn ? 'No documents yet' : 'Aucun document'}</h4>
+              <p className="text-xs sm:text-sm text-gray-500 font-medium max-w-sm mx-auto">
+                {isEn ? 'Upload your CV, diplomas, or other supporting documents.' : 'Telechargez votre CV, diplomes ou autres documents justificatifs.'}
+              </p>
+              <div className="flex flex-col sm:flex-row gap-2 justify-center mt-4">
+                <button
+                  onClick={() => cvFileInputRef.current?.click()}
+                  className="px-4 py-2 rounded-xl text-sm font-bold bg-green-600 text-white hover:bg-green-700 transition"
+                >
+                  {isEn ? 'Upload CV' : 'Uploader un CV'}
+                </button>
+                <button
+                  onClick={() => docFileInputRef.current?.click()}
+                  className="px-4 py-2 rounded-xl text-sm font-bold border border-gray-200 text-gray-700 hover:bg-gray-50 transition"
+                >
+                  {isEn ? 'Upload another document' : 'Ajouter un autre document'}
+                </button>
+              </div>
             </div>
           )}
         </section>

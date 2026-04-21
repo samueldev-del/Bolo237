@@ -3,6 +3,7 @@ const ROLE_KEY = 'bolo237-account-role';
 const PHONE_VERIFIED_KEY = 'bolo237-phone-verified';
 const FORCE_LOGOUT_KEY = 'bolo237-force-logout';
 const AUTH_SUCCESS_KEY = 'bolo237-auth-last-success';
+const PHOTO_PERSIST_KEY = 'bolo237-photo-persist';
 const SESSION_CHANGE_EVENT = 'bolo237-session-change';
 const SESSION_RELATED_KEYS = new Set([
   USER_KEY,
@@ -62,6 +63,19 @@ export function getStoredUser(): StoredUser | null {
   }
 }
 
+export function persistPhotoUrl(photoKey: 'photoUrl' | 'logoUrl', url: string | null): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const existing = JSON.parse(window.localStorage.getItem(PHOTO_PERSIST_KEY) || '{}');
+    if (url) {
+      existing[photoKey] = url;
+    } else {
+      delete existing[photoKey];
+    }
+    window.localStorage.setItem(PHOTO_PERSIST_KEY, JSON.stringify(existing));
+  } catch {}
+}
+
 export function storeAuthenticatedUser(
   user: Partial<StoredUser>,
   options: { role?: string | null; phoneVerified?: boolean } = {}
@@ -69,7 +83,12 @@ export function storeAuthenticatedUser(
   if (typeof window === 'undefined') return null;
 
   const current = getStoredUser() || {};
-  const next = { ...current, ...user };
+  // Restore persisted photo/logo URLs that survive logout
+  let persisted: Record<string, string> = {};
+  try {
+    persisted = JSON.parse(window.localStorage.getItem(PHOTO_PERSIST_KEY) || '{}');
+  } catch {}
+  const next = { ...persisted, ...current, ...user };
   window.localStorage.setItem(USER_KEY, JSON.stringify(next));
 
   if (options.role !== undefined) {

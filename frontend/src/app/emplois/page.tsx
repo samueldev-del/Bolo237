@@ -5,33 +5,14 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Footer from '@/components/Footer';
+import JobListingCard from '@/components/JobListingCard';
 import { useLocale } from '@/components/LocaleProvider';
-import { fetchJobs, fetchUserSavedJobs, removeUserSavedJob, saveUserJob, type ApiJob } from '@/lib/api';
+import { fetchJobs, fetchUserSavedJobs, removeUserSavedJob, saveUserJob } from '@/lib/api';
+import { mapApiJobToListing, type JobListing } from '@/lib/job-listings';
 import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import { useApi } from '@/lib/useApi';
 
-type Offre = {
-  id: number;
-  titre: string;
-  entreprise: string;
-  logoInitiales: string;
-  logoColor: string;
-  logoUrl: string | null;
-  isVerified: boolean;
-  lieu: string;
-  region: string;
-  city: string;
-  salaire: string | null;
-  description: string;
-  heures: string;
-  publishedHours: number;
-  workMode: 'onsite' | 'partial' | 'remote';
-  applicationType: 'bolo237' | 'external';
-  contractType: 'cdi' | 'cdd' | 'stage' | 'freelance';
-  experienceLevel: 'junior' | 'confirmed' | 'senior';
-  workTime: 'full' | 'part';
-  nouveau: boolean;
-};
+type Offre = JobListing;
 
 type JobFilters = {
   sortBy: 'recent' | 'oldest';
@@ -58,156 +39,6 @@ const DEFAULT_JOB_FILTERS: JobFilters = {
   contract: 'all',
   workTime: 'all',
 };
-
-const LOGO_COLORS = ['#7C3AED', '#059669', '#D97706', '#DC2626', '#EA580C', '#2563EB', '#0891B2'];
-
-function extractExternalApplyUrl(description: string): string | null {
-  const text = String(description || '');
-  if (!text) {
-    return null;
-  }
-
-  const markerPattern = /(postuler sur le site de l'entreprise|lien de candidature|apply on company site)\s*[:\-]\s*(https?:\/\/[^\s]+)/i;
-  const markerMatch = text.match(markerPattern);
-  return markerMatch?.[2]?.trim() || null;
-}
-
-function inferWorkMode(location: string, description: string): 'onsite' | 'partial' | 'remote' {
-  const text = `${location} ${description}`.toLowerCase();
-
-  if (text.includes('100% teletravail') || text.includes('100% remote') || text.includes('full remote')) {
-    return 'remote';
-  }
-
-  if (
-    text.includes('teletravail partiel') ||
-    text.includes('hybride') ||
-    text.includes('hybrid') ||
-    text.includes('partially remote') ||
-    text.includes('home-office')
-  ) {
-    return 'partial';
-  }
-
-  return 'onsite';
-}
-
-function inferContractType(title: string, description: string): 'cdi' | 'cdd' | 'stage' | 'freelance' {
-  const text = `${title} ${description}`.toLowerCase();
-
-  if (text.includes('stage') || text.includes('intern')) return 'stage';
-  if (text.includes('freelance') || text.includes('consultant')) return 'freelance';
-  if (text.includes('cdd') || text.includes('contract')) return 'cdd';
-  return 'cdi';
-}
-
-function inferExperienceLevel(title: string, description: string): 'junior' | 'confirmed' | 'senior' {
-  const text = `${title} ${description}`.toLowerCase();
-
-  if (text.includes('senior') || text.includes('lead') || text.includes('manager') || text.includes('head')) {
-    return 'senior';
-  }
-  if (text.includes('junior') || text.includes('assistant') || text.includes('entry')) {
-    return 'junior';
-  }
-
-  return 'confirmed';
-}
-
-function inferWorkTime(title: string, description: string): 'full' | 'part' {
-  const text = `${title} ${description}`.toLowerCase();
-  if (text.includes('temps partiel') || text.includes('part-time') || text.includes('teilzeit') || text.includes('minijob')) {
-    return 'part';
-  }
-
-  return 'full';
-}
-
-function inferCity(location: string): string {
-  const normalized = String(location || '').trim();
-  if (!normalized) return 'Autres';
-
-  return normalized.split(/[\/,]/)[0]?.trim() || 'Autres';
-}
-
-function inferRegion(location: string): string {
-  const text = String(location || '').toLowerCase();
-
-  if (text.includes('douala') || text.includes('littoral')) return 'Littoral';
-  if (text.includes('yaound') || text.includes('centre')) return 'Centre';
-  if (text.includes('bafoussam') || text.includes('ouest')) return 'Ouest';
-  if (text.includes('bamenda') || text.includes('nord-ouest')) return 'Nord-Ouest';
-  if (text.includes('buea') || text.includes('limbe') || text.includes('sud-ouest')) return 'Sud-Ouest';
-  if (text.includes('garoua') || text.includes('nord')) return 'Nord';
-  if (text.includes('bertoua') || text.includes('est')) return 'Est';
-  if (text.includes('kribi') || text.includes('sud')) return 'Sud';
-  if (text.includes('maroua') || text.includes('extreme-nord')) return 'Extreme-Nord';
-  if (text.includes('ngaound') || text.includes('adamaoua')) return 'Adamaoua';
-
-  return 'Autres';
-}
-
-function timeAgo(createdAt: string, isEn: boolean): string {
-  const diff = Date.now() - new Date(createdAt).getTime();
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-
-  if (hours < 1) return isEn ? 'just now' : "À l'instant";
-  if (hours < 24) return isEn ? `${hours}h ago` : `Il y a ${hours}h`;
-  if (hours < 168) {
-    const days = Math.floor(hours / 24);
-    return isEn ? `${days}d ago` : `Il y a ${days} jour${days > 1 ? 's' : ''}`;
-  }
-
-  const weeks = Math.floor(hours / 168);
-  return isEn ? `${weeks}w ago` : `Il y a ${weeks} semaine${weeks > 1 ? 's' : ''}`;
-}
-
-function getContractLabel(contract: Offre['contractType'], isEn: boolean): string {
-  if (contract === 'cdd') return 'CDD';
-  if (contract === 'stage') return isEn ? 'Internship' : 'Stage';
-  if (contract === 'freelance') return 'Freelance';
-  return 'CDI';
-}
-
-function getWorkModeLabel(mode: Offre['workMode'], isEn: boolean): string {
-  if (mode === 'remote') return isEn ? 'Remote' : 'Télétravail';
-  if (mode === 'partial') return isEn ? 'Hybrid' : 'Hybride';
-  return isEn ? 'On-site' : 'Sur site';
-}
-
-function getExperienceLabel(level: Offre['experienceLevel'], isEn: boolean): string {
-  if (level === 'junior') return isEn ? 'Junior' : 'Junior';
-  if (level === 'senior') return isEn ? 'Senior' : 'Senior';
-  return isEn ? 'Confirmed' : 'Confirmé';
-}
-
-function apiJobToOffre(job: ApiJob, index: number, isEn: boolean): Offre {
-  const publishedHours = Math.floor((Date.now() - new Date(job.createdAt).getTime()) / (1000 * 60 * 60));
-  const description = job.description || '';
-
-  return {
-    id: job.id,
-    titre: job.title,
-    entreprise: job.company,
-    logoInitiales: (job.company || '??').slice(0, 2).toUpperCase(),
-    logoColor: LOGO_COLORS[index % LOGO_COLORS.length],
-    logoUrl: job.author?.photoUrl || null,
-    isVerified: job.author?.isVerified || false,
-    lieu: job.location,
-    region: inferRegion(job.location),
-    city: inferCity(job.location),
-    salaire: job.salary,
-    description,
-    heures: timeAgo(job.createdAt, isEn),
-    publishedHours,
-    workMode: inferWorkMode(job.location, description),
-    applicationType: extractExternalApplyUrl(description) ? 'external' : 'bolo237',
-    contractType: inferContractType(job.title, description),
-    experienceLevel: inferExperienceLevel(job.title, description),
-    workTime: inferWorkTime(job.title, description),
-    nouveau: publishedHours < 72,
-  };
-}
 
 function FilterGroup({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
   return (
@@ -321,7 +152,7 @@ export default function EmploisFormels() {
   );
 
   const offres = useMemo(
-    () => jobsData?.jobs.map((job, index) => apiJobToOffre(job, index, isEn)) ?? [],
+    () => jobsData?.jobs.map((job, index) => mapApiJobToListing(job, index, isEn)) ?? [],
     [jobsData, isEn],
   );
 
@@ -645,124 +476,19 @@ export default function EmploisFormels() {
           </div>
 
           {filteredOffers.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {filteredOffers.map((offre) => {
                 const isSaved = savedIds.includes(offre.id);
 
                 return (
-                  <article key={offre.id} className="rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-[#DA7756] hover:shadow-lg hover:shadow-[#FFF5EF]">
-                    <div className="flex items-start gap-4">
-                      <div className="min-w-0 flex-1">
-                        <div className="mb-3 flex flex-wrap items-center gap-2">
-                          {offre.applicationType === 'bolo237' ? (
-                            <span className="rounded-lg bg-[#EDE9FE] px-3 py-1 text-[11px] font-bold text-[#6D28D9]">
-                              {isEn ? 'Quick apply' : 'Candidature rapide'}
-                            </span>
-                          ) : (
-                            <span className="rounded-lg bg-[#FFF5EF] px-3 py-1 text-[11px] font-bold text-[#A8502F]">
-                              {isEn ? 'External application' : 'Candidature externe'}
-                            </span>
-                          )}
-                          {offre.nouveau ? (
-                            <span className="rounded-lg bg-[#DBEAFE] px-3 py-1 text-[11px] font-extrabold tracking-wide text-[#1D4ED8]">
-                              {isEn ? 'NEW' : 'NOUVEAU'}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <Link
-                          href={localizePath(`/annonce/${offre.id}`)}
-                          className="block text-[1.05rem] font-extrabold leading-snug text-[#7C3AED] transition hover:text-[#A855F7]"
-                        >
-                          {offre.titre}
-                        </Link>
-
-                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
-                          <span className="flex items-center gap-1.5 font-semibold text-gray-800">
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#94A3B8" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16M3 21h18M9 21V11h6v10" /></svg>
-                            {offre.entreprise}
-                            {offre.isVerified ? (
-                              <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="#059669"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
-                                {isEn ? 'Verified' : 'Certifiée'}
-                              </span>
-                            ) : null}
-                          </span>
-
-                          <span className="flex items-center gap-1.5">
-                            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="#94A3B8" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" /></svg>
-                            {offre.lieu}
-                          </span>
-
-                          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-bold text-gray-600">
-                            {getWorkModeLabel(offre.workMode, isEn)}
-                          </span>
-
-                          {offre.salaire ? (
-                            <span className="flex items-center gap-1.5 font-semibold text-emerald-700">
-                              <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" /></svg>
-                              {offre.salaire}
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <p className="mt-3 line-clamp-2 text-sm leading-6 text-gray-500">
-                          {offre.description}
-                        </p>
-
-                        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs font-semibold text-gray-400">
-                          <span>{offre.heures}</span>
-                          <span>•</span>
-                          <span className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-gray-600">{getContractLabel(offre.contractType, isEn)}</span>
-                          <span className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-gray-600">{getExperienceLabel(offre.experienceLevel, isEn)}</span>
-                          <span className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-gray-600">{offre.workTime === 'full' ? (isEn ? 'Full-time' : 'Temps plein') : (isEn ? 'Part-time' : 'Temps partiel')}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex shrink-0 flex-col items-end gap-3">
-                        <div className="relative">
-                          {offre.logoUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={offre.logoUrl}
-                              alt={offre.entreprise}
-                              className="h-[52px] w-[52px] rounded-xl border border-gray-200 bg-white p-1 object-contain"
-                              onError={(event) => {
-                                const image = event.target as HTMLImageElement;
-                                image.style.display = 'none';
-                                const fallback = image.nextElementSibling;
-                                if (fallback instanceof HTMLElement) {
-                                  fallback.style.removeProperty('display');
-                                }
-                              }}
-                            />
-                          ) : null}
-                          <div
-                            style={{ backgroundColor: `${offre.logoColor}18`, borderColor: `${offre.logoColor}30`, color: offre.logoColor, display: offre.logoUrl ? 'none' : 'flex' }}
-                            className="h-[52px] w-[52px] items-center justify-center rounded-xl border text-sm font-black"
-                          >
-                            {offre.logoInitiales}
-                          </div>
-                          {offre.isVerified ? (
-                            <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-[10px] font-bold text-white">
-                              ✓
-                            </span>
-                          ) : null}
-                        </div>
-
-                        <button
-                          onClick={() => toggleSave(offre.id)}
-                          className="rounded-full p-1 transition hover:bg-gray-50"
-                          title={isSaved ? (isEn ? 'Remove from saved jobs' : 'Retirer des favoris') : (isEn ? 'Save job' : 'Sauvegarder')}
-                          type="button"
-                        >
-                          <svg width="22" height="22" viewBox="0 0 24 24" fill={isSaved ? '#7C3AED' : 'none'} stroke={isSaved ? '#7C3AED' : '#CBD5E1'} strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 0 0 0 6.364L12 20.364l7.682-7.682a4.5 4.5 0 0 0-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 0 0-6.364 0z" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </article>
+                  <JobListingCard
+                    key={offre.id}
+                    offer={offre}
+                    isEn={isEn}
+                    href={localizePath(`/annonce/${offre.id}`)}
+                    isSaved={isSaved}
+                    onToggleSave={() => toggleSave(offre.id)}
+                  />
                 );
               })}
             </div>

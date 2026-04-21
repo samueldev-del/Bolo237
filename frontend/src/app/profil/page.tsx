@@ -94,7 +94,9 @@ export default function ProfilCV() {
   const [saved, setSaved] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
   const [isCertified, setIsCertified] = useState(false);
-  const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed'>('checking');
+  const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed' | 'unavailable'>('checking');
+  const [accessError, setAccessError] = useState('');
+  const [accessRetryToken, setAccessRetryToken] = useState(0);
   const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
   const cleanedLocalPhone = phone.replace(/\D/g, '');
   const internationalPhone = cleanedLocalPhone ? `${selectedCountry.dialCode}${cleanedLocalPhone}` : '';
@@ -140,7 +142,7 @@ export default function ProfilCV() {
         }
 
         try {
-          const sessionUser = await fetchSessionUser();
+          const sessionUser = await fetchSessionUser({ captureServerErrors: false });
           if (!active) return;
 
           const sessionRole = normalizeRole(sessionUser.role);
@@ -152,6 +154,7 @@ export default function ProfilCV() {
 
           mergeStoredUser(sessionUser as unknown as Record<string, unknown>);
           applyUserSnapshot(sessionUser as unknown as Record<string, unknown>);
+          setAccessError('');
           setAccessStatus('allowed');
           return;
         } catch (err) {
@@ -160,9 +163,20 @@ export default function ProfilCV() {
             continue;
           }
 
+          if (!active) return;
+
           if (storedUser) {
+            setAccessError('');
             setAccessStatus('allowed');
+            return;
           }
+
+          setAccessError(
+            isEn
+              ? 'We cannot confirm your profile session right now. Please try again in a moment.'
+              : 'Nous ne pouvons pas verifier votre session profil pour le moment. Reessayez dans un instant.'
+          );
+          setAccessStatus('unavailable');
           return;
         }
       }
@@ -170,6 +184,7 @@ export default function ProfilCV() {
       if (!active) return;
 
       if (storedUser) {
+        setAccessError('');
         setAccessStatus('allowed');
         return;
       }
@@ -182,7 +197,7 @@ export default function ProfilCV() {
     return () => {
       active = false;
     };
-  }, [localizePath]);
+  }, [accessRetryToken, isEn, localizePath]);
 
   // Load existing profile
   useEffect(() => {
@@ -264,7 +279,40 @@ export default function ProfilCV() {
   ];
 
   return (
-    accessStatus !== 'allowed' ? (
+    accessStatus === 'unavailable' ? (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-3xl border border-green-200 bg-white p-6 text-center shadow-sm">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-xl text-green-700">
+            !
+          </div>
+          <h1 className="mt-4 text-xl font-extrabold text-gray-900">
+            {isEn ? 'Session service temporarily unavailable' : 'Service de session temporairement indisponible'}
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-gray-600">
+            {accessError || (isEn ? 'Please retry in a few moments.' : 'Reessayez dans quelques instants.')}
+          </p>
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                setAccessError('');
+                setAccessStatus('checking');
+                setAccessRetryToken((value) => value + 1);
+              }}
+              className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-green-700"
+            >
+              {isEn ? 'Retry access check' : 'Relancer la verification'}
+            </button>
+            <Link
+              href={`${localizePath('/connexion')}?role=chercheur`}
+              className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-extrabold text-gray-700 transition hover:border-gray-300 hover:text-gray-900"
+            >
+              {isEn ? 'Go to sign in' : 'Aller a la connexion'}
+            </Link>
+          </div>
+        </div>
+      </div>
+    ) : accessStatus !== 'allowed' ? (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-green-500 animate-spin" />

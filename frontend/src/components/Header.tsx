@@ -206,7 +206,7 @@ export default function Header() {
           {user ? (
             <Link
               href={getDashboard(localRole || undefined, localizePath)}
-              className="hidden sm:flex items-center gap-3 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 shadow-sm transition hover:border-gray-300 hover:shadow-md"
+              className="hidden sm:flex items-center gap-2.5 rounded-full border border-gray-200 bg-white px-2.5 py-1.5 shadow-sm transition hover:border-gray-300 hover:shadow-md"
             >
               <AccountAvatar
                 imageUrl={userVisualUrl}
@@ -215,11 +215,8 @@ export default function Header() {
                 role={localRoleNormalized}
                 size="sm"
               />
-              <span className="min-w-0 text-left leading-tight">
-                <span className="block max-w-[140px] truncate text-[13px] font-bold text-gray-900">{displayName}</span>
-                <span className="block text-[10px] font-bold uppercase tracking-[0.14em] text-gray-400">
-                  {getRoleLabel(localRoleNormalized, isEn)}
-                </span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-500">
+                {getRoleLabel(localRoleNormalized, isEn)}
               </span>
               {user.isVerified && (
                 <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-50 px-1.5 text-[10px] font-black text-emerald-600">
@@ -251,7 +248,9 @@ export default function Header() {
                   role={localRoleNormalized}
                   size="xs"
                 />
-                <span className="max-w-[92px] truncate text-[12px] font-bold text-gray-800">{displayName}</span>
+                <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-gray-500">
+                  {getRoleLabel(localRoleNormalized, isEn)}
+                </span>
               </div>
             )}
             {isMenuOpen ? (

@@ -11,8 +11,6 @@ import { markRecentAuthSuccess, storeAuthenticatedUser } from '@/lib/session';
 type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
 type Role = SignupRole | 'admin';
 
-const ROLE_STORAGE_KEY = 'bolo237-account-role';
-const USER_KEY = 'bolo237-user';
 const SIGNUP_HONEYPOT_FIELD = 'website';
 
 const ROLE_MAP: Record<SignupRole, string> = {

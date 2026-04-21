@@ -1,74 +1,265 @@
 "use client";
 
-import { useState } from 'react';
+import { useMemo, useRef } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import JobListingCard from '@/components/JobListingCard';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchJobs, type ApiJob } from '@/lib/api';
+import { getContractLabel, getWorkModeLabel, getWorkTimeLabel, mapApiJobToListing, type JobListing } from '@/lib/job-listings';
 import { useApi } from '@/lib/useApi';
 
-type Annonce = {
-  id: number;
-  titre: string;
-  entreprise: string;
-  lieu: string;
-  type: string;
-  mode: string;
-  description: string;
-  temps: string;
-  logo: string;
+type SearchFilters = {
+  datePosted: 'all' | '24h' | '7d';
+  salaryOnly: boolean;
+  workTimes: JobListing['workTime'][];
+  contractTypes: JobListing['contractType'][];
+  workModes: JobListing['workMode'][];
 };
 
-function timeAgoFr(createdAt: string, isEn: boolean): string {
-  const diff = Date.now() - new Date(createdAt).getTime();
-  const hours = Math.floor(diff / (1000 * 60 * 60));
-  if (hours < 1) return isEn ? 'just now' : "à l'instant";
-  if (hours < 24) return isEn ? `${hours}h ago` : `il y a ${hours} heure${hours > 1 ? 's' : ''}`;
-  const days = Math.floor(hours / 24);
-  return isEn ? `${days}d ago` : `il y a ${days} jour${days > 1 ? 's' : ''}`;
+const DEFAULT_SEARCH_FILTERS: SearchFilters = {
+  datePosted: 'all',
+  salaryOnly: false,
+  workTimes: [],
+  contractTypes: [],
+  workModes: [],
+};
+
+type SearchUrlState = {
+  search: string;
+  location: string;
+  sortBy: 'recent' | 'oldest';
+  filters: SearchFilters;
+};
+
+const DATE_POSTED_VALUES: SearchFilters['datePosted'][] = ['all', '24h', '7d'];
+const WORK_TIME_VALUES: JobListing['workTime'][] = ['full', 'part'];
+const CONTRACT_VALUES: JobListing['contractType'][] = ['cdi', 'cdd', 'stage', 'freelance'];
+const WORK_MODE_VALUES: JobListing['workMode'][] = ['onsite', 'partial', 'remote'];
+
+function parseMultiValueParam<T extends string>(
+  searchParams: ReadonlyURLSearchParams,
+  key: string,
+  allowedValues: readonly T[],
+): T[] {
+  const allowedSet = new Set<string>(allowedValues);
+  const uniqueValues = new Set<T>();
+
+  searchParams.getAll(key).forEach((value) => {
+    if (allowedSet.has(value)) {
+      uniqueValues.add(value as T);
+    }
+  });
+
+  return Array.from(uniqueValues);
 }
 
-function apiJobToAnnonce(job: ApiJob, isEn: boolean): Annonce {
+function parseSearchUrlState(searchParams: ReadonlyURLSearchParams): SearchUrlState {
+  const datePosted = searchParams.get('date');
+  const sortBy = searchParams.get('sort');
+
   return {
-    id: job.id,
-    titre: job.title,
-    entreprise: job.company,
-    lieu: job.location,
-    type: 'Temps plein',
-    mode: 'Sur site',
-    description: job.description,
-    temps: timeAgoFr(job.createdAt, isEn),
-    logo: (job.company || '??').slice(0, 2).toUpperCase(),
+    search: searchParams.get('q')?.trim() || '',
+    location: searchParams.get('location')?.trim() || '',
+    sortBy: sortBy === 'oldest' ? 'oldest' : 'recent',
+    filters: {
+      datePosted: DATE_POSTED_VALUES.includes(datePosted as SearchFilters['datePosted'])
+        ? (datePosted as SearchFilters['datePosted'])
+        : 'all',
+      salaryOnly: searchParams.get('salary') === '1',
+      workTimes: parseMultiValueParam(searchParams, 'workTime', WORK_TIME_VALUES),
+      contractTypes: parseMultiValueParam(searchParams, 'contract', CONTRACT_VALUES),
+      workModes: parseMultiValueParam(searchParams, 'mode', WORK_MODE_VALUES),
+    },
   };
+}
+
+function buildSearchQuery(state: SearchUrlState): string {
+  const params = new URLSearchParams();
+
+  if (state.search) {
+    params.set('q', state.search);
+  }
+
+  if (state.location) {
+    params.set('location', state.location);
+  }
+
+  if (state.sortBy !== 'recent') {
+    params.set('sort', state.sortBy);
+  }
+
+  if (state.filters.datePosted !== 'all') {
+    params.set('date', state.filters.datePosted);
+  }
+
+  if (state.filters.salaryOnly) {
+    params.set('salary', '1');
+  }
+
+  state.filters.workTimes.forEach((value) => params.append('workTime', value));
+  state.filters.contractTypes.forEach((value) => params.append('contract', value));
+  state.filters.workModes.forEach((value) => params.append('mode', value));
+
+  return params.toString();
+}
+
+function toggleArrayFilter<T extends string>(items: T[], value: T): T[] {
+  return items.includes(value) ? items.filter((item) => item !== value) : [...items, value];
+}
+
+function FilterPanel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-[24px] border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 px-4 py-4">
+        <h3 className="text-sm font-extrabold text-slate-900">{title}</h3>
+      </div>
+      <div className="space-y-3 p-4">{children}</div>
+    </div>
+  );
+}
+
+function FilterChoiceRow({
+  label,
+  count,
+  active,
+  onChange,
+  type = 'checkbox',
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onChange: () => void;
+  type?: 'checkbox' | 'radio';
+}) {
+  return (
+    <label className={`flex cursor-pointer items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 transition ${active ? 'border-[#0F4C81] bg-[#EEF5FB]' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+      <span className="flex items-center gap-3">
+        <input
+          checked={active}
+          onChange={onChange}
+          type={type}
+          className="h-4 w-4 border-slate-300 text-[#0F4C81] focus:ring-[#0F4C81]"
+        />
+        <span className="text-sm font-semibold text-slate-700">{label}</span>
+      </span>
+      <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${active ? 'bg-[#0F4C81] text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
+    </label>
+  );
+}
+
+function ActiveFilterChip({
+  label,
+  onRemove,
+  tone = 'neutral',
+}: {
+  label: string;
+  onRemove: () => void;
+  tone?: 'neutral' | 'blue' | 'green';
+}) {
+  const toneClassName = tone === 'blue'
+    ? 'bg-[#E8F1FA] text-[#0F4C81] hover:bg-[#DCEAF7]'
+    : tone === 'green'
+      ? 'bg-[#E8F8EF] text-emerald-700 hover:bg-[#DDF4E7]'
+      : 'bg-slate-100 text-slate-600 hover:bg-slate-200';
+
+  return (
+    <button
+      type="button"
+      onClick={onRemove}
+      className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold transition ${toneClassName}`}
+    >
+      <span>{label}</span>
+      <span aria-hidden="true">×</span>
+    </button>
+  );
 }
 
 export default function Recherche() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
-  const [searchInput, setSearchInput] = useState('');
-  const [locationInput, setLocationInput] = useState('');
-  const [appliedSearch, setAppliedSearch] = useState('');
-  const [appliedLocation, setAppliedLocation] = useState('');
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const locationInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleSearch = () => {
-    setAppliedSearch(searchInput.trim());
-    setAppliedLocation(locationInput.trim());
+  const urlState = useMemo(() => parseSearchUrlState(searchParams), [searchParams]);
+
+  const updateUrlState = (nextState: SearchUrlState) => {
+    const queryString = buildSearchQuery(nextState);
+    const targetPath = localizePath('/recherche');
+    router.replace(queryString ? `${targetPath}?${queryString}` : targetPath, { scroll: false });
   };
 
-  const { data: jobsData } = useApi(
+  const handleSearch = () => {
+    updateUrlState({
+      ...urlState,
+      search: searchInputRef.current?.value.trim() || '',
+      location: locationInputRef.current?.value.trim() || '',
+    });
+  };
+
+  const { data: jobsData, loading: jobsLoading } = useApi(
     () => fetchJobs({
       limit: 20,
       status: 'APPROVED',
-      ...(appliedSearch ? { search: appliedSearch } : {}),
-      ...(appliedLocation ? { location: appliedLocation } : {}),
+      ...(urlState.search ? { search: urlState.search } : {}),
+      ...(urlState.location ? { location: urlState.location } : {}),
     }),
     null,
-    [appliedSearch, appliedLocation]
+    [urlState.search, urlState.location]
   );
 
-  const annonces: Annonce[] = jobsData ? jobsData.jobs.map((j) => apiJobToAnnonce(j, isEn)) : [];
+  const annonces: JobListing[] = useMemo(() => {
+    const mapped = jobsData ? jobsData.jobs.map((job: ApiJob, index: number) => mapApiJobToListing(job, index, isEn)) : [];
+    return mapped.sort((left, right) => {
+      if (urlState.sortBy === 'oldest') {
+        return left.publishedHours - right.publishedHours;
+      }
+      return right.publishedHours - left.publishedHours;
+    });
+  }, [jobsData, isEn, urlState.sortBy]);
+
+  const filteredAnnonces = useMemo(() => {
+    return annonces.filter((annonce) => {
+      if (urlState.filters.datePosted === '24h' && annonce.publishedHours > 24) return false;
+      if (urlState.filters.datePosted === '7d' && annonce.publishedHours > 24 * 7) return false;
+      if (urlState.filters.salaryOnly && !annonce.salary) return false;
+      if (urlState.filters.workTimes.length > 0 && !urlState.filters.workTimes.includes(annonce.workTime)) return false;
+      if (urlState.filters.contractTypes.length > 0 && !urlState.filters.contractTypes.includes(annonce.contractType)) return false;
+      if (urlState.filters.workModes.length > 0 && !urlState.filters.workModes.includes(annonce.workMode)) return false;
+      return true;
+    });
+  }, [annonces, urlState.filters]);
+
+  const totalOffers = jobsData?.pagination.total ?? annonces.length;
+  const countMatches = (predicate: (annonce: JobListing) => boolean) => annonces.filter(predicate).length;
+  const recent24Count = countMatches((annonce) => annonce.publishedHours <= 24);
+  const recent7DaysCount = countMatches((annonce) => annonce.publishedHours <= 24 * 7);
+  const fullTimeCount = countMatches((annonce) => annonce.workTime === 'full');
+  const partTimeCount = countMatches((annonce) => annonce.workTime === 'part');
+  const salaryShownCount = countMatches((annonce) => Boolean(annonce.salary));
+  const workModeCounts = {
+    onsite: countMatches((annonce) => annonce.workMode === 'onsite'),
+    partial: countMatches((annonce) => annonce.workMode === 'partial'),
+    remote: countMatches((annonce) => annonce.workMode === 'remote'),
+  };
+  const contractCounts = {
+    cdi: countMatches((annonce) => annonce.contractType === 'cdi'),
+    cdd: countMatches((annonce) => annonce.contractType === 'cdd'),
+    stage: countMatches((annonce) => annonce.contractType === 'stage'),
+    freelance: countMatches((annonce) => annonce.contractType === 'freelance'),
+  };
+  const activeFilterCount = [
+    urlState.filters.datePosted !== 'all' ? 1 : 0,
+    urlState.filters.salaryOnly ? 1 : 0,
+    urlState.filters.workTimes.length,
+    urlState.filters.contractTypes.length,
+    urlState.filters.workModes.length,
+  ].reduce((sum, count) => sum + count, 0);
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans pb-12">
@@ -97,10 +288,11 @@ export default function Recherche() {
             <div className="relative flex-1">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
               <input
+                key={`search-${urlState.search}`}
+                ref={searchInputRef}
                 type="text"
                 placeholder={isEn ? 'Job, skill, or company' : 'Job, competence ou entreprise'}
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
+                defaultValue={urlState.search}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 shadow-sm"
               />
@@ -108,10 +300,11 @@ export default function Recherche() {
             <div className="relative flex-1">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">📍</span>
               <input
+                key={`location-${urlState.location}`}
+                ref={locationInputRef}
                 type="text"
                 placeholder={isEn ? 'City or district (ex: Douala)' : 'Ville ou quartier (ex: Douala)'}
-                value={locationInput}
-                onChange={(e) => setLocationInput(e.target.value)}
+                defaultValue={urlState.location}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 shadow-sm"
               />
@@ -127,74 +320,125 @@ export default function Recherche() {
         </div>
       </div>
 
-      {/* CONTENU PRINCIPAL : 1915 offres trouvées... */}
+      {/* CONTENU PRINCIPAL */}
       <main className="max-w-7xl mx-auto mt-8 px-4 flex flex-col md:flex-row gap-8">
         
         {/* 2. COLONNE DE GAUCHE : FILTRES */}
-        <aside className="w-full md:w-70 shrink-0">
-          
-          {/* Bloc de filtre : Date */}
-          <div className="bg-white border border-gray-200 rounded-lg mb-4">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-50">
-              <h3 className="font-bold text-gray-900 text-sm">Date de publication</h3>
-              <span className="text-gray-400">⌃</span>
-            </div>
-            <div className="p-4 space-y-3">
-              <label className="flex items-center justify-between cursor-pointer group">
-                <div className="flex items-center gap-2">
-                  <input type="radio" name="date" className="w-4 h-4 text-blue-700 focus:ring-blue-500 border-gray-300" />
-                  <span className="text-gray-700 text-sm group-hover:text-black">{isEn ? 'Less than 24h' : 'Moins de 24h'}</span>
-                </div>
-                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">160</span>
-              </label>
-              <label className="flex items-center justify-between cursor-pointer group">
-                <div className="flex items-center gap-2">
-                  <input type="radio" name="date" className="w-4 h-4 text-blue-700 focus:ring-blue-500 border-gray-300" />
-                  <span className="text-gray-700 text-sm group-hover:text-black">{isEn ? 'Less than 7 days' : 'Moins de 7 jours'}</span>
-                </div>
-                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">893</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Bloc de filtre : Type de contrat */}
-          <div className="bg-white border border-gray-200 rounded-lg mb-4">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-50">
-              <h3 className="font-bold text-gray-900 text-sm">Type de contrat</h3>
-              <span className="text-gray-400">⌃</span>
-            </div>
-            <div className="p-4 space-y-3">
-              <label className="flex items-center justify-between cursor-pointer group">
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 text-blue-700 rounded focus:ring-blue-500 border-gray-300" />
-                  <span className="text-gray-700 text-sm group-hover:text-black">{isEn ? 'Permanent / Full-time' : 'CDI / Temps plein'}</span>
-                </div>
-                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">1026</span>
-              </label>
-              <label className="flex items-center justify-between cursor-pointer group">
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" className="w-4 h-4 text-blue-700 rounded focus:ring-blue-500 border-gray-300" />
-                  <span className="text-gray-700 text-sm group-hover:text-black">{isEn ? 'Small jobs' : 'Petit Boulot'}</span>
-                </div>
-                <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">342</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Bloc de filtre : Salaire */}
-          <div className="bg-white border border-gray-200 rounded-lg mb-4">
-            <div className="p-4 border-b border-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-50">
-              <h3 className="font-bold text-gray-900 text-sm">Salaire</h3>
-              <span className="text-gray-400">⌃</span>
-            </div>
-            <div className="p-4">
-              <p className="text-xs text-gray-500 mb-4">{isEn ? 'Set your desired minimum salary.' : 'Fixez le salaire minimum souhaite.'}</p>
-              <button className="w-full bg-blue-50 text-blue-700 font-bold text-sm py-2 rounded-full hover:bg-blue-100 transition">
-                {isEn ? 'Set salary' : 'Definir le salaire'}
+        <aside className="w-full shrink-0 space-y-4 md:w-[290px] md:sticky md:top-6 md:self-start">
+          <div className="rounded-[28px] border border-[#CFE0EF] bg-[linear-gradient(180deg,#F3F8FD_0%,#FFFFFF_100%)] p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#0F4C81]">
+                  {isEn ? 'Search filters' : 'Filtres de recherche'}
+                </p>
+                <p className="mt-1 text-3xl font-extrabold text-slate-950">{activeFilterCount}</p>
+              </div>
+              <button
+                onClick={() => updateUrlState({ ...urlState, filters: DEFAULT_SEARCH_FILTERS })}
+                disabled={activeFilterCount === 0}
+                className="rounded-full border border-[#B7D0E4] bg-white px-4 py-2 text-xs font-bold text-[#0F4C81] transition hover:border-[#0F4C81] disabled:cursor-not-allowed disabled:opacity-40"
+                type="button"
+              >
+                {isEn ? 'Reset' : 'Reinitialiser'}
               </button>
             </div>
           </div>
 
+          <FilterPanel title={isEn ? 'Publication date' : 'Date de publication'}>
+            <FilterChoiceRow
+              type="radio"
+              label={isEn ? 'All dates' : 'Toutes les dates'}
+              count={annonces.length}
+              active={urlState.filters.datePosted === 'all'}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, datePosted: 'all' } })}
+            />
+            <FilterChoiceRow
+              type="radio"
+              label={isEn ? 'Less than 24h' : 'Moins de 24h'}
+              count={recent24Count}
+              active={urlState.filters.datePosted === '24h'}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, datePosted: '24h' } })}
+            />
+            <FilterChoiceRow
+              type="radio"
+              label={isEn ? 'Less than 7 days' : 'Moins de 7 jours'}
+              count={recent7DaysCount}
+              active={urlState.filters.datePosted === '7d'}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, datePosted: '7d' } })}
+            />
+          </FilterPanel>
+
+          <FilterPanel title={isEn ? 'Working time' : 'Temps de travail'}>
+            <FilterChoiceRow
+              label={getWorkTimeLabel('full', isEn)}
+              count={fullTimeCount}
+              active={urlState.filters.workTimes.includes('full')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, workTimes: toggleArrayFilter(urlState.filters.workTimes, 'full') } })}
+            />
+            <FilterChoiceRow
+              label={getWorkTimeLabel('part', isEn)}
+              count={partTimeCount}
+              active={urlState.filters.workTimes.includes('part')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, workTimes: toggleArrayFilter(urlState.filters.workTimes, 'part') } })}
+            />
+          </FilterPanel>
+
+          <FilterPanel title={isEn ? 'Contract type' : 'Type de contrat'}>
+            <FilterChoiceRow
+              label={getContractLabel('cdi', isEn)}
+              count={contractCounts.cdi}
+              active={urlState.filters.contractTypes.includes('cdi')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, contractTypes: toggleArrayFilter(urlState.filters.contractTypes, 'cdi') } })}
+            />
+            <FilterChoiceRow
+              label={getContractLabel('cdd', isEn)}
+              count={contractCounts.cdd}
+              active={urlState.filters.contractTypes.includes('cdd')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, contractTypes: toggleArrayFilter(urlState.filters.contractTypes, 'cdd') } })}
+            />
+            <FilterChoiceRow
+              label={getContractLabel('stage', isEn)}
+              count={contractCounts.stage}
+              active={urlState.filters.contractTypes.includes('stage')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, contractTypes: toggleArrayFilter(urlState.filters.contractTypes, 'stage') } })}
+            />
+            <FilterChoiceRow
+              label={getContractLabel('freelance', isEn)}
+              count={contractCounts.freelance}
+              active={urlState.filters.contractTypes.includes('freelance')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, contractTypes: toggleArrayFilter(urlState.filters.contractTypes, 'freelance') } })}
+            />
+          </FilterPanel>
+
+          <FilterPanel title={isEn ? 'Work mode' : 'Mode de travail'}>
+            <FilterChoiceRow
+              label={getWorkModeLabel('onsite', isEn)}
+              count={workModeCounts.onsite}
+              active={urlState.filters.workModes.includes('onsite')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, workModes: toggleArrayFilter(urlState.filters.workModes, 'onsite') } })}
+            />
+            <FilterChoiceRow
+              label={getWorkModeLabel('partial', isEn)}
+              count={workModeCounts.partial}
+              active={urlState.filters.workModes.includes('partial')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, workModes: toggleArrayFilter(urlState.filters.workModes, 'partial') } })}
+            />
+            <FilterChoiceRow
+              label={getWorkModeLabel('remote', isEn)}
+              count={workModeCounts.remote}
+              active={urlState.filters.workModes.includes('remote')}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, workModes: toggleArrayFilter(urlState.filters.workModes, 'remote') } })}
+            />
+          </FilterPanel>
+
+          <FilterPanel title={isEn ? 'Salary' : 'Salaire'}>
+            <FilterChoiceRow
+              label={isEn ? 'Salary disclosed' : 'Salaire affiche'}
+              count={salaryShownCount}
+              active={urlState.filters.salaryOnly}
+              onChange={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, salaryOnly: !urlState.filters.salaryOnly } })}
+            />
+          </FilterPanel>
         </aside>
 
         {/* 3. COLONNE DE DROITE : LISTE DES ANNONCES */}
@@ -202,70 +446,87 @@ export default function Recherche() {
           
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-medium text-gray-700">
-              <span className="font-bold text-gray-900">{annonces.length} {isEn ? 'jobs' : 'offres'}</span> {isEn ? 'found' : 'trouvees'}
+              <span className="font-bold text-gray-900">{filteredAnnonces.length} {isEn ? 'jobs shown' : 'offres affichees'}</span>{' '}
+              <span className="text-gray-500">{isEn ? `out of ${totalOffers}` : `sur ${totalOffers}`}</span>
             </h2>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <span>{isEn ? 'Sort by:' : 'Trier par :'}</span>
-              <select className="bg-transparent font-bold text-gray-900 focus:outline-none cursor-pointer">
-                <option>{isEn ? 'Relevance' : 'Pertinence'}</option>
-                <option>{isEn ? 'Date' : 'Date'}</option>
+              <select
+                value={urlState.sortBy}
+                onChange={(event) => updateUrlState({ ...urlState, sortBy: event.target.value as 'recent' | 'oldest' })}
+                className="bg-transparent font-bold text-gray-900 focus:outline-none cursor-pointer"
+              >
+                <option value="recent">{isEn ? 'Most recent' : 'Plus recentes'}</option>
+                <option value="oldest">{isEn ? 'Oldest first' : 'Plus anciennes'}</option>
               </select>
             </div>
           </div>
 
-          <div className="flex flex-col gap-4">
-            {annonces.map((annonce) => (
-              <div key={annonce.id} className="space-y-2">
-                <div className="bg-white p-5 rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow-md transition relative group">
-                  
-                  <div className="flex justify-between items-start">
-                    {/* Infos principales */}
-                    <div className="flex-1 pr-4">
-                      <Link href={localizePath(`/annonce/${annonce.id}`)}>
-                        <h3 className="text-[18px] font-bold text-blue-700 hover:underline cursor-pointer mb-2">
-                          {annonce.titre}
-                        </h3>
-                      </Link>
-                      
-                      {/* Ligne des icônes (Entreprise, Lieu, Contrat) */}
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-3">
-                        <div className="flex items-center gap-1.5 text-sm text-gray-700">
-                          <span className="text-gray-400">🏢</span> {annonce.entreprise}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm text-gray-700">
-                          <span className="text-gray-400">📍</span> {annonce.lieu}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm text-gray-700">
-                          <span className="text-gray-400">💼</span> {annonce.type}
-                        </div>
-                      </div>
+          {activeFilterCount > 0 ? (
+            <div className="mb-4 flex flex-wrap gap-2">
+              {urlState.filters.datePosted !== 'all' ? (
+                <ActiveFilterChip
+                  label={urlState.filters.datePosted === '24h' ? (isEn ? 'Less than 24h' : 'Moins de 24h') : (isEn ? 'Less than 7 days' : 'Moins de 7 jours')}
+                  onRemove={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, datePosted: 'all' } })}
+                  tone="blue"
+                />
+              ) : null}
+              {urlState.filters.salaryOnly ? (
+                <ActiveFilterChip
+                  label={isEn ? 'Salary disclosed' : 'Salaire affiche'}
+                  onRemove={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, salaryOnly: false } })}
+                  tone="green"
+                />
+              ) : null}
+              {urlState.filters.workTimes.map((item) => (
+                <ActiveFilterChip
+                  key={item}
+                  label={getWorkTimeLabel(item, isEn)}
+                  onRemove={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, workTimes: urlState.filters.workTimes.filter((value) => value !== item) } })}
+                />
+              ))}
+              {urlState.filters.contractTypes.map((item) => (
+                <ActiveFilterChip
+                  key={item}
+                  label={getContractLabel(item, isEn)}
+                  onRemove={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, contractTypes: urlState.filters.contractTypes.filter((value) => value !== item) } })}
+                />
+              ))}
+              {urlState.filters.workModes.map((item) => (
+                <ActiveFilterChip
+                  key={item}
+                  label={getWorkModeLabel(item, isEn)}
+                  onRemove={() => updateUrlState({ ...urlState, filters: { ...urlState.filters, workModes: urlState.filters.workModes.filter((value) => value !== item) } })}
+                />
+              ))}
+            </div>
+          ) : null}
 
-                      <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed mb-4">
-                        {annonce.description}
-                      </p>
-
-                      <div className="text-xs text-gray-500">
-                        {annonce.temps}
-                      </div>
-                    </div>
-
-                    {/* Logo de l'entreprise */}
-                    <div className="w-14 h-14 border border-gray-100 rounded bg-white flex items-center justify-center font-bold text-gray-400 text-lg shadow-sm shrink-0">
-                      {annonce.logo}
-                    </div>
-                  </div>
-
-                  {/* Bouton Coeur (Sauvegarder) */}
-                  <button className="absolute bottom-5 right-5 text-gray-300 hover:text-red-500 transition">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-                    </svg>
-                  </button>
-
-                </div>
-              </div>
-            ))}
-          </div>
+          {jobsLoading ? (
+            <div className="rounded-3xl border border-gray-200 bg-white px-6 py-12 text-center text-sm font-medium text-gray-500">
+              {isEn ? 'Loading search results...' : 'Chargement des resultats...'}
+            </div>
+          ) : filteredAnnonces.length > 0 ? (
+            <div className="flex flex-col gap-4">
+              {filteredAnnonces.map((annonce) => (
+                <JobListingCard
+                  key={annonce.id}
+                  offer={annonce}
+                  isEn={isEn}
+                  href={localizePath(`/annonce/${annonce.id}`)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-3xl border border-dashed border-blue-200 bg-white px-6 py-14 text-center">
+              <h3 className="text-lg font-extrabold text-gray-900">
+                {isEn ? 'No job matches these filters' : 'Aucune offre ne correspond a ces filtres'}
+              </h3>
+              <p className="mt-2 text-sm text-gray-500">
+                {isEn ? 'Try broader criteria or reset the sidebar filters to bring back more recent openings.' : 'Essayez des criteres plus larges ou reinitialisez les filtres pour faire revenir plus d offres recentes.'}
+              </p>
+            </div>
+          )}
           
         </section>
 

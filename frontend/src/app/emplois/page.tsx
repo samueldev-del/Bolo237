@@ -108,6 +108,18 @@ export default function EmploisFormels() {
   const [appliedSearch, setAppliedSearch] = useState('');
   const [appliedLocation, setAppliedLocation] = useState('');
   const [filters, setFilters] = useState<JobFilters>(DEFAULT_JOB_FILTERS);
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const previous = document.body.style.overflow;
+    if (mobileFiltersOpen) {
+      document.body.style.overflow = 'hidden';
+    }
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [mobileFiltersOpen]);
 
   useEffect(() => {
     const loadSavedJobs = async () => {
@@ -163,7 +175,7 @@ export default function EmploisFormels() {
         if (filters.datePosted === '7d' && offer.publishedHours > 24 * 7) return false;
         if (filters.datePosted === '30d' && offer.publishedHours > 24 * 30) return false;
         if (filters.remote !== 'all' && offer.workMode !== filters.remote) return false;
-        if (filters.salary === 'with-salary' && !offer.salaire) return false;
+        if (filters.salary === 'with-salary' && !offer.salary) return false;
         if (filters.applicationType !== 'all' && offer.applicationType !== filters.applicationType) return false;
         if (filters.region !== 'all' && offer.region !== filters.region) return false;
         if (filters.city !== 'all' && offer.city !== filters.city) return false;
@@ -206,6 +218,133 @@ export default function EmploisFormels() {
       setSavedIds((prev) => (isSaved ? [...prev, id] : prev.filter((item) => item !== id)));
     }
   };
+
+  const filterPanelBody = (
+    <div className="space-y-3 bg-[#FCFCFD] p-4">
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#F2D8C8] bg-[#FFF8F3] px-4 py-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wide text-[#A8502F]">
+            {isEn ? 'Filters active' : 'Filtres actifs'}
+          </p>
+          <p className="mt-1 text-2xl font-extrabold text-black">{activeFilterCount}</p>
+        </div>
+        <button
+          onClick={resetFilters}
+          disabled={!hasPanelFiltersActive}
+          className="rounded-xl border border-[#EFC7B3] px-3 py-2 text-xs font-bold text-[#A8502F] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+          type="button"
+        >
+          {isEn ? 'Reset filters' : 'Réinitialiser'}
+        </button>
+      </div>
+
+      <FilterGroup title={isEn ? 'Sort by' : 'Trier par'} defaultOpen>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'Most recent' : 'Plus récentes'} active={filters.sortBy === 'recent'} onClick={() => setFilters((prev) => ({ ...prev, sortBy: 'recent' }))} />
+          <FilterChoice label={isEn ? 'Oldest first' : 'Plus anciennes'} active={filters.sortBy === 'oldest'} onClick={() => setFilters((prev) => ({ ...prev, sortBy: 'oldest' }))} />
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'Publication date' : 'Date de publication'} defaultOpen>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'Any time' : 'Toutes'} active={filters.datePosted === 'all'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: 'all' }))} count={offres.length} />
+          <FilterChoice label={isEn ? 'Last 24 hours' : 'Moins de 24h'} active={filters.datePosted === '24h'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '24h' }))} count={countMatches((offer) => offer.publishedHours <= 24)} />
+          <FilterChoice label={isEn ? 'Last 7 days' : 'Moins de 7 jours'} active={filters.datePosted === '7d'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '7d' }))} count={countMatches((offer) => offer.publishedHours <= 24 * 7)} />
+          <FilterChoice label={isEn ? 'Last 30 days' : 'Moins de 30 jours'} active={filters.datePosted === '30d'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '30d' }))} count={countMatches((offer) => offer.publishedHours <= 24 * 30)} />
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'Work mode' : 'Mode de travail'} defaultOpen>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'All modes' : 'Tous les modes'} active={filters.remote === 'all'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'all' }))} count={offres.length} />
+          <FilterChoice label={isEn ? 'On-site' : 'Sur site'} active={filters.remote === 'onsite'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'onsite' }))} count={countMatches((offer) => offer.workMode === 'onsite')} />
+          <FilterChoice label={isEn ? 'Hybrid' : 'Hybride'} active={filters.remote === 'partial'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'partial' }))} count={countMatches((offer) => offer.workMode === 'partial')} />
+          <FilterChoice label={isEn ? 'Remote' : 'Télétravail'} active={filters.remote === 'remote'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'remote' }))} count={countMatches((offer) => offer.workMode === 'remote')} />
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'Application type' : 'Type de candidature'} defaultOpen>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'All types' : 'Toutes'} active={filters.applicationType === 'all'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'all' }))} count={offres.length} />
+          <FilterChoice label={isEn ? 'Apply on Bolo237' : 'Postuler sur Bolo237'} active={filters.applicationType === 'bolo237'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'bolo237' }))} count={countMatches((offer) => offer.applicationType === 'bolo237')} />
+          <FilterChoice label={isEn ? 'External company link' : 'Lien entreprise externe'} active={filters.applicationType === 'external'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'external' }))} count={countMatches((offer) => offer.applicationType === 'external')} />
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'Salary' : 'Salaire'}>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'All offers' : 'Toutes les offres'} active={filters.salary === 'all'} onClick={() => setFilters((prev) => ({ ...prev, salary: 'all' }))} count={offres.length} />
+          <FilterChoice label={isEn ? 'Salary displayed' : 'Salaire affiché'} active={filters.salary === 'with-salary'} onClick={() => setFilters((prev) => ({ ...prev, salary: 'with-salary' }))} count={countMatches((offer) => Boolean(offer.salary))} />
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'Region' : 'Région'}>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'All regions' : 'Toutes les régions'} active={filters.region === 'all'} onClick={() => setFilters((prev) => ({ ...prev, region: 'all' }))} count={offres.length} />
+          {uniqueRegions.map((region) => (
+            <FilterChoice key={region} label={region} active={filters.region === region} onClick={() => setFilters((prev) => ({ ...prev, region }))} count={countMatches((offer) => offer.region === region)} />
+          ))}
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'City' : 'Ville'}>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'All cities' : 'Toutes les villes'} active={filters.city === 'all'} onClick={() => setFilters((prev) => ({ ...prev, city: 'all' }))} count={offres.length} />
+          {uniqueCities.map((city) => (
+            <FilterChoice key={city} label={city} active={filters.city === city} onClick={() => setFilters((prev) => ({ ...prev, city }))} count={countMatches((offer) => offer.city === city)} />
+          ))}
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'Experience level' : "Niveau d'expérience"}>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'All levels' : 'Tous les niveaux'} active={filters.experience === 'all'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'all' }))} count={offres.length} />
+          <FilterChoice label={isEn ? 'Junior' : 'Junior'} active={filters.experience === 'junior'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'junior' }))} count={countMatches((offer) => offer.experienceLevel === 'junior')} />
+          <FilterChoice label={isEn ? 'Confirmed' : 'Confirmé'} active={filters.experience === 'confirmed'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'confirmed' }))} count={countMatches((offer) => offer.experienceLevel === 'confirmed')} />
+          <FilterChoice label={isEn ? 'Senior' : 'Senior'} active={filters.experience === 'senior'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'senior' }))} count={countMatches((offer) => offer.experienceLevel === 'senior')} />
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'Contract type' : 'Type de contrat'}>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'All contracts' : 'Tous les contrats'} active={filters.contract === 'all'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'all' }))} count={offres.length} />
+          <FilterChoice label="CDI" active={filters.contract === 'cdi'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'cdi' }))} count={countMatches((offer) => offer.contractType === 'cdi')} />
+          <FilterChoice label="CDD" active={filters.contract === 'cdd'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'cdd' }))} count={countMatches((offer) => offer.contractType === 'cdd')} />
+          <FilterChoice label={isEn ? 'Internship' : 'Stage'} active={filters.contract === 'stage'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'stage' }))} count={countMatches((offer) => offer.contractType === 'stage')} />
+          <FilterChoice label="Freelance" active={filters.contract === 'freelance'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'freelance' }))} count={countMatches((offer) => offer.contractType === 'freelance')} />
+        </div>
+      </FilterGroup>
+
+      <FilterGroup title={isEn ? 'Working time' : 'Temps de travail'}>
+        <div className="space-y-2">
+          <FilterChoice label={isEn ? 'All working times' : 'Tous'} active={filters.workTime === 'all'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'all' }))} count={offres.length} />
+          <FilterChoice label={isEn ? 'Full-time' : 'Temps plein'} active={filters.workTime === 'full'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'full' }))} count={countMatches((offer) => offer.workTime === 'full')} />
+          <FilterChoice label={isEn ? 'Part-time' : 'Temps partiel'} active={filters.workTime === 'part'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'part' }))} count={countMatches((offer) => offer.workTime === 'part')} />
+        </div>
+      </FilterGroup>
+
+      {hasActiveSearch ? (
+        <div className="rounded-2xl border border-dashed border-[#F2D8C8] bg-[#FFF8F3] px-4 py-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400">
+              {isEn ? 'Current search' : 'Recherche en cours'}
+            </h3>
+            <button
+              onClick={resetSearch}
+              className="text-xs font-bold text-[#C4623F] hover:underline"
+              type="button"
+            >
+              {isEn ? 'Clear' : 'Effacer'}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {appliedSearch ? <span className="rounded-full border border-[#F2D8C8] bg-white px-3 py-1 text-xs font-bold text-[#A8502F]">{appliedSearch}</span> : null}
+            {appliedLocation ? <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-600">{appliedLocation}</span> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#F7F8FA]">
@@ -313,134 +452,84 @@ export default function EmploisFormels() {
               {isEn ? 'Filter listings' : 'Filtrer annonces'}
             </div>
 
-            <div className="space-y-3 bg-[#FCFCFD] p-4">
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-[#F2D8C8] bg-[#FFF8F3] px-4 py-3">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-wide text-[#A8502F]">
-                    {isEn ? 'Filters active' : 'Filtres actifs'}
-                  </p>
-                  <p className="mt-1 text-2xl font-extrabold text-black">{activeFilterCount}</p>
-                </div>
-                <button
-                  onClick={resetFilters}
-                  disabled={!hasPanelFiltersActive}
-                  className="rounded-xl border border-[#EFC7B3] px-3 py-2 text-xs font-bold text-[#A8502F] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
-                  type="button"
-                >
-                  {isEn ? 'Reset filters' : 'Réinitialiser'}
-                </button>
-              </div>
-
-              <FilterGroup title={isEn ? 'Sort by' : 'Trier par'} defaultOpen>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'Most recent' : 'Plus récentes'} active={filters.sortBy === 'recent'} onClick={() => setFilters((prev) => ({ ...prev, sortBy: 'recent' }))} />
-                  <FilterChoice label={isEn ? 'Oldest first' : 'Plus anciennes'} active={filters.sortBy === 'oldest'} onClick={() => setFilters((prev) => ({ ...prev, sortBy: 'oldest' }))} />
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'Publication date' : 'Date de publication'} defaultOpen>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'Any time' : 'Toutes'} active={filters.datePosted === 'all'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: 'all' }))} count={offres.length} />
-                  <FilterChoice label={isEn ? 'Last 24 hours' : 'Moins de 24h'} active={filters.datePosted === '24h'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '24h' }))} count={countMatches((offer) => offer.publishedHours <= 24)} />
-                  <FilterChoice label={isEn ? 'Last 7 days' : 'Moins de 7 jours'} active={filters.datePosted === '7d'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '7d' }))} count={countMatches((offer) => offer.publishedHours <= 24 * 7)} />
-                  <FilterChoice label={isEn ? 'Last 30 days' : 'Moins de 30 jours'} active={filters.datePosted === '30d'} onClick={() => setFilters((prev) => ({ ...prev, datePosted: '30d' }))} count={countMatches((offer) => offer.publishedHours <= 24 * 30)} />
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'Work mode' : 'Mode de travail'} defaultOpen>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'All modes' : 'Tous les modes'} active={filters.remote === 'all'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'all' }))} count={offres.length} />
-                  <FilterChoice label={isEn ? 'On-site' : 'Sur site'} active={filters.remote === 'onsite'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'onsite' }))} count={countMatches((offer) => offer.workMode === 'onsite')} />
-                  <FilterChoice label={isEn ? 'Hybrid' : 'Hybride'} active={filters.remote === 'partial'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'partial' }))} count={countMatches((offer) => offer.workMode === 'partial')} />
-                  <FilterChoice label={isEn ? 'Remote' : 'Télétravail'} active={filters.remote === 'remote'} onClick={() => setFilters((prev) => ({ ...prev, remote: 'remote' }))} count={countMatches((offer) => offer.workMode === 'remote')} />
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'Application type' : 'Type de candidature'} defaultOpen>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'All types' : 'Toutes'} active={filters.applicationType === 'all'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'all' }))} count={offres.length} />
-                  <FilterChoice label={isEn ? 'Apply on Bolo237' : 'Postuler sur Bolo237'} active={filters.applicationType === 'bolo237'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'bolo237' }))} count={countMatches((offer) => offer.applicationType === 'bolo237')} />
-                  <FilterChoice label={isEn ? 'External company link' : 'Lien entreprise externe'} active={filters.applicationType === 'external'} onClick={() => setFilters((prev) => ({ ...prev, applicationType: 'external' }))} count={countMatches((offer) => offer.applicationType === 'external')} />
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'Salary' : 'Salaire'}>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'All offers' : 'Toutes les offres'} active={filters.salary === 'all'} onClick={() => setFilters((prev) => ({ ...prev, salary: 'all' }))} count={offres.length} />
-                  <FilterChoice label={isEn ? 'Salary displayed' : 'Salaire affiché'} active={filters.salary === 'with-salary'} onClick={() => setFilters((prev) => ({ ...prev, salary: 'with-salary' }))} count={countMatches((offer) => Boolean(offer.salaire))} />
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'Region' : 'Région'}>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'All regions' : 'Toutes les régions'} active={filters.region === 'all'} onClick={() => setFilters((prev) => ({ ...prev, region: 'all' }))} count={offres.length} />
-                  {uniqueRegions.map((region) => (
-                    <FilterChoice key={region} label={region} active={filters.region === region} onClick={() => setFilters((prev) => ({ ...prev, region }))} count={countMatches((offer) => offer.region === region)} />
-                  ))}
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'City' : 'Ville'}>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'All cities' : 'Toutes les villes'} active={filters.city === 'all'} onClick={() => setFilters((prev) => ({ ...prev, city: 'all' }))} count={offres.length} />
-                  {uniqueCities.map((city) => (
-                    <FilterChoice key={city} label={city} active={filters.city === city} onClick={() => setFilters((prev) => ({ ...prev, city }))} count={countMatches((offer) => offer.city === city)} />
-                  ))}
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'Experience level' : "Niveau d'expérience"}>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'All levels' : 'Tous les niveaux'} active={filters.experience === 'all'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'all' }))} count={offres.length} />
-                  <FilterChoice label={isEn ? 'Junior' : 'Junior'} active={filters.experience === 'junior'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'junior' }))} count={countMatches((offer) => offer.experienceLevel === 'junior')} />
-                  <FilterChoice label={isEn ? 'Confirmed' : 'Confirmé'} active={filters.experience === 'confirmed'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'confirmed' }))} count={countMatches((offer) => offer.experienceLevel === 'confirmed')} />
-                  <FilterChoice label={isEn ? 'Senior' : 'Senior'} active={filters.experience === 'senior'} onClick={() => setFilters((prev) => ({ ...prev, experience: 'senior' }))} count={countMatches((offer) => offer.experienceLevel === 'senior')} />
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'Contract type' : 'Type de contrat'}>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'All contracts' : 'Tous les contrats'} active={filters.contract === 'all'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'all' }))} count={offres.length} />
-                  <FilterChoice label="CDI" active={filters.contract === 'cdi'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'cdi' }))} count={countMatches((offer) => offer.contractType === 'cdi')} />
-                  <FilterChoice label="CDD" active={filters.contract === 'cdd'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'cdd' }))} count={countMatches((offer) => offer.contractType === 'cdd')} />
-                  <FilterChoice label={isEn ? 'Internship' : 'Stage'} active={filters.contract === 'stage'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'stage' }))} count={countMatches((offer) => offer.contractType === 'stage')} />
-                  <FilterChoice label="Freelance" active={filters.contract === 'freelance'} onClick={() => setFilters((prev) => ({ ...prev, contract: 'freelance' }))} count={countMatches((offer) => offer.contractType === 'freelance')} />
-                </div>
-              </FilterGroup>
-
-              <FilterGroup title={isEn ? 'Working time' : 'Temps de travail'}>
-                <div className="space-y-2">
-                  <FilterChoice label={isEn ? 'All working times' : 'Tous'} active={filters.workTime === 'all'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'all' }))} count={offres.length} />
-                  <FilterChoice label={isEn ? 'Full-time' : 'Temps plein'} active={filters.workTime === 'full'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'full' }))} count={countMatches((offer) => offer.workTime === 'full')} />
-                  <FilterChoice label={isEn ? 'Part-time' : 'Temps partiel'} active={filters.workTime === 'part'} onClick={() => setFilters((prev) => ({ ...prev, workTime: 'part' }))} count={countMatches((offer) => offer.workTime === 'part')} />
-                </div>
-              </FilterGroup>
-
-              {hasActiveSearch ? (
-                <div className="rounded-2xl border border-dashed border-[#F2D8C8] bg-[#FFF8F3] px-4 py-4">
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wide text-gray-400">
-                      {isEn ? 'Current search' : 'Recherche en cours'}
-                    </h3>
-                    <button
-                      onClick={resetSearch}
-                      className="text-xs font-bold text-[#C4623F] hover:underline"
-                      type="button"
-                    >
-                      {isEn ? 'Clear' : 'Effacer'}
-                    </button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {appliedSearch ? <span className="rounded-full border border-[#F2D8C8] bg-white px-3 py-1 text-xs font-bold text-[#A8502F]">{appliedSearch}</span> : null}
-                    {appliedLocation ? <span className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-bold text-gray-600">{appliedLocation}</span> : null}
-                  </div>
-                </div>
-              ) : null}
-            </div>
+            {filterPanelBody}
           </div>
         </aside>
 
+        {mobileFiltersOpen && (
+          <div className="fixed inset-0 z-50 flex flex-col bg-white lg:hidden">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+              <div className="flex items-center gap-2 text-sm font-bold text-black">
+                <span className="flex h-6 w-6 items-center justify-center rounded bg-[#FEEBD6] text-[#C4623F]">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </span>
+                {isEn ? 'Filter listings' : 'Filtrer annonces'}
+                {activeFilterCount > 0 ? (
+                  <span className="ml-1 rounded-full bg-[#DA7756] px-2 py-0.5 text-[11px] font-extrabold text-white">{activeFilterCount}</span>
+                ) : null}
+              </div>
+              <button
+                onClick={() => setMobileFiltersOpen(false)}
+                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100"
+                aria-label={isEn ? 'Close filters' : 'Fermer les filtres'}
+                type="button"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto pb-24">{filterPanelBody}</div>
+            <div className="sticky bottom-0 flex items-center gap-3 border-t border-gray-200 bg-white px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+              <button
+                onClick={() => {
+                  resetFilters();
+                  resetSearch();
+                }}
+                disabled={!hasPanelFiltersActive && !hasActiveSearch}
+                className="rounded-xl border border-[#EFC7B3] px-4 py-3 text-sm font-bold text-[#A8502F] transition hover:bg-[#FFF8F3] disabled:cursor-not-allowed disabled:opacity-50"
+                type="button"
+              >
+                {isEn ? 'Reset' : 'Réinitialiser'}
+              </button>
+              <button
+                onClick={() => setMobileFiltersOpen(false)}
+                className="flex-1 rounded-xl bg-[#DA7756] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#C4623F]"
+                type="button"
+              >
+                {isEn
+                  ? `Show ${filteredOffers.length} ${filteredOffers.length === 1 ? 'offer' : 'offers'}`
+                  : `Voir ${filteredOffers.length} ${filteredOffers.length === 1 ? 'annonce' : 'annonces'}`}
+              </button>
+            </div>
+          </div>
+        )}
+
         <section className="min-w-0 flex-1">
+          <div className="mb-4 flex items-center justify-between gap-3 lg:hidden">
+            <button
+              onClick={() => setMobileFiltersOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-700 shadow-sm transition hover:border-[#DA7756] hover:text-[#C4623F]"
+              type="button"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+              </svg>
+              {isEn ? 'Filters' : 'Filtres'}
+              {activeFilterCount > 0 ? (
+                <span className="ml-1 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#DA7756] px-1.5 text-[10px] font-extrabold text-white">{activeFilterCount}</span>
+              ) : null}
+            </button>
+            <select
+              value={filters.sortBy}
+              onChange={(event) => setFilters((prev) => ({ ...prev, sortBy: event.target.value as JobFilters['sortBy'] }))}
+              className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm font-semibold text-gray-700 outline-none transition focus:border-[#DA7756]"
+              aria-label={isEn ? 'Sort by' : 'Trier par'}
+            >
+              <option value="recent">{isEn ? 'Most recent' : 'Plus récentes'}</option>
+              <option value="oldest">{isEn ? 'Oldest first' : 'Plus anciennes'}</option>
+            </select>
+          </div>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <p className="m-0 text-sm font-semibold text-gray-600">
               {jobsLoading ? (
@@ -462,7 +551,7 @@ export default function EmploisFormels() {
               )}
             </p>
 
-            <div className="flex items-center gap-2">
+            <div className="hidden items-center gap-2 lg:flex">
               <span className="text-sm font-medium text-gray-500">{isEn ? 'Sort by:' : 'Trier par :'}</span>
               <select
                 value={filters.sortBy}

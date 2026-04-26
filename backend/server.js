@@ -1,46 +1,112 @@
 require('dotenv').config();
-const Sentry = require('@sentry/node');
 
-function getSampleRateFromEnv(name, fallbackValue) {
-  const parsedValue = Number(process.env[name]);
-  if (Number.isFinite(parsedValue) && parsedValue >= 0 && parsedValue <= 1) {
-    return parsedValue;
-  }
-
-  return fallbackValue;
-}
-
-const sentryDsn = String(process.env.SENTRY_DSN || '').trim();
-const sentryEnabled = Boolean(sentryDsn);
-
-Sentry.init({
-  enabled: sentryEnabled,
-  dsn: sentryDsn || undefined,
-  sendDefaultPii: true,
-  includeLocalVariables: true,
-  environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim() || 'development',
-  release: String(process.env.SENTRY_RELEASE || '').trim() || undefined,
-  tracesSampleRate: getSampleRateFromEnv(
-    'SENTRY_TRACES_SAMPLE_RATE',
-    process.env.NODE_ENV === 'production' ? 0.1 : 1,
-  ),
-  profilesSampleRate: getSampleRateFromEnv('SENTRY_PROFILES_SAMPLE_RATE', 0),
-  enableLogs: true,
-});
+const {
+  Sentry,
+  reportError,
+  registerProcessErrorHandlers,
+} = require('./lib/observability');
+registerProcessErrorHandlers();
 
 const express = require('express');
-const startJobArchiver = require('./cron/jobArchiver');
 const cors = require('cors');
 const helmet = require('helmet');
-const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
-const twilio = require('twilio');
-const nodemailer = require('nodemailer');
-const multer = require('multer');
-const cloudinary = require('cloudinary').v2;
+const fs = require('fs');
+const path = require('path');
+const { ipKeyGenerator } = require('express-rate-limit');
+
+const startJobArchiver = require('./cron/jobArchiver');
+const { prisma, pool } = require('./lib/db');
+const { isProduction, getPositiveIntegerEnv } = require('./lib/env');
+const {
+  getRequestIpKey,
+  getRequestSourceIp,
+} = require('./lib/security');
+const { corsOptions } = require('./lib/cors');
+const {
+  SESSION_COOKIE_NAME,
+  SESSION_JWT_SECRET,
+  getSessionCookieOptions,
+  getSessionCookieClearOptions,
+  clearSessionCookie,
+  createSessionToken,
+  readSessionToken,
+  requireAdminSession,
+  requireUserSession,
+} = require('./lib/session');
+const {
+  apiGlobalLimiter,
+  signupIpLimiter,
+  loginIpLimiter,
+  loginIdentifierLimiter,
+  forgotPasswordLimiter,
+  resetPasswordLimiter,
+  verificationSubmissionLimiter,
+  candidateProfileLimiter,
+  savedJobsLimiter,
+  jobApplicationLimiter,
+  jobCreationLimiter,
+  feedbackSubmissionLimiter,
+  reviewSubmissionLimiter,
+  uploadIpLimiter,
+  reportSubmissionLimiter,
+  privacyRequestLimiter,
+  otpIpLimiter,
+  otpPhoneLimiter,
+  otpVerifyLimiter,
+} = require('./lib/limiters');
+const {
+  twilioClient,
+  sendWhatsAppModerationAlert,
+  sendWhatsAppAlertToTargets,
+  getInternalAlertWhatsAppTargets,
+  sendOtpWithTwilio,
+} = require('./lib/twilioService');
+const {
+  transporter,
+  sendInternalAlertEmail,
+  buildInternalAlertText,
+  notifyPrivacyTeam,
+} = require('./lib/emailService');
+const { cloudinary, upload, ALLOWED_UPLOAD_MIME, uploadsRoot } = require('./lib/uploads');
+const {
+  parseDateOnlyFilter,
+  buildDateRangeFilter,
+  buildDateBuckets,
+  toDayKey,
+  formatShortDate,
+  parsePositiveInt,
+} = require('./lib/dates');
+const {
+  getPlatformSettings,
+  setPlatformSettings,
+  DEFAULT_NOTIFICATION_PREFERENCES,
+} = require('./lib/settings');
+const { createNotification, createAdminNotifications } = require('./lib/notifications');
+const {
+  REPORT_TARGET_ALLOWLIST,
+  REPORT_REASON_ALLOWLIST,
+  REPORT_DEDUPE_WINDOW_MS,
+  REPORT_REVIEW_THRESHOLD,
+  recentReportSubmissions,
+  normalizeReportTargetType,
+  normalizeReportReason,
+  cleanupRecentReportSubmissions,
+  getRequestFingerprint,
+  reportTargetExists,
+  buildReportSummary,
+} = require('./lib/reports');
+const {
+  buildPrivacyReference,
+  normalizePrivacyRequestKind,
+  normalizePrivacyRequestStatus,
+  normalizePrivacyNotes,
+  createPrivacyRequestLog,
+} = require('./lib/privacy');
+const { profileFromBody, calcCvMajJours } = require('./lib/profiles');
 const {
   archiveAdminInboxTicket,
   downloadAdminInboxAttachment,
@@ -60,1003 +126,23 @@ const {
   sendWelcomeEmail,
 } = require('./lib/transactionalEmail');
 
-function logFatalError(label, error) {
-  if (error instanceof Error) {
-    console.error(`❌ [FATAL] ${label}: ${error.message}`);
-    if (error.stack) {
-      console.error(error.stack);
-    }
-    return;
-  }
-
-  console.error(`❌ [FATAL] ${label}:`, error);
-}
-
-function reportError(label, error, context = {}) {
-  console.error(`${label}:`, error);
-
-  Sentry.withScope((scope) => {
-    scope.setTag('service', 'backend');
-    scope.setTag('error_label', String(label || 'backend_error'));
-    Object.entries(context || {}).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== '') {
-        scope.setExtra(key, value);
-      }
-    });
-    Sentry.captureException(error);
-  });
-}
-
-async function flushSentry(timeoutMs = 2000) {
-  if (!sentryEnabled) return;
-
-  try {
-    await Sentry.flush(timeoutMs);
-  } catch {
-    // Ignore flush failures during shutdown paths.
-  }
-}
-
-process.on('uncaughtException', async (error) => {
-  logFatalError('Uncaught exception', error);
-  Sentry.captureException(error);
-  await flushSentry();
-  process.exit(1);
-});
-
-process.on('unhandledRejection', async (reason) => {
-  logFatalError('Unhandled promise rejection', reason);
-  Sentry.captureException(reason);
-  await flushSentry();
-  process.exit(1);
-});
-
-const fs = require('fs');
-const path = require('path');
-const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
-const { PrismaClient } = require('@prisma/client');
-
-const isProduction = process.env.NODE_ENV === 'production';
-
-function getDatabaseUrl() {
-  const databaseUrl = String(process.env.DATABASE_URL || '').trim();
-  if (!databaseUrl) {
-    throw new Error('DATABASE_URL is required.');
-  }
-
-  return databaseUrl;
-}
-
-function hasRequiredSslMode(connectionString) {
-  try {
-    const parsed = new URL(connectionString);
-    const sslMode = String(parsed.searchParams.get('sslmode') || '').trim().toLowerCase();
-    return sslMode === 'require' || sslMode === 'verify-ca' || sslMode === 'verify-full';
-  } catch {
-    return /(?:^|[?&])sslmode=require(?:&|$)/i.test(connectionString);
-  }
-}
-
-function getDatabaseUsername(connectionString) {
-  try {
-    return decodeURIComponent(new URL(connectionString).username || '');
-  } catch {
-    return '';
-  }
-}
-
-function getPositiveIntegerEnv(name, fallbackValue) {
-  const rawValue = Number(process.env[name]);
-  if (Number.isFinite(rawValue) && rawValue > 0) {
-    return Math.floor(rawValue);
-  }
-
-  return fallbackValue;
-}
-
-function getRequestIpKey(req) {
-  return ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
-}
-
-function validateSecurityConfiguration(databaseUrl) {
-  if (!isProduction) return;
-
-  if (!hasRequiredSslMode(databaseUrl)) {
-    throw new Error('DATABASE_URL must include sslmode=require in production.');
-  }
-
-  const sessionSecret = String(process.env.SESSION_JWT_SECRET || '').trim();
-  const masterOtp = String(process.env.MASTER_OTP || '').trim();
-  if (!sessionSecret || sessionSecret === 'change-me-in-production' || sessionSecret === masterOtp) {
-    throw new Error('SESSION_JWT_SECRET must be set in production and must be different from MASTER_OTP.');
-  }
-
-  const configuredOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '').trim();
-  if (configuredOrigins.includes('*')) {
-    throw new Error('CORS_ALLOWED_ORIGINS cannot contain wildcard values in production.');
-  }
-
-  const databaseUsername = getDatabaseUsername(databaseUrl).toLowerCase();
-  if (databaseUsername === 'neondb_owner' || databaseUsername.endsWith('_owner')) {
-    console.warn('⚠️ DATABASE_URL is using an owner-level database role. Prefer a least-privilege Postgres role for the API.');
-  }
-}
-
-// --- Database setup ---
-const DATABASE_URL = getDatabaseUrl();
-validateSecurityConfiguration(DATABASE_URL);
-
-const pool = new Pool({ connectionString: DATABASE_URL });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-
 const app = express();
 app.set('trust proxy', 1);
-const SESSION_COOKIE_NAME = 'bolo237_session';
-const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET || 'change-me-in-production';
-const revokedSessionTokens = new Map(); // token -> expiresAtMs
-
-const uploadsRoot = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsRoot)) {
-  fs.mkdirSync(uploadsRoot, { recursive: true });
-}
-
-const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-  ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
-  : null;
-
-// Configuration du transporteur Hostinger
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: Number(process.env.EMAIL_PORT || 465),
-  secure: true, // true pour le port 465
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
-
-// Log Twilio status at startup
-if (twilioClient) {
-  console.log('✅ Twilio client initialized');
-  if (process.env.TWILIO_WHATSAPP_FROM && process.env.TWILIO_WHATSAPP_TO) {
-    console.log(`✅ WhatsApp alerts: FROM=${process.env.TWILIO_WHATSAPP_FROM} TO=${process.env.TWILIO_WHATSAPP_TO}`);
-  } else {
-    console.warn('⚠️ Twilio client OK but TWILIO_WHATSAPP_FROM or TWILIO_WHATSAPP_TO missing — WhatsApp alerts disabled');
-  }
-} else {
-  console.warn('⚠️ Twilio not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN missing) — WhatsApp alerts disabled');
-}
-
-// Log Cloudinary status
-if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
-  console.log('✅ Cloudinary configured');
-} else {
-  console.warn('⚠️ Cloudinary not configured — file uploads will fail');
-}
-
-async function sendWhatsAppModerationAlert(messageBody) {
-  if (!twilioClient) {
-    console.log('📩 [WhatsApp SKIP - no client]', messageBody.split('\n')[0]);
-    return { delivery: 'skipped', sent: 0 };
-  }
-  if (!process.env.TWILIO_WHATSAPP_FROM || !process.env.TWILIO_WHATSAPP_TO) {
-    console.log('📩 [WhatsApp SKIP - no FROM/TO]', messageBody.split('\n')[0]);
-    return { delivery: 'skipped', sent: 0 };
-  }
-
-  try {
-    await twilioClient.messages.create({
-      from: process.env.TWILIO_WHATSAPP_FROM,
-      to: process.env.TWILIO_WHATSAPP_TO,
-      body: messageBody,
-    });
-    console.log('📩 [WhatsApp SENT]', messageBody.split('\n')[0]);
-    return { delivery: 'sent', sent: 1 };
-  } catch (error) {
-    console.error('📩 [WhatsApp ERROR]', error?.message || error);
-    return { delivery: 'error', sent: 0 };
-  }
-}
-
-function parseCommaSeparatedValues(value) {
-  return String(value || '')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter(Boolean);
-}
-
-function normalizeWhatsAppTarget(value) {
-  const trimmed = String(value || '').trim();
-  if (!trimmed) return null;
-  if (trimmed.startsWith('whatsapp:')) return trimmed;
-  return `whatsapp:${trimmed.replace(/^\+?/, '+')}`;
-}
-
-function getInternalAlertWhatsAppTargets() {
-  const configuredTargets = parseCommaSeparatedValues(process.env.ADMIN_INTERNAL_ALERT_WHATSAPP_TO || process.env.TWILIO_WHATSAPP_TO);
-  return configuredTargets
-    .map((target) => normalizeWhatsAppTarget(target))
-    .filter(Boolean);
-}
-
-function getInternalAlertEmailRecipients(admins) {
-  const recipients = new Set(parseCommaSeparatedValues(process.env.ADMIN_INTERNAL_ALERT_EMAILS));
-
-  admins.forEach((admin) => {
-    if (admin?.email) {
-      recipients.add(String(admin.email).trim());
-    }
-  });
-
-  return Array.from(recipients).filter(Boolean);
-}
-
-async function sendWhatsAppAlertToTargets(messageBody, targets) {
-  if (!twilioClient) {
-    console.log('📩 [WhatsApp SKIP - no client]', messageBody.split('\n')[0]);
-    return { delivery: 'skipped', sent: 0 };
-  }
-  if (!process.env.TWILIO_WHATSAPP_FROM) {
-    console.log('📩 [WhatsApp SKIP - no FROM]', messageBody.split('\n')[0]);
-    return { delivery: 'skipped', sent: 0 };
-  }
-
-  const resolvedTargets = (Array.isArray(targets) ? targets : []).filter(Boolean);
-  if (resolvedTargets.length === 0) {
-    console.log('📩 [WhatsApp SKIP - no targets]', messageBody.split('\n')[0]);
-    return { delivery: 'skipped', sent: 0 };
-  }
-
-  try {
-    await Promise.all(
-      resolvedTargets.map((target) => twilioClient.messages.create({
-        from: process.env.TWILIO_WHATSAPP_FROM,
-        to: target,
-        body: messageBody,
-      }))
-    );
-    console.log('📩 [WhatsApp SENT]', messageBody.split('\n')[0]);
-    return { delivery: 'sent', sent: resolvedTargets.length };
-  } catch (error) {
-    console.error('📩 [WhatsApp ERROR]', error?.message || error);
-    return { delivery: 'error', sent: 0 };
-  }
-}
-
-async function sendInternalAlertEmail({ subject, text, admins, replyTo }) {
-  const recipients = getInternalAlertEmailRecipients(admins);
-
-  if (recipients.length === 0) {
-    console.log('[ADMIN ALERT EMAIL SKIP] No recipients configured');
-    return { delivery: 'skipped', sent: 0 };
-  }
-
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-      to: recipients.join(','),
-      replyTo,
-      subject,
-      text,
-    });
-    console.log('[ADMIN ALERT EMAIL SENT]', subject);
-    return { delivery: 'sent', sent: recipients.length };
-  } catch (error) {
-    console.error('[ADMIN ALERT EMAIL ERROR]', error?.message || error);
-    return { delivery: 'error', sent: 0 };
-  }
-}
-
-function buildInternalAlertText({ title, message, type, data }) {
-  const lines = [
-    `[Bolo237] ${title}`,
-    `Type: ${type}`,
-    '',
-    message,
-  ];
-
-  if (data && typeof data === 'object') {
-    const entries = Object.entries(data)
-      .filter(([, value]) => value !== undefined && value !== null && value !== '')
-      .map(([key, value]) => `${key}: ${typeof value === 'object' ? JSON.stringify(value) : value}`);
-
-    if (entries.length > 0) {
-      lines.push('', 'Meta:', ...entries);
-    }
-  }
-
-  return lines.join('\n');
-}
-
-async function sendOtpWithTwilio(phone, code) {
-  if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
-    return false;
-  }
-
-  const normalizedPhone = String(phone).startsWith('+') ? String(phone) : `+${String(phone).replace(/^\+/, '')}`;
-
-  try {
-    await twilioClient.messages.create({
-      from: process.env.TWILIO_PHONE_NUMBER,
-      to: normalizedPhone,
-      body: `Votre code Bolo237 est ${code}. Il expire dans 5 minutes.`,
-    });
-    console.log(`[OTP] SMS sent to ${normalizedPhone}`);
-    return true;
-  } catch (error) {
-    console.error('[OTP] Twilio SMS error:', error?.message || error);
-    return false;
-  }
-}
-
-// --- Middleware ---
-const envOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean);
-
-const allowPreviewOrigins = String(process.env.ALLOW_VERCEL_PREVIEW_ORIGINS || '').trim().toLowerCase() === 'true';
-
-const allowedOrigins = new Set([
-  'https://www.bolo237.com',
-  'https://admin.bolo237.com',
-  ...envOrigins,
-  ...(!isProduction ? ['http://localhost:3000', 'http://localhost:3001'] : []),
-]);
-
-function isAllowedOrigin(origin) {
-  if (allowedOrigins.has(origin)) return true;
-
-  if (allowPreviewOrigins && /^https:\/\/[a-z0-9-]*bolo237[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
-    return true;
-  }
-
-  return false;
-}
 
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
 }));
-
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (isAllowedOrigin(origin)) return callback(null, true);
-    return callback(null, false);
-  },
-  credentials: true,
-}));
-
-const apiGlobalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Trop de requetes depuis cette IP. Reessayez dans 15 minutes.' },
-});
-
-const signupIpLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('SIGNUP_IP_DAILY_LIMIT', 3),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => getRequestIpKey(req),
-  message: {
-    error: 'Trop de creations de compte depuis cette IP aujourd hui. Reessayez demain ou contactez le support.',
-  },
-});
-
-const loginIpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true,
-  keyGenerator: (req) => getRequestIpKey(req),
-  message: { error: 'Trop de tentatives de connexion depuis cette IP. Reessayez dans 15 minutes.' },
-});
-
-const loginIdentifierLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true,
-  keyGenerator: (req) => {
-    const loginIdentifier = String(req.body?.identifier || req.body?.email || req.body?.phone || '')
-      .trim()
-      .toLowerCase();
-
-    return loginIdentifier || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de tentatives de connexion pour cet identifiant. Reessayez dans 15 minutes.' },
-});
-
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de demandes de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
-});
-
-const resetPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 8,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de tentatives de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
-});
-
-const verificationSubmissionLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('VERIFICATION_SUBMISSION_DAILY_LIMIT', 6),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const accountKey = String(req.body?.accountKey || '').trim().toLowerCase();
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return accountKey || phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de demandes de verification aujourd hui. Reessayez plus tard.' },
-});
-
-const candidateProfileLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('CANDIDATE_PROFILE_HOURLY_LIMIT', 20),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const userId = parseInt(String(req.body?.userId || ''), 10);
-    return Number.isFinite(userId) && userId > 0 ? `candidate-profile:${userId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop de mises a jour de profil candidat. Reessayez dans une heure.' },
-});
-
-const savedJobsLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: getPositiveIntegerEnv('SAVED_JOBS_15M_LIMIT', 120),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const userId = parseInt(String(req.params?.id || req.body?.userId || ''), 10);
-    return Number.isFinite(userId) && userId > 0 ? `saved-jobs:${userId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop de modifications sur vos favoris. Reessayez dans 15 minutes.' },
-});
-
-const jobApplicationLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('JOB_APPLICATION_HOURLY_LIMIT', 30),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const candidateId = parseInt(String(req.body?.candidateId || ''), 10);
-    return Number.isFinite(candidateId) && candidateId > 0 ? `job-apply:${candidateId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop de candidatures envoyees en une heure. Reessayez plus tard.' },
-});
-
-const jobCreationLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('JOB_CREATION_DAILY_LIMIT', 12),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const authorId = parseInt(String(req.body?.authorId || ''), 10);
-    return Number.isFinite(authorId) && authorId > 0 ? `job-create:${authorId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop d annonces creees aujourd hui. Reessayez demain ou contactez le support.' },
-});
-
-const feedbackSubmissionLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('APP_FEEDBACK_DAILY_LIMIT', 5),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const userId = parseInt(String(req.body?.userId || ''), 10);
-    return Number.isFinite(userId) && userId > 0 ? `app-feedback:${userId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop de retours envoyes aujourd hui. Merci de reessayer plus tard.' },
-});
-
-const reviewSubmissionLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('USER_REVIEW_DAILY_LIMIT', 12),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const reviewerId = parseInt(String(req.body?.reviewerId || ''), 10);
-    return Number.isFinite(reviewerId) && reviewerId > 0 ? `user-review:${reviewerId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop d avis envoyes aujourd hui. Reessayez demain.' },
-});
-
-const uploadIpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: getPositiveIntegerEnv('UPLOAD_IP_15M_LIMIT', 25),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => getRequestIpKey(req),
-  message: { error: 'Trop de televersements depuis cette IP. Reessayez dans 15 minutes.' },
-});
-
+app.use(cors(corsOptions));
 app.use('/api', apiGlobalLimiter);
 app.use(cookieParser());
 app.use(express.json());
 app.use('/uploads', express.static(uploadsRoot));
 app.use('/api/admin', requireAdminSession);
 
-function getSessionCookieOptions() {
-  const isProd = process.env.NODE_ENV === 'production';
-  const configuredSameSite = String(process.env.SESSION_COOKIE_SAMESITE || '').trim().toLowerCase();
-  const sameSite = configuredSameSite === 'strict' || configuredSameSite === 'lax' || configuredSameSite === 'none'
-    ? configuredSameSite
-    : (isProd ? 'none' : 'lax');
+app.use('/api/feedbacks', require('./routes/feedbacks'));
+app.use('/api/reports', require('./routes/reports'));
+app.use('/api/privacy', require('./routes/privacy'));
 
-  // Browsers require `Secure` when SameSite=None.
-  const forceSecure = String(process.env.SESSION_COOKIE_SECURE || '').trim().toLowerCase() === 'true';
-  const secure = forceSecure || isProd || sameSite === 'none';
-
-  return {
-    httpOnly: true,
-    secure,
-    sameSite,
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  };
-}
-
-function getSessionCookieClearOptions() {
-  const { maxAge: _maxAge, ...cookieOptions } = getSessionCookieOptions();
-  return cookieOptions;
-}
-
-function clearSessionCookie(res) {
-  res.clearCookie(SESSION_COOKIE_NAME, getSessionCookieClearOptions());
-}
-
-function createSessionToken(user) {
-  const jti = crypto.randomUUID();
-  const token = jwt.sign(
-    { userId: user.id, email: user.email, role: user.role, jti },
-    SESSION_JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-
-  return token;
-}
-
-function readSessionToken(req) {
-  const raw = req.cookies?.[SESSION_COOKIE_NAME];
-  if (!raw) return null;
-
-  const revokedUntil = revokedSessionTokens.get(raw);
-  const now = Date.now();
-  if (revokedUntil && revokedUntil > now) {
-    return null;
-  }
-  if (revokedUntil && revokedUntil <= now) {
-    revokedSessionTokens.delete(raw);
-  }
-
-  try {
-    const payload = jwt.verify(raw, SESSION_JWT_SECRET);
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
-async function requireAdminSession(req, res, next) {
-  try {
-    const payload = readSessionToken(req);
-    if (!payload?.userId) {
-      return res.status(401).json({ error: 'Session admin requise.' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: Number(payload.userId) },
-      select: { id: true, role: true, isBanned: true },
-    });
-
-    if (!user || user.isBanned) {
-      return res.status(403).json({ error: 'Acces refuse.' });
-    }
-
-    const role = String(user.role || '').toUpperCase();
-    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'Acces admin requis.' });
-    }
-
-    req.adminUserId = user.id;
-    return next();
-  } catch (error) {
-    console.error('requireAdminSession error:', error);
-    return res.status(500).json({ error: 'Erreur de verification admin.' });
-  }
-}
-
-async function requireUserSession(req, res, next) {
-  try {
-    const payload = readSessionToken(req);
-    if (!payload?.userId) {
-      return res.status(401).json({ error: 'Session requise.' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: Number(payload.userId) },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        phone: true,
-        photoUrl: true,
-        isVerified: true,
-        isBanned: true,
-        createdAt: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(401).json({ error: 'Session invalide.' });
-    }
-
-    if (user.isBanned) {
-      return res.status(403).json({ error: 'Compte banni.' });
-    }
-
-    req.sessionUser = user;
-    return next();
-  } catch (error) {
-    console.error('requireUserSession error:', error);
-    return res.status(500).json({ error: 'Erreur de verification utilisateur.' });
-  }
-}
-
-const REPORT_TARGET_ALLOWLIST = new Set(['annonce', 'artisan']);
-const REPORT_REASON_ALLOWLIST = new Set(['demande-argent', 'fausse-identite', 'artisan-injoignable']);
-const REPORT_DEDUPE_WINDOW_MS = 12 * 60 * 60 * 1000;
-const REPORT_REVIEW_THRESHOLD = 3;
-const PRIVACY_REQUEST_KIND_ALLOWLIST = new Set(['EXPORT', 'DELETE']);
-const PRIVACY_REQUEST_STATUS_ALLOWLIST = new Set(['PENDING', 'IN_REVIEW', 'COMPLETED', 'REJECTED']);
-const recentReportSubmissions = new Map();
-
-function parsePositiveInt(value) {
-  const parsed = parseInt(String(value), 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
-}
-
-function normalizeReportTargetType(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  return REPORT_TARGET_ALLOWLIST.has(normalized) ? normalized : null;
-}
-
-function normalizeReportReason(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  return REPORT_REASON_ALLOWLIST.has(normalized) ? normalized : null;
-}
-
-function cleanupRecentReportSubmissions(now = Date.now()) {
-  for (const [key, expiresAt] of recentReportSubmissions.entries()) {
-    if (expiresAt <= now) {
-      recentReportSubmissions.delete(key);
-    }
-  }
-}
-
-function getRequestFingerprint(req) {
-  const ipPart = ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
-  const userAgent = String(req.get('user-agent') || 'unknown').slice(0, 180);
-  return crypto.createHash('sha256').update(`${ipPart}|${userAgent}`).digest('hex');
-}
-
-async function reportTargetExists(targetType, targetId) {
-  if (targetType === 'annonce') {
-    const count = await prisma.job.count({ where: { id: targetId } });
-    return count > 0;
-  }
-
-  const count = await prisma.userProfile.count({ where: { userId: targetId } });
-  return count > 0;
-}
-
-async function buildReportSummary(targetType, targetId) {
-  const [totalReports, openReports] = await prisma.$transaction([
-    prisma.report.count({ where: { targetType, targetId } }),
-    prisma.report.count({ where: { targetType, targetId, status: 'OPEN' } }),
-  ]);
-
-  return {
-    targetType,
-    targetId,
-    totalReports,
-    openReports,
-    reviewThreshold: REPORT_REVIEW_THRESHOLD,
-    reviewThresholdReached: openReports >= REPORT_REVIEW_THRESHOLD,
-  };
-}
-
-function buildPrivacyReference(prefix) {
-  return `${prefix}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-}
-
-function normalizePrivacyRequestKind(value) {
-  const normalized = String(value || '').trim().toUpperCase();
-  return PRIVACY_REQUEST_KIND_ALLOWLIST.has(normalized) ? normalized : null;
-}
-
-function normalizePrivacyRequestStatus(value) {
-  const normalized = String(value || '').trim().toUpperCase();
-  return PRIVACY_REQUEST_STATUS_ALLOWLIST.has(normalized) ? normalized : null;
-}
-
-function normalizePrivacyNotes(value) {
-  if (value === undefined) return undefined;
-  return String(value || '').trim().slice(0, 4000);
-}
-
-function getRequestSourceIp(req) {
-  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-  const fallback = String(req.ip || req.socket?.remoteAddress || '').trim();
-  return (forwarded || fallback || 'unknown').slice(0, 120);
-}
-
-async function createPrivacyRequestLog({ reference, kind, status = 'PENDING', user, reason, delivery, req, notes, payload, processedAt, processedBy }) {
-  return prisma.privacyRequest.create({
-    data: {
-      reference,
-      kind,
-      status,
-      userId: user?.id || null,
-      requesterEmail: String(user?.email || ''),
-      requesterPhone: user?.phone || null,
-      requesterRole: user?.role || null,
-      requesterName: user?.name || null,
-      reason: reason || null,
-      delivery: delivery || null,
-      sourceIp: req ? getRequestSourceIp(req) : null,
-      userAgent: String(req?.get?.('user-agent') || '').trim().slice(0, 400) || null,
-      notes: notes || null,
-      payload: payload || undefined,
-      processedAt: processedAt || null,
-      processedBy: processedBy || null,
-    },
-  });
-}
-
-async function notifyPrivacyTeam({ subject, text, replyTo }) {
-  const recipient = process.env.EMAIL_USER || 'contact@bolo237.com';
-
-  try {
-    await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
-      to: recipient,
-      replyTo,
-      subject,
-      text,
-    });
-    return 'email';
-  } catch (error) {
-    console.error('Privacy notification email error:', error?.message || error);
-    console.log(`[PRIVACY REQUEST] ${subject}\n${text}`);
-    return 'log';
-  }
-}
-
-const reportSubmissionLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
-  message: { error: 'Trop de signalements depuis cette IP. Reessayez plus tard.' },
-});
-
-const privacyRequestLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
-  message: { error: 'Trop de demandes de confidentialite pour le moment. Reessayez plus tard.' },
-});
-
-// Verification queue is persisted via Prisma VerificationSubmission model
-
-// =============================================
-// In-memory store: Admin platform settings
-// =============================================
-const SETTINGS_PATH = path.join(__dirname, 'admin-settings.json');
-const DEFAULT_NOTIFICATION_PREFERENCES = {
-  emailOnNewReport: true,
-  whatsappOnNewJob: true,
-  emailOnInternalAdminAlert: true,
-  whatsappOnInternalAdminAlert: true,
-};
-const DEFAULT_SETTINGS = {
-  platformName: 'Bolo237',
-  maintenanceMode: false,
-  moderationRules: { autoApproveAfterPosts: 3, blockedKeywords: ['frais de dossier', 'transfert mobile money', 'investissement'] },
-  notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
-};
-
-function normalizePlatformSettings(input = {}) {
-  const raw = input && typeof input === 'object' ? input : {};
-  const rawModerationRules = raw.moderationRules && typeof raw.moderationRules === 'object' ? raw.moderationRules : {};
-  const rawNotificationPreferences = raw.notificationPreferences && typeof raw.notificationPreferences === 'object'
-    ? raw.notificationPreferences
-    : {};
-
-  return {
-    ...DEFAULT_SETTINGS,
-    ...raw,
-    moderationRules: {
-      ...DEFAULT_SETTINGS.moderationRules,
-      ...rawModerationRules,
-    },
-    notificationPreferences: {
-      ...DEFAULT_NOTIFICATION_PREFERENCES,
-      ...rawNotificationPreferences,
-    },
-  };
-}
-
-let platformSettings = DEFAULT_SETTINGS;
-try { platformSettings = normalizePlatformSettings(JSON.parse(fs.readFileSync(SETTINGS_PATH, 'utf8'))); } catch { /* use defaults */ }
-
-// candidateProfiles, userProfiles, savedJobs are now in the database (Prisma)
-
-function profileFromBody(userId, body) {
-  return {
-    userId,
-    fullName: String(body.fullName || ''),
-    title: String(body.title || ''),
-    location: String(body.location || ''),
-    phone: String(body.phone || ''),
-    email: String(body.email || ''),
-    profile: String(body.profile || ''),
-    experience: String(body.experience || ''),
-    education: String(body.education || ''),
-    skillsText: String(body.skillsText || ''),
-    languagesText: String(body.languagesText || ''),
-    updatedAt: new Date().toISOString(),
-  };
-}
-
-function calcCvMajJours(createdAtIso) {
-  const diff = Date.now() - new Date(createdAtIso).getTime();
-  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
-}
-
-async function createNotification({ userId, type, title, message, data }) {
-  return prisma.notification.create({
-    data: {
-      userId,
-      type,
-      title,
-      message,
-      data: data || undefined,
-    },
-  });
-}
-
-function parseDateOnlyFilter(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return undefined;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return null;
-
-  const date = new Date(`${raw}T00:00:00.000Z`);
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function buildDateRangeFilter(fieldName, startDate, endDate) {
-  const range = {};
-
-  if (startDate) {
-    range.gte = startDate;
-  }
-
-  if (endDate) {
-    const nextDay = new Date(endDate);
-    nextDay.setUTCDate(nextDay.getUTCDate() + 1);
-    range.lt = nextDay;
-  }
-
-  return Object.keys(range).length > 0 ? { [fieldName]: range } : {};
-}
-
-async function createAdminNotifications({
-  title,
-  message,
-  type = 'admin_alert',
-  data,
-  excludeUserIds = [],
-  emailAlert = false,
-  whatsappAlert = false,
-  replyTo,
-}) {
-  const admins = await prisma.user.findMany({
-    where: {
-      role: { in: ['ADMIN', 'SUPER_ADMIN'] },
-      isBanned: false,
-      ...(excludeUserIds.length ? { id: { notIn: excludeUserIds } } : {}),
-    },
-    select: { id: true, email: true, name: true },
-  });
-
-  if (admins.length === 0) {
-    return { sent: 0, emailDelivery: 'skipped', whatsappDelivery: 'skipped' };
-  }
-
-  await Promise.all(
-    admins.map((admin) =>
-      createNotification({
-        userId: admin.id,
-        type,
-        title,
-        message,
-        data,
-      })
-    )
-  );
-
-  const realtimeText = buildInternalAlertText({ title, message, type, data });
-  const notificationPreferences = platformSettings?.notificationPreferences || DEFAULT_NOTIFICATION_PREFERENCES;
-  const [emailResult, whatsappResult] = await Promise.all([
-    emailAlert && notificationPreferences.emailOnInternalAdminAlert
-      ? sendInternalAlertEmail({ subject: `[Bolo237] ${title}`, text: realtimeText, admins, replyTo })
-      : Promise.resolve({ delivery: 'skipped', sent: 0 }),
-    whatsappAlert && notificationPreferences.whatsappOnInternalAdminAlert
-      ? sendWhatsAppAlertToTargets(realtimeText, getInternalAlertWhatsAppTargets())
-      : Promise.resolve({ delivery: 'skipped', sent: 0 }),
-  ]);
-
-  return {
-    sent: admins.length,
-    emailDelivery: emailResult.delivery,
-    whatsappDelivery: whatsappResult.delivery,
-  };
-}
-
-function buildDateBuckets(days) {
-  const labels = [];
-  const now = new Date();
-  now.setHours(0, 0, 0, 0);
-
-  for (let i = days - 1; i >= 0; i -= 1) {
-    const d = new Date(now);
-    d.setDate(now.getDate() - i);
-    labels.push(d);
-  }
-
-  return labels;
-}
-
-function toDayKey(date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatShortDate(date, locale = 'fr-FR') {
-  return new Date(date).toLocaleDateString(locale, {
-    day: '2-digit',
-    month: 'short',
-  });
-}
 
 // =============================================
 // ROUTES: Jobs (Offres d'emploi)
@@ -1864,7 +950,7 @@ app.post('/api/users', signupIpLimiter, async (req, res) => {
     const existingPhone = await prisma.user.findUnique({ where: { phone: normalizedPhone } });
     if (existingPhone) return res.status(409).json({ error: 'Ce numero de telephone est deja associe a un compte.' });
 
-    const hashedPassword = bcrypt.hashSync(String(password), 10);
+    const hashedPassword = await bcrypt.hash(String(password), 10);
     const generatedEmail = `${normalizedPhone.replace(/\D/g, '')}.${Date.now()}@phone.bolo237.com`;
 
     const user = await prisma.user.create({
@@ -2272,93 +1358,6 @@ app.post('/api/users/:id/reviews', reviewSubmissionLimiter, async (req, res) => 
 // =============================================
 // ROUTES: Auth (Authentification)
 // =============================================
-
-// POST /api/auth/login — Connexion utilisateur
-app.post('/api/auth/login', loginIpLimiter, loginIdentifierLimiter, async (req, res) => {
-  try {
-    const { email, phone, identifier, password } = req.body;
-    const loginIdentifier = String(identifier || email || phone || '').trim();
-
-    if (!loginIdentifier || !password) {
-      return res.status(400).json({ error: 'Identifiant (email ou telephone) et mot de passe requis.' });
-    }
-
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: loginIdentifier.toLowerCase() },
-          { phone: loginIdentifier },
-        ],
-      },
-    });
-    if (!user) {
-      return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect.' });
-    }
-
-    const valid = bcrypt.compareSync(String(password), user.password);
-    if (!valid) {
-      return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect.' });
-    }
-
-    if (user.isBanned) {
-      return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
-    }
-
-    const token = createSessionToken(user);
-    res.cookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions());
-
-    // Return user data without password
-    const { password: _pw, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
-  } catch (error) {
-    console.error('POST /api/auth/login error:', error);
-    res.status(500).json({ error: 'Erreur lors de la connexion.' });
-  }
-});
-
-// GET /api/auth/me — Retourner l'utilisateur de session
-app.get('/api/auth/me', async (req, res) => {
-  try {
-    const payload = readSessionToken(req);
-    if (!payload?.userId) return res.status(401).json({ error: 'Session invalide.' });
-
-    const user = await prisma.user.findUnique({
-      where: { id: Number(payload.userId) },
-      select: { id: true, email: true, name: true, role: true, phone: true, photoUrl: true, isVerified: true, isBanned: true, createdAt: true },
-    });
-
-    if (!user) {
-      clearSessionCookie(res);
-      return res.status(401).json({ error: 'Session invalide.' });
-    }
-
-    if (user.isBanned) {
-      clearSessionCookie(res);
-      return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
-    }
-
-    return res.json(user);
-  } catch (error) {
-    console.error('GET /api/auth/me error:', error);
-    return res.status(500).json({ error: 'Erreur lors de la verification de session.' });
-  }
-});
-
-// POST /api/auth/logout — Fermer la session
-app.post('/api/auth/logout', (_req, res) => {
-  const raw = _req.cookies?.[SESSION_COOKIE_NAME];
-  if (raw) {
-    try {
-      const decoded = jwt.decode(raw);
-      const expMs = decoded?.exp ? Number(decoded.exp) * 1000 : Date.now() + (7 * 24 * 60 * 60 * 1000);
-      revokedSessionTokens.set(raw, expMs);
-    } catch {
-      // ignore decode errors during logout
-    }
-  }
-  clearSessionCookie(res);
-  res.json({ ok: true });
-});
 
 // =============================================
 // ROUTES: Privacy / Data Rights
@@ -3209,26 +2208,26 @@ app.get('/api/admin/search', requireAdminSession, async (req, res) => {
 
 // GET /api/admin/settings — Parametres de la plateforme
 app.get('/api/admin/settings', requireAdminSession, (_req, res) => {
-  res.json(platformSettings);
+  res.json(getPlatformSettings());
 });
 
 // PUT /api/admin/settings — Mettre a jour les parametres
 app.put('/api/admin/settings', requireAdminSession, (req, res) => {
   try {
-    platformSettings = normalizePlatformSettings({
-      ...platformSettings,
+    const current = getPlatformSettings();
+    const next = setPlatformSettings({
+      ...current,
       ...(req.body && typeof req.body === 'object' ? req.body : {}),
       moderationRules: {
-        ...platformSettings.moderationRules,
+        ...current.moderationRules,
         ...(req.body?.moderationRules && typeof req.body.moderationRules === 'object' ? req.body.moderationRules : {}),
       },
       notificationPreferences: {
-        ...platformSettings.notificationPreferences,
+        ...current.notificationPreferences,
         ...(req.body?.notificationPreferences && typeof req.body.notificationPreferences === 'object' ? req.body.notificationPreferences : {}),
       },
     });
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(platformSettings, null, 2), 'utf8');
-    res.json(platformSettings);
+    res.json(next);
   } catch (error) {
     console.error('PUT /api/admin/settings error:', error);
     res.status(500).json({ error: 'Erreur lors de la mise a jour des parametres.' });
@@ -3328,262 +2327,6 @@ app.get('/api/admin/activity-log', requireAdminSession, async (req, res) => {
   } catch (error) {
     console.error('GET /api/admin/activity-log error:', error);
     res.status(500).json({ error: 'Erreur lors de la lecture du journal d activite.' });
-  }
-});
-
-// =============================================
-// ROUTES: File Upload (Cloudinary)
-// =============================================
-
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-const ALLOWED_UPLOAD_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (!ALLOWED_UPLOAD_MIME.has(String(file.mimetype || '').toLowerCase())) {
-      return cb(new Error('Invalid file type'));
-    }
-    cb(null, true);
-  },
-});
-
-app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file provided' });
-    if (!ALLOWED_UPLOAD_MIME.has(String(req.file.mimetype || '').toLowerCase())) {
-      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp.' });
-    }
-
-    const safeFolder = String(req.query.folder || 'general').replace(/[^a-zA-Z0-9/_-]/g, '') || 'general';
-
-    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
-      const folder = `bolo237/${safeFolder}`;
-
-      const result = await new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder, resource_type: 'image' },
-          (error, uploadResult) => error ? reject(error) : resolve(uploadResult)
-        );
-        stream.end(req.file.buffer);
-      });
-
-      return res.json({ url: result.secure_url, publicId: result.public_id });
-    }
-
-    const extension = path.extname(req.file.originalname || '') || '';
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extension}`;
-    const targetDir = path.join(uploadsRoot, safeFolder);
-    fs.mkdirSync(targetDir, { recursive: true });
-
-    const fullPath = path.join(targetDir, fileName);
-    fs.writeFileSync(fullPath, req.file.buffer);
-
-    const relativePath = `${safeFolder}/${fileName}`.replace(/\\/g, '/');
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-
-    res.json({ url: `${baseUrl}/uploads/${relativePath}`, publicId: relativePath });
-  } catch (error) {
-    reportError('Upload error', error, {
-      route: '/api/upload',
-      folder: req.query?.folder,
-    });
-    if (error?.message === 'Invalid file type') {
-      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp.' });
-    }
-    if (error?.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 5 Mo.' });
-    }
-    res.status(500).json({ error: 'Upload failed' });
-  }
-});
-
-// =============================================
-// ROUTES: OTP (Verification telephone)
-// =============================================
-
-// Stockage en memoire des codes OTP (en prod : Redis ou DB)
-const otpStore = new Map(); // phone -> { code, expires }
-
-const otpIpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Trop de demandes OTP depuis cette IP. Reessayez dans 15 minutes.' },
-});
-
-const otpPhoneLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de demandes OTP pour ce numero. Reessayez dans 15 minutes.' },
-});
-
-const otpVerifyLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: getPositiveIntegerEnv('OTP_VERIFY_15M_LIMIT', 10),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de tentatives de verification OTP. Reessayez dans 15 minutes.' },
-});
-
-// Route pour ENVOYER le code SMS
-app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis" });
-
-  // 1. Générer un vrai code à 6 chiffres
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-  // 2. Sauvegarder en mémoire (expire dans 5 minutes)
-  otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
-
-  try {
-    // 3. Envoyer le vrai SMS via Twilio
-    if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
-      await twilioClient.messages.create({
-        body: `Bienvenue sur Bolo237 ! Votre code de vérification est : ${otp}`,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: phone
-      });
-      console.log(`✅ SMS envoyé avec succès à ${phone}`);
-    } else {
-      console.warn(`⚠️ Twilio non configuré pour les SMS. Code généré en local : ${otp}`);
-    }
-    
-    res.json({ success: true, message: "Code envoyé par SMS" });
-  } catch (error) {
-    console.error("❌ Erreur lors de l'envoi du SMS Twilio:", error);
-    res.status(500).json({ error: "Erreur lors de l'envoi du SMS. Veuillez réessayer." });
-  }
-});
-
-// Route pour VÉRIFIER le code SMS
-app.post('/api/otp/verify', otpVerifyLimiter, async (req, res) => {
-  const { phone, code } = req.body;
-  
-  // Le Master Code (0000 ou 000000) pour qu'Apple/Google puissent tester l'app plus tard
-  const masterCode = process.env.MASTER_OTP || "000000";
-  if (code === masterCode) {
-    return res.json({ success: true, verified: true, message: "Code Master accepté" });
-  }
-
-  const record = otpStore.get(phone);
-  if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro" });
-  if (Date.now() > record.expires) {
-    otpStore.delete(phone);
-    return res.status(400).json({ error: "Le code a expiré (5 minutes max)" });
-  }
-  if (record.code !== code) {
-    return res.status(400).json({ error: "Code incorrect" });
-  }
-
-  // Si c'est bon, on supprime le code pour la sécurité
-  otpStore.delete(phone);
-  res.json({ success: true, verified: true, message: "Téléphone vérifié avec succès" });
-});
-
-// =============================================
-// ROUTES: RESET MOT DE PASSE (via OTP telephone)
-// =============================================
-
-// Etape 1: Demander un reset — envoie un OTP au telephone associé
-app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) => {
-  try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis." });
-
-    // Vérifier que le téléphone existe dans la base
-    const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
-    if (!user) return res.status(404).json({ error: "Aucun compte associé à ce numéro." });
-
-    // Générer et stocker un OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
-
-    const deliveryTasks = [];
-
-    // Envoyer par SMS si Twilio configuré
-    if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
-      deliveryTasks.push(
-        twilioClient.messages.create({
-          body: `Bolo237 — Votre code de réinitialisation : ${otp}`,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: phone
-        })
-      );
-    }
-
-    deliveryTasks.push(sendPasswordResetCodeEmail({ transporter, user, code: otp }));
-
-    await Promise.allSettled(deliveryTasks);
-
-    // OTP sent (not logged for security)
-    res.json({ success: true, message: "Code envoye. Verifiez votre SMS ou votre email." });
-  } catch (error) {
-    reportError('forgot-password error', error, { route: '/api/auth/forgot-password' });
-    res.status(500).json({ error: "Erreur serveur." });
-  }
-});
-
-// Etape 2: Vérifier OTP + définir nouveau mot de passe
-app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
-  try {
-    const { phone, code, newPassword } = req.body;
-    if (!phone || !code || !newPassword) {
-      return res.status(400).json({ error: "Téléphone, code et nouveau mot de passe requis." });
-    }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: "Le mot de passe doit contenir au moins 6 caractères." });
-    }
-
-    // Vérifier le code (master OTP accepté)
-    const masterCode = process.env.MASTER_OTP || "000000";
-    const record = otpStore.get(phone);
-
-    if (code !== masterCode) {
-      if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro." });
-      if (Date.now() > record.expires) {
-        otpStore.delete(phone);
-        return res.status(400).json({ error: "Le code a expiré." });
-      }
-      if (record.code !== code) {
-        return res.status(400).json({ error: "Code incorrect." });
-      }
-    }
-
-    otpStore.delete(phone);
-
-    // Trouver l'utilisateur et mettre à jour le mot de passe
-    const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
-    if (!user) return res.status(404).json({ error: "Utilisateur introuvable." });
-
-    const hashedPassword = bcrypt.hashSync(String(newPassword), 10);
-    await prisma.user.update({ where: { id: user.id }, data: { password: hashedPassword } });
-
-    await sendPasswordResetConfirmationEmail({ transporter, user });
-
-    console.log(`✅ Mot de passe réinitialisé pour user ${user.id} (${phone})`);
-    res.json({ success: true, message: "Mot de passe réinitialisé avec succès." });
-  } catch (error) {
-    reportError('reset-password error', error, { route: '/api/auth/reset-password' });
-    res.status(500).json({ error: "Erreur serveur." });
   }
 });
 

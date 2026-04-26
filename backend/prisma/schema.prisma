@@ -1,34 +1,52 @@
 // Configuration de base
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
+  provider   = "postgresql"
   extensions = [pg_trgm]
+}
+
+enum Role {
+  CANDIDAT
+  ENTREPRISE
+  ARTISAN
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum JobStatus {
+  PENDING
+  ACTIVE
+  APPROVED
+  REJECTED
+  CLOSED
+  ARCHIVED
 }
 
 // 1. Table des Utilisateurs
 model User {
-  id          Int      @id @default(autoincrement())
-  email       String   @unique
-  password    String
-  name        String?
-  phone       String?  @unique
-  photoUrl    String?
-  role        String   @default("CANDIDAT")
-  isVerified  Boolean  @default(false)
-  isBanned    Boolean  @default(false)
-  bannedAt    DateTime?
-  banReason   String?
-  createdAt   DateTime @default(now())
-  jobs        Job[]
-  notifications Notification[]
-  privacyRequests PrivacyRequest[]
-  appFeedbacks AppFeedback[]
-  reviewsGiven UserReview[] @relation("reviewer")
-  reviewsReceived UserReview[] @relation("reviewed")
+  id               Int               @id @default(autoincrement())
+  email            String            @unique
+  password         String
+  name             String?
+  phone            String?           @unique
+  photoUrl         String?
+  role             Role              @default(CANDIDAT)
+  isVerified       Boolean           @default(false)
+  isBanned         Boolean           @default(false)
+  bannedAt         DateTime?
+  banReason        String?
+  createdAt        DateTime          @default(now())
+  jobs             Job[]
+  notifications    Notification[]
+  privacyRequests  PrivacyRequest[]
+  appFeedbacks     AppFeedback[]
+  reviewsGiven     UserReview[]      @relation("reviewer")
+  reviewsReceived  UserReview[]      @relation("reviewed")
+  candidateProfile CandidateProfile?
 
   @@index([createdAt])
   @@index([role, createdAt])
@@ -41,16 +59,16 @@ model User {
 
 // 2. Table des Offres d'Emploi
 model Job {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   title       String
   company     String
   location    String
   description String
   salary      String?
-  status      String   @default("PENDING") 
-  author      User     @relation(fields: [authorId], references: [id])
+  status      JobStatus @default(PENDING)
+  author      User      @relation(fields: [authorId], references: [id])
   authorId    Int
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   @@index([createdAt])
   @@index([status, createdAt])
@@ -63,12 +81,12 @@ model Job {
 
 // 3. Table des Signalements (Pour la sécurité)
 model Report {
-  id          Int      @id @default(autoincrement())
-  reason      String
-  targetType  String   
-  targetId    Int
-  status      String   @default("OPEN")    
-  createdAt   DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  reason     String
+  targetType String
+  targetId   Int
+  status     String   @default("OPEN")
+  createdAt  DateTime @default(now())
 
   @@index([createdAt])
   @@index([status, createdAt])
@@ -76,16 +94,16 @@ model Report {
 }
 
 model Notification {
-  id        Int      @id @default(autoincrement())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        Int       @id @default(autoincrement())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    Int
   type      String
   title     String
   message   String
   data      Json?
-  isRead    Boolean  @default(false)
+  isRead    Boolean   @default(false)
   readAt    DateTime?
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
 
   @@index([userId, isRead, createdAt])
   @@index([userId, createdAt])
@@ -96,11 +114,11 @@ model Notification {
 }
 
 model PrivacyRequest {
-  id             Int      @id @default(autoincrement())
-  reference      String   @unique
+  id             Int       @id @default(autoincrement())
+  reference      String    @unique
   kind           String
-  status         String   @default("PENDING")
-  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  status         String    @default("PENDING")
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
   userId         Int?
   requesterEmail String
   requesterPhone String?
@@ -112,10 +130,10 @@ model PrivacyRequest {
   userAgent      String?
   notes          String?
   payload        Json?
-  requestedAt    DateTime @default(now())
+  requestedAt    DateTime  @default(now())
   processedAt    DateTime?
   processedBy    String?
-  updatedAt      DateTime @updatedAt
+  updatedAt      DateTime  @updatedAt
 
   @@index([status, requestedAt])
   @@index([kind, requestedAt])
@@ -158,17 +176,18 @@ model UserReview {
 }
 
 model CandidateProfile {
-  id             Int      @id @default(autoincrement())
-  userId         Int?
-  nom            String
-  titre          String
-  localisation   String   @default("Douala")
-  experience     String   @default("Confirme")
-  disponibilite  String   @default("Immediatement")
-  etudes         String   @default("Bac+3")
-  competences    String[] @default([])
-  disponibleNow  Boolean  @default(true)
-  createdAt      DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId        Int?     @unique
+  nom           String
+  titre         String
+  localisation  String   @default("Douala")
+  experience    String   @default("Confirme")
+  disponibilite String   @default("Immediatement")
+  etudes        String   @default("Bac+3")
+  competences   String[] @default([])
+  disponibleNow Boolean  @default(true)
+  createdAt     DateTime @default(now())
 
   @@index([userId])
   @@index([createdAt])
@@ -217,15 +236,33 @@ model VerificationSubmission {
   @@index([phone, submittedAt])
 }
 
+model OtpCode {
+  id        Int      @id @default(autoincrement())
+  phone     String   @unique
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
+model RevokedSession {
+  jti       String   @id
+  expiresAt DateTime
+  revokedAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 model SupportTicket {
   id          Int      @id @default(autoincrement())
   messageId   String?  @unique
   imapUid     Int?
   mailboxPath String   @default("INBOX")
-  senderEmail String   // L'adresse de celui qui t'ecrit
-  senderName  String?  // Son nom (s'il est detecte)
-  subject     String   // L'objet du mail
-  body        String   // Le contenu du message
+  senderEmail String // L'adresse de celui qui t'ecrit
+  senderName  String? // Son nom (s'il est detecte)
+  subject     String // L'objet du mail
+  body        String // Le contenu du message
   attachments Json?
   status      String   @default("UNREAD") // Statuts : UNREAD, READ, REPLIED
   createdAt   DateTime @default(now())

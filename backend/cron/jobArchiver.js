@@ -41,7 +41,24 @@ const startJobArchiver = (prisma) => {
         },
       });
 
-      console.log(`✅ [CRON] Nettoyage terminé : ${archived.count} offre(s) archivée(s), ${deletedNotifs.count} notification(s) supprimée(s).`);
+      // 3. Purger les codes OTP expirés et les sessions révoquées expirées
+        // Nettoyage des OTP expirés
+        const deletedOtps = await prisma.otpCode.deleteMany({
+          where: { expiresAt: { lt: new Date() } }
+        });
+        console.log(`[Cron] 🧹 ${deletedOtps.count} codes OTP expirés supprimés.`);
+
+        // Nettoyage des sessions révoquées et expirées
+        const deletedSessions = await prisma.revokedSession.deleteMany({
+          where: { expiresAt: { lt: new Date() } }
+        });
+        console.log(`[Cron] 🧹 ${deletedSessions.count} sessions expirées nettoyées.`);
+
+        console.log(
+          `✅ [CRON] Nettoyage terminé : ${archived.count} offre(s) archivée(s), `
+            + `${deletedNotifs.count} notification(s) supprimée(s), `
+            + `${deletedOtps.count} OTP expiré(s), ${deletedSessions.count} session(s) révoquée(s) purgée(s).`
+        );
     } catch (error) {
       console.error('❌ [CRON] Erreur lors du nettoyage :', error);
     }

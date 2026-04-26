@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, ReadonlyURLSearchParams } from 'next/navigation';
 import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
@@ -536,7 +536,6 @@ function RechercheContent() {
   );
 }
 
-import { Suspense } from 'react';
 
 export default function RecherchePage() {
   return (

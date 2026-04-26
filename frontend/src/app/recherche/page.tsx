@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, ReadonlyURLSearchParams } from 'next/navigation';
 import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -48,7 +48,7 @@ function parseMultiValueParam<T extends string>(
   const allowedSet = new Set<string>(allowedValues);
   const uniqueValues = new Set<T>();
 
-  searchParams.getAll(key).forEach((value) => {
+  searchParams.getAll(key).forEach((value: string) => {
     if (allowedSet.has(value)) {
       uniqueValues.add(value as T);
     }

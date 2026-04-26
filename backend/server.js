@@ -139,6 +139,9 @@ app.use(express.json());
 app.use('/uploads', express.static(uploadsRoot));
 app.use('/api/admin', requireAdminSession);
 
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/otp', require('./routes/otp'));
+app.use('/api/upload', require('./routes/upload'));
 app.use('/api/feedbacks', require('./routes/feedbacks'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/privacy', require('./routes/privacy'));

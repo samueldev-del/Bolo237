@@ -142,71 +142,7 @@ app.use('/api/admin', requireAdminSession);
 app.use('/api/feedbacks', require('./routes/feedbacks'));
 app.use('/api/reports', require('./routes/reports'));
 app.use('/api/privacy', require('./routes/privacy'));
-
-
-// =============================================
-// ROUTES: Jobs (Offres d'emploi)
-// =============================================
-
-// GET /api/jobs — Liste des offres (avec filtres optionnels)
-app.get('/api/jobs', async (req, res) => {
-  try {
-    const { status, location, search, authorId, page = '1', limit = '20' } = req.query;
-    const searchTerm = search ? String(search).trim() : '';
-    const numericSearch = searchTerm.replace(/^#/, '');
-    const exactSearchId = /^\d+$/.test(numericSearch) ? parseInt(numericSearch, 10) : null;
-
-    const where = {};
-    if (status) {
-      const s = String(status);
-      // Treat APPROVED and ACTIVE as equivalent for public listings
-      if (s === 'APPROVED' || s === 'ACTIVE') {
-        where.status = { in: ['APPROVED', 'ACTIVE'] };
-      } else {
-        where.status = s;
-      }
-    }
-    if (authorId) {
-      const parsedAuthorId = parseInt(String(authorId), 10);
-      if (!isNaN(parsedAuthorId)) where.authorId = parsedAuthorId;
-    }
-    if (location) where.location = { contains: String(location), mode: 'insensitive' };
-    if (searchTerm) {
-      const searchConditions = [
-        { title: { contains: searchTerm, mode: 'insensitive' } },
-        { company: { contains: searchTerm, mode: 'insensitive' } },
-        { description: { contains: searchTerm, mode: 'insensitive' } },
-      ];
-      if (exactSearchId !== null) {
-        searchConditions.unshift({ id: exactSearchId });
-      }
-      where.OR = searchConditions;
-    }
-
-    const pageNum = Math.max(1, parseInt(String(page), 10) || 1);
-    const take = Math.min(50, Math.max(1, parseInt(String(limit), 10) || 20));
-    const skip = (pageNum - 1) * take;
-
-    const [jobs, total] = await Promise.all([
-      prisma.job.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take,
-        include: { author: { select: { id: true, name: true, email: true, role: true, isVerified: true, photoUrl: true } } },
-      }),
-      prisma.job.count({ where }),
-    ]);
-
-    res.json({
-      jobs,
-      pagination: { page: pageNum, limit: take, total, totalPages: Math.ceil(total / take) },
-    });
-  } catch (error) {
-    console.error('GET /api/jobs error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des offres.' });
-  }
-});
+app.use('/api/jobs', require('./routes/jobs'));
 
 // =============================================
 // ROUTES: Verifications (Identite)

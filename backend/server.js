@@ -3341,11 +3341,18 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-const ALLOWED_UPLOAD_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_UPLOAD_MIME = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_UPLOAD_MIME.has(String(file.mimetype || '').toLowerCase())) {
       return cb(new Error('Invalid file type'));
@@ -3358,7 +3365,7 @@ app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res)
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
     if (!ALLOWED_UPLOAD_MIME.has(String(req.file.mimetype || '').toLowerCase())) {
-      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp.' });
+      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp, pdf, doc, docx.' });
     }
 
     const safeFolder = String(req.query.folder || 'general').replace(/[^a-zA-Z0-9/_-]/g, '') || 'general';
@@ -3368,7 +3375,7 @@ app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res)
 
       const result = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { folder, resource_type: 'image' },
+          { folder, resource_type: 'auto' },
           (error, uploadResult) => error ? reject(error) : resolve(uploadResult)
         );
         stream.end(req.file.buffer);
@@ -3395,10 +3402,10 @@ app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res)
       folder: req.query?.folder,
     });
     if (error?.message === 'Invalid file type') {
-      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp.' });
+      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp, pdf, doc, docx.' });
     }
     if (error?.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 5 Mo.' });
+      return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 10 Mo.' });
     }
     res.status(500).json({ error: 'Upload failed' });
   }

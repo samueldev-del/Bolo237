@@ -84,6 +84,7 @@ router.get('/me', async (req, res) => {
         photoUrl: true,
         isVerified: true,
         isBanned: true,
+        banReason: true,
         createdAt: true,
       },
     });
@@ -177,19 +178,16 @@ router.post('/reset-password', resetPasswordLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères.' });
     }
 
-    const masterCode = process.env.MASTER_OTP || '000000';
     const phoneKey = String(phone);
     const record = await prisma.otpCode.findUnique({ where: { phone: phoneKey } });
 
-    if (code !== masterCode) {
-      if (!record) return res.status(400).json({ error: 'Aucun code demandé pour ce numéro.' });
-      if (record.expiresAt <= new Date()) {
-        await prisma.otpCode.deleteMany({ where: { phone: phoneKey } });
-        return res.status(400).json({ error: 'Le code a expiré.' });
-      }
-      if (record.code !== code) {
-        return res.status(400).json({ error: 'Code incorrect.' });
-      }
+    if (!record) return res.status(400).json({ error: 'Aucun code demandé pour ce numéro.' });
+    if (record.expiresAt <= new Date()) {
+      await prisma.otpCode.deleteMany({ where: { phone: phoneKey } });
+      return res.status(400).json({ error: 'Le code a expiré.' });
+    }
+    if (record.code !== code) {
+      return res.status(400).json({ error: 'Code incorrect.' });
     }
 
     await prisma.otpCode.deleteMany({ where: { phone: phoneKey } });

@@ -15,6 +15,13 @@
       "port": 3001
     },
     {
+      "name": "admin",
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-c", "export PATH=/Users/samuel/.nvm/versions/node/v24.14.0/bin:$PATH && cd /Users/samuel/Bolo237/admin-Bolo237 && npx next dev -p 3002"],
+      "port": 3002,
+      "autoPort": true
+    },
+    {
       "name": "agences",
       "runtimeExecutable": "/bin/bash",
       "runtimeArgs": ["-c", "export PATH=/Users/samuel/.nvm/versions/node/v24.14.0/bin:$PATH && cd /Users/samuel/covoiturage-cm/agences && npx next dev"],

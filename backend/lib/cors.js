@@ -17,6 +17,10 @@ const allowedOrigins = new Set([
 function isAllowedOrigin(origin) {
   if (allowedOrigins.has(origin)) return true;
 
+  if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    return true;
+  }
+
   if (allowPreviewOrigins && /^https:\/\/[a-z0-9-]*bolo237[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
     return true;
   }

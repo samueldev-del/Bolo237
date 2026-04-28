@@ -43,11 +43,6 @@ router.post('/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
 router.post('/verify', otpVerifyLimiter, async (req, res) => {
   const { phone, code } = req.body;
 
-  const masterCode = process.env.MASTER_OTP || '000000';
-  if (code === masterCode) {
-    return res.json({ success: true, verified: true, message: 'Code Master accepté' });
-  }
-
   const phoneKey = String(phone);
   const record = await prisma.otpCode.findUnique({ where: { phone: phoneKey } });
   if (!record) return res.status(400).json({ error: 'Aucun code demandé pour ce numéro' });

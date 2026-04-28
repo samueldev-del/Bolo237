@@ -409,6 +409,10 @@ const allowedOrigins = new Set([
 function isAllowedOrigin(origin) {
   if (allowedOrigins.has(origin)) return true;
 
+  if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
+    return true;
+  }
+
   if (allowPreviewOrigins && /^https:\/\/[a-z0-9-]*bolo237[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
     return true;
   }
@@ -2324,7 +2328,7 @@ app.get('/api/auth/me', async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: Number(payload.userId) },
-      select: { id: true, email: true, name: true, role: true, phone: true, photoUrl: true, isVerified: true, isBanned: true, createdAt: true },
+      select: { id: true, email: true, name: true, role: true, phone: true, photoUrl: true, isVerified: true, isBanned: true, banReason: true, createdAt: true },
     });
 
     if (!user) {
@@ -3484,12 +3488,6 @@ app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
 // Route pour VÉRIFIER le code SMS
 app.post('/api/otp/verify', otpVerifyLimiter, async (req, res) => {
   const { phone, code } = req.body;
-  
-  // Le Master Code (0000 ou 000000) pour qu'Apple/Google puissent tester l'app plus tard
-  const masterCode = process.env.MASTER_OTP || "000000";
-  if (code === masterCode) {
-    return res.json({ success: true, verified: true, message: "Code Master accepté" });
-  }
 
   const record = otpStore.get(phone);
   if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro" });
@@ -3560,19 +3558,15 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
       return res.status(400).json({ error: "Le mot de passe doit contenir au moins 6 caractères." });
     }
 
-    // Vérifier le code (master OTP accepté)
-    const masterCode = process.env.MASTER_OTP || "000000";
     const record = otpStore.get(phone);
 
-    if (code !== masterCode) {
-      if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro." });
-      if (Date.now() > record.expires) {
-        otpStore.delete(phone);
-        return res.status(400).json({ error: "Le code a expiré." });
-      }
-      if (record.code !== code) {
-        return res.status(400).json({ error: "Code incorrect." });
-      }
+    if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro." });
+    if (Date.now() > record.expires) {
+      otpStore.delete(phone);
+      return res.status(400).json({ error: "Le code a expiré." });
+    }
+    if (record.code !== code) {
+      return res.status(400).json({ error: "Code incorrect." });
     }
 
     otpStore.delete(phone);

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
-import { fetchUserProfile, fetchUserReviews, type UserReview } from '@/lib/api';
+import { fetchUserProfile, fetchUserReviews, trackArtisanContactClick, type UserReview } from '@/lib/api';
 import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import RatingModal from '@/components/RatingModal';
 
@@ -46,6 +46,19 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
     location: string;
     profile: string;
   } | null>(null);
+
+  const whatsappNumber = artisan?.whatsapp.replace(/\s|\+/g, '') || '';
+  const whatsappHref = `https://wa.me/${whatsappNumber}`;
+
+  const handleWhatsAppClick = () => {
+    if (!Number.isFinite(artisanId) || artisanId <= 0) {
+      return;
+    }
+
+    trackArtisanContactClick(artisanId).catch(() => {
+      // Silent failure: never block the user contact flow.
+    });
+  };
 
   const requireAuth = (action: () => void) => {
     if (isLoggedIn) {
@@ -196,23 +209,15 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
             </div>
 
             <div className="hidden md:flex gap-3 mt-6">
-              {isLoggedIn ? (
-                <a
-                  href={`https://wa.me/${artisan.whatsapp.replace(/\s|\+/g, '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`text-white font-extrabold px-6 py-3 rounded-xl transition ${maskedByReports ? 'bg-gray-300 pointer-events-none' : 'bg-[#25D366] hover:bg-[#1fab53]'}`}
-                >
-                  {maskedByReports ? t.security.profileMaskedCta : t.security.contactWhatsapp}
-                </a>
-              ) : (
-                <button
-                  onClick={() => setShowLoginPrompt(true)}
-                  className="bg-[#25D366] hover:bg-[#1fab53] text-white font-extrabold px-6 py-3 rounded-xl transition"
-                >
-                  {t.security.contactWhatsapp}
-                </button>
-              )}
+              <a
+                href={whatsappHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={handleWhatsAppClick}
+                className={`text-white font-extrabold px-6 py-3 rounded-xl transition ${maskedByReports ? 'bg-gray-300 pointer-events-none' : 'bg-[#25D366] hover:bg-[#1fab53]'}`}
+              >
+                {maskedByReports ? t.security.profileMaskedCta : t.security.contactWhatsapp}
+              </a>
               <button
                 onClick={() => requireAuth(() => setShowQuoteForm((s) => !s))}
                 disabled={maskedByReports}
@@ -344,23 +349,15 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
 
       <div className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-50">
         <div className="grid grid-cols-2 gap-2">
-          {isLoggedIn ? (
-            <a
-              href={`https://wa.me/${artisan.whatsapp.replace(/\s|\+/g, '')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`text-white text-center font-extrabold py-3 rounded-xl transition ${maskedByReports ? 'bg-gray-300 pointer-events-none' : 'bg-[#25D366] hover:bg-[#1fab53]'}`}
-            >
-              {maskedByReports ? t.security.profileMaskedCta : 'WhatsApp'}
-            </a>
-          ) : (
-            <button
-              onClick={() => setShowLoginPrompt(true)}
-              className="bg-[#25D366] hover:bg-[#1fab53] text-white text-center font-extrabold py-3 rounded-xl transition"
-            >
-              WhatsApp
-            </button>
-          )}
+          <a
+            href={whatsappHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleWhatsAppClick}
+            className={`text-white text-center font-extrabold py-3 rounded-xl transition ${maskedByReports ? 'bg-gray-300 pointer-events-none' : 'bg-[#25D366] hover:bg-[#1fab53]'}`}
+          >
+            {maskedByReports ? t.security.profileMaskedCta : 'WhatsApp'}
+          </a>
           <button
             onClick={() => requireAuth(() => setShowQuoteForm((s) => !s))}
             disabled={maskedByReports}

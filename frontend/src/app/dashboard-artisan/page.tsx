@@ -8,7 +8,7 @@ import { useLocale } from '@/components/LocaleProvider';
 import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
   createJob,
-  fetchJobs,
+  fetchArtisanDashboardOverview,
   fetchSessionUser,
   logoutUser,
   uploadFile,
@@ -193,7 +193,7 @@ export default function DashboardArtisan() {
     if (accessStatus !== 'allowed' || !userId) return;
     setLoadingMyAds(true);
     try {
-      const data = await fetchJobs({ authorId: userId, limit: 50 });
+      const data = await fetchArtisanDashboardOverview();
       setMyAds(data.jobs);
       setServicesPostedCount(data.jobs.length);
     } catch {

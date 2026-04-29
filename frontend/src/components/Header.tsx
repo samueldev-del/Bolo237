@@ -7,7 +7,6 @@ import { usePathname } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { clearStoredSession, getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import { logoutUser } from '@/lib/api';
-import { PRIMARY_NAV_ITEMS } from '@/lib/seo';
 
 const USER_KEY = 'bolo237-user';
 const ROLE_KEY = 'bolo237-account-role';
@@ -130,14 +129,52 @@ export default function Header() {
   const user = useMemo(() => parseUserFromStorage(userRaw), [userRaw]);
 
   const isEn = locale === 'en';
-  const desktopNavItems = useMemo(
-    () => PRIMARY_NAV_ITEMS.map((item) => ({
-      href: localizePath(item.path),
-      label: item.navLabel[locale],
-      path: item.path,
-    })),
-    [locale, localizePath]
-  );
+  const desktopNavItems = useMemo(() => {
+    const role = normalizeRole(storedRole || user?.role || null);
+
+    if (role === 'entreprise') {
+      return [
+        {
+          href: localizePath('/publier'),
+          label: isEn ? 'Post a job' : 'Publier',
+          path: '/publier',
+        },
+        {
+          href: localizePath('/dashboard-entreprise'),
+          label: isEn ? 'My listings' : 'Mes annonces',
+          path: '/dashboard-entreprise',
+        },
+      ];
+    }
+
+    if (role === 'artisan') {
+      return [
+        {
+          href: localizePath('/dashboard-artisan'),
+          label: isEn ? 'My jobs' : 'Mes chantiers',
+          path: '/dashboard-artisan',
+        },
+        {
+          href: localizePath('/dashboard-artisan'),
+          label: isEn ? 'My profile' : 'Mon profil',
+          path: '/dashboard-artisan',
+        },
+      ];
+    }
+
+    return [
+      {
+        href: localizePath('/recherche'),
+        label: isEn ? 'Search' : 'Rechercher',
+        path: '/recherche',
+      },
+      {
+        href: localizePath('/connexion'),
+        label: isEn ? 'Sign in' : 'Se connecter',
+        path: '/connexion',
+      },
+    ];
+  }, [isEn, localizePath, storedRole, user?.role]);
 
   // Fermer le menu en cliquant dehors
   useEffect(() => {
@@ -320,9 +357,26 @@ export default function Header() {
               <p className="px-6 pt-3 pb-1.5 text-[10px] uppercase tracking-widest text-gray-400 font-extrabold">
                 {isEn ? 'Navigate' : 'Explorer'}
               </p>
-              <MenuLink href={localizePath('/emplois')} icon="💼" label={isEn ? 'Job offers' : 'Offres d\'emploi'} desc={isEn ? 'Browse all available jobs' : 'Parcourir les offres disponibles'} />
-              <MenuLink href={localizePath('/petits-boulots')} icon="🛠️" label={isEn ? 'Artisans & Services' : 'Artisans & Services'} desc={isEn ? 'Find skilled professionals near you' : 'Trouvez des pros près de chez vous'} />
-              <MenuLink href={localizePath('/cvtheque')} icon="📄" label={isEn ? 'CV Library' : 'CVthèque'} desc={isEn ? 'Browse candidate profiles' : 'Parcourir les profils candidats'} />
+              {localRoleNormalized === 'entreprise' && (
+                <>
+                  <MenuLink href={localizePath('/publier')} icon="📝" label={isEn ? 'Post a job' : 'Publier'} desc={isEn ? 'Publish and manage your openings' : 'Publier et gerer vos offres'} />
+                  <MenuLink href={localizePath('/dashboard-entreprise')} icon="📋" label={isEn ? 'My listings' : 'Mes annonces'} desc={isEn ? 'Review your published jobs' : 'Voir vos annonces publiees'} />
+                </>
+              )}
+
+              {localRoleNormalized === 'artisan' && (
+                <>
+                  <MenuLink href={localizePath('/dashboard-artisan')} icon="🛠️" label={isEn ? 'My jobs' : 'Mes chantiers'} desc={isEn ? 'Track your active opportunities' : 'Suivre vos opportunites en cours'} />
+                  <MenuLink href={localizePath('/dashboard-artisan')} icon="👤" label={isEn ? 'My profile' : 'Mon profil'} desc={isEn ? 'Manage your artisan profile' : 'Mettre a jour votre profil artisan'} />
+                </>
+              )}
+
+              {(localRoleNormalized === 'chercheur' || !localRoleNormalized) && (
+                <>
+                  <MenuLink href={localizePath('/recherche')} icon="🔍" label={isEn ? 'Search' : 'Rechercher'} desc={isEn ? 'Find jobs and artisans' : 'Trouver des offres et des artisans'} />
+                  <MenuLink href={localizePath('/connexion')} icon="🔑" label={isEn ? 'Sign in' : 'Se connecter'} desc={isEn ? 'Access your account' : 'Acceder a votre compte'} />
+                </>
+              )}
 
               <div className="h-px bg-gray-100 my-2 mx-6"></div>
 

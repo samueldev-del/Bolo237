@@ -270,6 +270,15 @@ export type JobFilters = {
   limit?: number;
 };
 
+export type ArtisanDashboardOverview = {
+  jobs: ApiJob[];
+  profileViews: number;
+};
+
+export type EnterpriseDashboardOverview = {
+  jobs: ApiJob[];
+};
+
 export async function fetchJobs(filters: JobFilters = {}): Promise<JobsResponse> {
   const params = new URLSearchParams();
   if (filters.search) params.set('search', filters.search);
@@ -281,6 +290,14 @@ export async function fetchJobs(filters: JobFilters = {}): Promise<JobsResponse>
 
   const qs = params.toString();
   return apiFetch<JobsResponse>(`/api/jobs${qs ? `?${qs}` : ''}`);
+}
+
+export async function fetchArtisanDashboardOverview(): Promise<ArtisanDashboardOverview> {
+  return apiFetch<ArtisanDashboardOverview>('/api/dashboard-artisan/overview');
+}
+
+export async function fetchEnterpriseDashboardOverview(): Promise<EnterpriseDashboardOverview> {
+  return apiFetch<EnterpriseDashboardOverview>('/api/dashboard-entreprise/overview');
 }
 
 export async function fetchJob(id: number): Promise<ApiJob> {
@@ -594,6 +611,12 @@ export async function upsertUserProfile(
   return apiFetch<UserProfile>(`/api/profiles/${userId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
+  });
+}
+
+export async function trackArtisanContactClick(userId: number): Promise<void> {
+  await apiFetch(`/api/artisans/${userId}/track-contact`, {
+    method: 'POST',
   });
 }
 

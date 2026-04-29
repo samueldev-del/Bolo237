@@ -59,6 +59,8 @@ const {
   sendPasswordResetConfirmationEmail,
   sendWelcomeEmail,
 } = require('./lib/transactionalEmail');
+const createDashboardArtisanRouter = require('./routes/dashboard-artisan');
+const createDashboardEntrepriseRouter = require('./routes/dashboard-entreprise');
 
 function logFatalError(label, error) {
   if (error instanceof Error) {
@@ -730,6 +732,9 @@ async function requireUserSession(req, res, next) {
   }
 }
 
+app.use('/api/dashboard-artisan', createDashboardArtisanRouter({ prisma, requireUserSession }));
+app.use('/api/dashboard-entreprise', createDashboardEntrepriseRouter({ prisma, requireUserSession }));
+
 const REPORT_TARGET_ALLOWLIST = new Set(['annonce', 'artisan']);
 const REPORT_REASON_ALLOWLIST = new Set(['demande-argent', 'fausse-identite', 'artisan-injoignable']);
 const REPORT_DEDUPE_WINDOW_MS = 12 * 60 * 60 * 1000;
@@ -876,6 +881,15 @@ const privacyRequestLimiter = rateLimit({
   legacyHeaders: false,
   keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
   message: { error: 'Trop de demandes de confidentialite pour le moment. Reessayez plus tard.' },
+});
+
+const contactTrackingLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req) => getRequestIpKey(req),
+  message: { error: 'Trop de clics de contact. Reessayez dans une minute.' },
 });
 
 // Verification queue is persisted via Prisma VerificationSubmission model
@@ -1467,6 +1481,46 @@ app.put('/api/profiles/:userId', async (req, res) => {
     res.status(500).json({ error: 'Erreur lors de la mise a jour du profil.' });
   }
 });
+
+async function handleTrackContact(req, res) {
+  try {
+    const userId = parseInt(req.params.userId || req.params[0], 10);
+    if (isNaN(userId)) {
+      return res.status(400).json({ error: 'ID utilisateur invalide.' });
+    }
+
+    const artisan = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, role: true },
+    });
+
+    if (!artisan) {
+      return res.status(404).json({ error: 'Artisan introuvable.' });
+    }
+
+    if (String(artisan.role || '').toUpperCase() !== 'ARTISAN') {
+      return res.status(400).json({ error: 'Ce profil ne correspond pas a un artisan.' });
+    }
+
+    await prisma.user.update({
+      where: { id: userId },
+      data: {
+        contactClicks: {
+          increment: 1,
+        },
+      },
+    });
+
+    return res.json({ success: true, message: 'Contact comptabilise.' });
+  } catch (error) {
+    console.error('POST /api/profiles/:userId/track-contact error:', error);
+    return res.status(500).json({ error: 'Erreur lors du suivi du contact.' });
+  }
+}
+
+app.post('/api/profiles/:userId/track-contact', contactTrackingLimiter, handleTrackContact);
+app.post('/api/profiles/:userId/trackContact', contactTrackingLimiter, handleTrackContact);
+app.post('/api/artisans/:userId/track-contact', contactTrackingLimiter, handleTrackContact);
 
 // =============================================
 // ROUTES: Saved Jobs

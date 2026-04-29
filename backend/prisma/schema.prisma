@@ -34,6 +34,7 @@ model User {
   name             String?
   phone            String?           @unique
   photoUrl         String?
+  contactClicks    Int               @default(0)
   role             Role              @default(CANDIDAT)
   isVerified       Boolean           @default(false)
   isBanned         Boolean           @default(false)

@@ -9,7 +9,7 @@ import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
   createJob,
-  fetchJobs,
+  fetchEnterpriseDashboardOverview,
   fetchCandidateProfileDetail,
   uploadFile,
   fetchSessionUser,
@@ -308,7 +308,7 @@ function DashboardEntrepriseContent() {
 
     const loadAuthoredJobs = async () => {
       try {
-        const res = await fetchJobs({ authorId: userId, limit: 100 });
+        const res = await fetchEnterpriseDashboardOverview();
         if (!active) return;
         setAuthoredJobs(res.jobs);
 

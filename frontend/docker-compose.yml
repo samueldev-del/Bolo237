@@ -9,9 +9,9 @@ services:
     image: bolo237-frontend:latest
     # Le nom du conteneur quand il sera lancé
     container_name: bolo237-frontend-public
-    # On lie le port 3000 de ta machine au port 3000 du conteneur
+    # On limite l'exposition au loopback local pour eviter toute exposition LAN inutile
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     # Redémarrage automatique en cas de crash ou de redémarrage du serveur
     restart: unless-stopped
     # SÉCURITÉ : On injecte les variables d'environnement depuis ton fichier .env local

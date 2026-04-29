@@ -3784,10 +3784,12 @@ startJobArchiver(prisma);
 
 // --- Start server ---
 const PORT = process.env.PORT || 5000;
-const server = app.listen(PORT, () => {
+const HOST = String(process.env.HOST || '').trim();
+const listenArgs = HOST ? [PORT, HOST] : [PORT];
+const server = app.listen(...listenArgs, () => {
   console.log(`\n========================================`);
   console.log(`Backend Bolo237 en ligne !`);
-  console.log(`Ecoute sur le port : ${PORT}`);
+  console.log(`Ecoute sur ${HOST || '0.0.0.0'}:${PORT}`);
   console.log(`========================================\n`);
 });
 

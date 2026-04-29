@@ -6,7 +6,7 @@ services:
     image: bolo237-admin:latest
     container_name: bolo237-admin-portal
     ports:
-      - "3001:3000"
+      - "127.0.0.1:3000:3000"
     restart: unless-stopped
     env_file:
       - .env

@@ -121,6 +121,10 @@ export type CandidateProfileDetail = CandidateProfile & {
     fullName: string;
     title: string;
     location: string;
+    availability: string;
+    profileVisible: boolean;
+    jobAlertRole: string;
+    jobAlertCity: string;
     phone: string;
     email: string;
     profile: string;
@@ -137,6 +141,10 @@ export type UserProfile = {
   fullName: string;
   title: string;
   location: string;
+  availability: string;
+  profileVisible: boolean;
+  jobAlertRole: string;
+  jobAlertCity: string;
   phone: string;
   email: string;
   profile: string;
@@ -273,6 +281,12 @@ export type JobFilters = {
 export type ArtisanDashboardOverview = {
   jobs: ApiJob[];
   profileViews: number;
+  clickHistory: ArtisanClickHistoryPoint[];
+};
+
+export type ArtisanClickHistoryPoint = {
+  dayKey: string;
+  count: number;
 };
 
 export type EnterpriseDashboardOverview = {

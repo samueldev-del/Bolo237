@@ -36,3 +36,13 @@ body {
 ::-webkit-scrollbar-track { background: #f1f1f1; }
 ::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #7C3AED; }
+
+/* Cache la barre de defilement pour les zones swipeables sur mobile, tout en gardant le scroll */
+.custom-scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.custom-scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 import CookieConsentBanner from "@/components/CookieConsentBanner";
 import { LocaleProvider } from "@/components/LocaleProvider";
@@ -18,6 +19,53 @@ const localeBootstrapScript = `
     try {
       localStorage.setItem('NEXT_LOCALE', locale);
     } catch {}
+  })();
+`;
+
+const hydrationAttributeSanitizerScript = `
+  (function () {
+    var attrName = 'fdprocessedid';
+
+    function stripAttribute(root) {
+      var scope = root && root.querySelectorAll ? root : document;
+      if (!scope || !scope.querySelectorAll) return;
+
+      scope.querySelectorAll('[' + attrName + ']').forEach(function (node) {
+        node.removeAttribute(attrName);
+      });
+    }
+
+    stripAttribute(document);
+
+    var observer = new MutationObserver(function (mutations) {
+      mutations.forEach(function (mutation) {
+        if (mutation.type === 'attributes' && mutation.target && mutation.target.removeAttribute) {
+          mutation.target.removeAttribute(attrName);
+        }
+
+        mutation.addedNodes.forEach(function (node) {
+          if (node.nodeType !== 1) return;
+          if (node.hasAttribute && node.hasAttribute(attrName)) {
+            node.removeAttribute(attrName);
+          }
+          stripAttribute(node);
+        });
+      });
+    });
+
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: [attrName],
+    });
+
+    window.addEventListener('load', function () {
+      window.setTimeout(function () {
+        observer.disconnect();
+        stripAttribute(document);
+      }, 3000);
+    }, { once: true });
   })();
 `;
 
@@ -111,21 +159,31 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-        <script
+        <Script
+          id="hydration-attribute-sanitizer"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: hydrationAttributeSanitizerScript }}
+        />
+        <Script
           id="locale-bootstrap"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: localeBootstrapScript }}
         />
-        <script
+        <Script
           id="schema-website"
           type="application/ld+json"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
         />
-        <script
+        <Script
           id="schema-organization"
           type="application/ld+json"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
         />
-        <script
+        <Script
+          id="sw-register"
+          strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               if ('serviceWorker' in navigator) {

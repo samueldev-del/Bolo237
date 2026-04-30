@@ -248,7 +248,16 @@ export default function ProfilCV() {
     setSaving(true);
     try {
       await upsertUserProfile(userId, {
-          fullName, title, location: city, phone: internationalPhone, email, profile: bio,
+          fullName,
+          title,
+          location: city,
+          availability: '',
+          profileVisible: true,
+          jobAlertRole: '',
+          jobAlertCity: '',
+          phone: internationalPhone,
+          email,
+          profile: bio,
           experience: JSON.stringify(experiences.filter(e => e.poste)),
           education: JSON.stringify(formations.filter(f => f.diplome)),
           skillsText: skills.join(', '),

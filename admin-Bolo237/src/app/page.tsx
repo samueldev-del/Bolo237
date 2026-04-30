@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Briefcase,
@@ -44,7 +44,10 @@ export default function AdminDashboard() {
   const [pendingJobs, setPendingJobs] = useState<Job[]>([]);
   const [latestUsers, setLatestUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [trendPoints, setTrendPoints] = useState<TrendPoint[]>([]);
   const [trendDays, setTrendDays] = useState<7 | 30>(7);
@@ -83,18 +86,20 @@ export default function AdminDashboard() {
 
   async function handleModeration(jobId: number, status: "APPROVED" | "REJECTED") {
     setActionLoading(jobId);
+    setActionError(null);
     try {
       await updateJob(jobId, { status });
       setPendingJobs((prev) => prev.filter((j) => j.id !== jobId));
       if (stats) {
         setStats({
           ...stats,
-          pendingJobs: stats.pendingJobs - 1,
+          pendingJobs: Math.max(0, stats.pendingJobs - 1),
           approvedJobs: status === "APPROVED" ? stats.approvedJobs + 1 : stats.approvedJobs,
         });
       }
     } catch {
-      setError("Erreur lors de la moderation");
+      setActionError(`Impossible de moderer l'annonce #${jobId}. Reessayez.`);
+      setTimeout(() => setActionError(null), 4000);
     } finally {
       setActionLoading(null);
     }
@@ -103,8 +108,8 @@ export default function AdminDashboard() {
   if (loading) {
     return (
       <AdminShell title="Tableau de bord" description="Chargement des donnees...">
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-8 w-8 animate-spin text-[#DA7756]" />
+        <div className="flex h-[60vh] items-center justify-center">
+          <Loader2 className="h-10 w-10 animate-spin text-[#DA7756]" />
         </div>
       </AdminShell>
     );
@@ -113,13 +118,13 @@ export default function AdminDashboard() {
   if (error) {
     return (
       <AdminShell title="Tableau de bord" description="Erreur de connexion">
-        <div className="flex flex-col items-center justify-center py-20 text-center">
-          <WifiOff className="h-12 w-12 text-red-400 mb-4" />
-          <h3 className="text-lg font-semibold text-zinc-800 mb-2">Connexion au serveur impossible</h3>
-          <p className="text-sm text-zinc-500 mb-6 max-w-md">{error}</p>
+        <div className="flex h-[60vh] flex-col items-center justify-center text-center">
+          <WifiOff className="mb-6 h-16 w-16 text-red-400" />
+          <h3 className="mb-2 text-xl font-bold text-zinc-900">Connexion au serveur impossible</h3>
+          <p className="mb-8 max-w-md text-zinc-500">{error}</p>
           <button
             onClick={loadData}
-            className="rounded-xl bg-[#DA7756] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#C4623F]"
+            className="rounded-xl bg-[#DA7756] px-8 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#DA7756]/30 transition hover:bg-[#C4623F] hover:shadow-xl"
           >
             Reessayer
           </button>
@@ -130,12 +135,11 @@ export default function AdminDashboard() {
 
   return (
     <AdminShell title="Tableau de bord" description="Vue d'ensemble de la plateforme Bolo237">
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         <StatCard
           title="Utilisateurs"
           value={stats?.users ?? 0}
-          icon={<Users className="h-5 w-5" />}
+          icon={<Users className="h-6 w-6" />}
           color="text-[#DA7756]"
           bg="bg-[#FFF5EF]"
           border="border-[#E8C4B0]"
@@ -144,7 +148,7 @@ export default function AdminDashboard() {
         <StatCard
           title="Jobs en attente"
           value={stats?.pendingJobs ?? 0}
-          icon={<Clock className="h-5 w-5" />}
+          icon={<Clock className="h-6 w-6" />}
           color="text-amber-600"
           bg="bg-amber-50"
           border="border-amber-200"
@@ -153,7 +157,7 @@ export default function AdminDashboard() {
         <StatCard
           title="Jobs approuves"
           value={stats?.approvedJobs ?? 0}
-          icon={<Briefcase className="h-5 w-5" />}
+          icon={<Briefcase className="h-6 w-6" />}
           color="text-emerald-600"
           bg="bg-emerald-50"
           border="border-emerald-200"
@@ -162,7 +166,7 @@ export default function AdminDashboard() {
         <StatCard
           title="Signalements"
           value={stats?.reports ?? 0}
-          icon={<AlertTriangle className="h-5 w-5" />}
+          icon={<AlertTriangle className="h-6 w-6" />}
           color="text-red-600"
           bg="bg-red-50"
           border="border-red-200"
@@ -171,7 +175,7 @@ export default function AdminDashboard() {
         <StatCard
           title="Inscriptions aujourd'hui"
           value={stats?.todaySignups ?? 0}
-          icon={<UserPlus className="h-5 w-5" />}
+          icon={<UserPlus className="h-6 w-6" />}
           color="text-cyan-600"
           bg="bg-cyan-50"
           border="border-cyan-200"
@@ -180,85 +184,90 @@ export default function AdminDashboard() {
         <StatCard
           title="Avis au total"
           value={stats?.totalReviews ?? 0}
-          icon={<Star className="h-5 w-5" />}
+          icon={<Star className="h-6 w-6" />}
           color="text-indigo-600"
           bg="bg-indigo-50"
           border="border-indigo-200"
           href="/alertes/avis"
         />
-        <StatCard
-          title="Entreprises en attente"
-          value={stats?.enterprisePending ?? 0}
-          icon={<Building2 className="h-5 w-5" />}
-          color="text-rose-600"
-          bg="bg-rose-50"
-          border="border-rose-200"
-          href="/moderation/artisans"
-        />
+        <div className="sm:col-span-2 lg:col-span-1 xl:col-span-2">
+          <StatCard
+            title="Entreprises en attente"
+            value={stats?.enterprisePending ?? 0}
+            icon={<Building2 className="h-6 w-6" />}
+            color="text-rose-600"
+            bg="bg-rose-50"
+            border="border-rose-200"
+            href="/moderation/artisans"
+          />
+        </div>
       </div>
 
-      {/* Trends Chart */}
-      <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+      <div className="mb-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-base font-semibold text-zinc-800">Tendances</h3>
-          <div className="flex gap-1 rounded-lg border border-zinc-200 p-0.5">
+          <h3 className="text-lg font-bold text-zinc-900">Tendances de la plateforme</h3>
+          <div className="flex gap-1 rounded-lg border border-zinc-200 bg-zinc-50 p-1">
             <button
               onClick={() => setTrendDays(7)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+              className={`rounded-md px-4 py-1.5 text-xs font-bold transition-all ${
                 trendDays === 7
-                  ? "bg-[#DA7756] text-white"
-                  : "text-zinc-500 hover:text-zinc-700"
+                  ? "bg-white text-black shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900"
               }`}
             >
-              7j
+              7 jours
             </button>
             <button
               onClick={() => setTrendDays(30)}
-              className={`rounded-md px-3 py-1 text-xs font-semibold transition ${
+              className={`rounded-md px-4 py-1.5 text-xs font-bold transition-all ${
                 trendDays === 30
-                  ? "bg-[#DA7756] text-white"
-                  : "text-zinc-500 hover:text-zinc-700"
+                  ? "bg-white text-black shadow-sm"
+                  : "text-zinc-500 hover:text-zinc-900"
               }`}
             >
-              30j
+              30 jours
             </button>
           </div>
         </div>
         {trendPoints.length === 0 ? (
-          <div className="flex items-center justify-center py-16 text-sm text-zinc-400">
-            Aucune donnee disponible
+          <div className="flex items-center justify-center py-16 text-sm font-medium text-zinc-400">
+            Aucune donnee disponible pour cette periode
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={300}>
+          <ResponsiveContainer width="100%" height={320}>
             <AreaChart data={trendPoints} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
               <defs>
                 <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#DA7756" stopOpacity={0.3} />
+                  <stop offset="5%" stopColor="#DA7756" stopOpacity={0.4} />
                   <stop offset="95%" stopColor="#DA7756" stopOpacity={0} />
                 </linearGradient>
                 <linearGradient id="colorJobs" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#E8A87C" stopOpacity={0.3} />
+                  <stop offset="5%" stopColor="#E8A87C" stopOpacity={0.4} />
                   <stop offset="95%" stopColor="#E8A87C" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e4e4e7" />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                tick={{ fontSize: 12, fill: "#71717a", fontWeight: 500 }}
                 axisLine={false}
                 tickLine={false}
+                dy={10}
               />
               <YAxis
-                tick={{ fontSize: 11, fill: "#a1a1aa" }}
+                tick={{ fontSize: 12, fill: "#71717a", fontWeight: 500 }}
                 axisLine={false}
                 tickLine={false}
                 allowDecimals={false}
+                dx={-10}
               />
               <Tooltip
                 contentStyle={{
-                  borderRadius: "0.75rem",
-                  border: "1px solid #e4e4e7",
-                  fontSize: "0.75rem",
+                  borderRadius: "12px",
+                  border: "none",
+                  boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+                  fontWeight: 600,
+                  fontSize: "13px",
                 }}
               />
               <Area
@@ -266,7 +275,7 @@ export default function AdminDashboard() {
                 dataKey="users"
                 name="Inscriptions"
                 stroke="#DA7756"
-                strokeWidth={2}
+                strokeWidth={3}
                 fill="url(#colorUsers)"
               />
               <Area
@@ -274,7 +283,7 @@ export default function AdminDashboard() {
                 dataKey="jobs"
                 name="Publications"
                 stroke="#E8A87C"
-                strokeWidth={2}
+                strokeWidth={3}
                 fill="url(#colorJobs)"
               />
             </AreaChart>
@@ -284,47 +293,47 @@ export default function AdminDashboard() {
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Latest Users */}
-        <div className="xl:col-span-2 rounded-2xl border border-zinc-200 bg-white">
-          <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-4">
-            <h3 className="text-base font-semibold text-zinc-800">Derniers utilisateurs inscrits</h3>
-            <Link href="/utilisateurs/liste" className="text-xs font-medium text-[#DA7756] hover:text-[#C4623F] transition">
+        <div className="xl:col-span-2 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-zinc-100 bg-zinc-50/50 px-6 py-5">
+            <h3 className="text-base font-bold text-zinc-900">Derniers utilisateurs inscrits</h3>
+            <Link href="/utilisateurs/liste" className="rounded-lg bg-[#FFF5EF] px-3 py-1.5 text-xs font-bold text-[#DA7756] transition hover:text-[#C4623F]">
               Voir tout &rarr;
             </Link>
           </div>
           {latestUsers.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <Users className="h-10 w-10 text-zinc-300 mb-3" />
-              <p className="text-sm text-zinc-400">Aucun utilisateur inscrit</p>
+              <p className="text-sm font-medium text-zinc-400">Aucun utilisateur inscrit</p>
             </div>
           ) : (
             <div className="divide-y divide-zinc-100">
               {latestUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between px-6 py-3.5">
+                <div key={user.id} className="flex items-center justify-between px-6 py-4 transition hover:bg-zinc-50/50">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black ${
                       user.isVerified
-                        ? "bg-[#FEEBD6] text-[#DA7756]"
+                        ? "bg-gradient-to-br from-[#FEEBD6] to-[#FFF5EF] text-[#DA7756]"
                         : "bg-zinc-100 text-zinc-500"
                     }`}>
                       {(user.name || user.email).slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-zinc-800 truncate">{user.name || "Sans nom"}</p>
-                      <p className="text-xs text-zinc-400 truncate flex items-center gap-1">
-                        <Mail className="h-3 w-3" /> {user.email}
+                      <p className="truncate text-sm font-bold text-zinc-900">{user.name || "Sans nom"}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-xs font-medium text-zinc-500">
+                        <Mail className="h-3.5 w-3.5" /> {user.email}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0 ml-3">
-                    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold ${
-                      user.role === "ENTREPRISE" ? "bg-purple-50 text-purple-700 border-purple-200"
-                      : user.role === "ARTISAN" ? "bg-amber-50 text-amber-700 border-amber-200"
-                      : user.role === "ADMIN" ? "bg-[#FFF5EF] text-[#DA7756] border-[#E8C4B0]"
-                      : "bg-blue-50 text-blue-700 border-blue-200"
+                    <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${
+                      user.role === "ENTREPRISE" ? "bg-purple-50 text-purple-700"
+                      : user.role === "ARTISAN" ? "bg-amber-50 text-amber-700"
+                      : user.role === "ADMIN" ? "bg-black text-white"
+                      : "bg-blue-50 text-blue-700"
                     }`}>
                       {user.role}
                     </span>
-                    {user.isVerified && <UserCheck className="h-3.5 w-3.5 text-[#DA7756]" />}
+                    {user.isVerified && <UserCheck className="h-5 w-5 text-[#DA7756]" />}
                   </div>
                 </div>
               ))}
@@ -333,60 +342,67 @@ export default function AdminDashboard() {
         </div>
 
         {/* Moderation urgente */}
-        <div className="rounded-2xl border border-zinc-200 bg-white p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-base font-semibold text-zinc-800">
+        <div className="h-fit rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-base font-bold text-zinc-900">
               A moderer
               {pendingJobs.length > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700">
+                <span className="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-black text-red-700">
                   {pendingJobs.length}
                 </span>
               )}
             </h3>
-            <Link href="/moderation/jobs" className="text-xs font-medium text-[#DA7756] hover:text-[#C4623F] transition">
-              Tout voir &rarr;
+            <Link href="/moderation/jobs" className="text-xs font-bold text-[#DA7756] hover:underline">
+              Tout voir
             </Link>
           </div>
 
+          {actionError && (
+            <div className="mb-4 flex items-center gap-2 rounded-xl border border-red-100 bg-red-50 p-3 text-xs font-bold text-red-600 animate-in fade-in">
+              <AlertTriangle className="h-4 w-4" />
+              {actionError}
+            </div>
+          )}
+
           {pendingJobs.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <CheckCircle className="h-10 w-10 text-[#DA7756] mb-3" />
-              <p className="text-sm font-medium text-zinc-600">Aucune annonce en attente</p>
-              <p className="text-xs text-zinc-400 mt-1">Tout est a jour !</p>
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-zinc-50 py-12 text-center">
+              <CheckCircle className="mb-4 h-12 w-12 text-emerald-400" />
+              <p className="text-sm font-bold text-zinc-700">Aucune annonce en attente</p>
+              <p className="mt-1 text-xs font-medium text-zinc-500">L'annuaire est a jour !</p>
             </div>
           ) : (
             <div className="space-y-3">
               {pendingJobs.map((job) => (
                 <div
                   key={job.id}
-                  className="flex items-center justify-between rounded-xl bg-zinc-50 border border-zinc-100 p-3.5"
+                  className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:border-zinc-300"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-zinc-800 truncate">{job.title}</p>
-                    <p className="text-xs text-zinc-500 truncate">
+                    <p className="mb-0.5 truncate text-sm font-bold text-zinc-900">{job.title}</p>
+                    <p className="truncate text-xs font-medium text-zinc-500">
                       {job.company} &bull; {job.location}
                     </p>
                   </div>
-                  <div className="flex gap-1.5 ml-3 shrink-0">
+                  <div className="ml-3 flex shrink-0 gap-2">
                     <button
                       onClick={() => handleModeration(job.id, "APPROVED")}
                       disabled={actionLoading === job.id}
-                      className="rounded-lg bg-[#FFF5EF] p-2 text-[#DA7756] hover:bg-[#FEEBD6] transition disabled:opacity-50"
+                      className="rounded-lg bg-emerald-50 p-2.5 text-emerald-600 transition hover:bg-emerald-100 hover:text-emerald-700 disabled:opacity-50"
                       title="Approuver"
                     >
                       {actionLoading === job.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <CheckCircle className="h-4 w-4" />
+                        <CheckCircle className="h-4 w-4 stroke-[2.5]" />
                       )}
                     </button>
                     <button
                       onClick={() => handleModeration(job.id, "REJECTED")}
                       disabled={actionLoading === job.id}
-                      className="rounded-lg bg-red-50 p-2 text-red-600 hover:bg-red-100 transition disabled:opacity-50"
+                      className="rounded-lg bg-red-50 p-2.5 text-red-600 transition hover:bg-red-100 hover:text-red-700 disabled:opacity-50"
                       title="Rejeter"
                     >
-                      <XCircle className="h-4 w-4" />
+                      <XCircle className="h-4 w-4 stroke-[2.5]" />
                     </button>
                   </div>
                 </div>
@@ -410,7 +426,7 @@ function StatCard({
 }: {
   title: string;
   value: number;
-  icon: React.ReactNode;
+  icon: ReactNode;
   color: string;
   bg: string;
   border: string;
@@ -419,14 +435,14 @@ function StatCard({
   return (
     <Link
       href={href}
-      className={`flex items-center gap-4 rounded-2xl border ${border} ${bg} p-5 transition hover:shadow-md`}
+      className={`flex h-full items-center gap-4 rounded-2xl border ${border} bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-lg`}
     >
-      <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${bg} ${color}`}>
+      <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${bg} ${color}`}>
         {icon}
       </div>
       <div>
-        <p className="text-xs font-medium text-zinc-500">{title}</p>
-        <p className="text-2xl font-bold text-zinc-900">{value}</p>
+        <p className="mb-1 text-xs font-bold uppercase tracking-wider text-zinc-500">{title}</p>
+        <p className="text-3xl font-black tracking-tight text-zinc-900">{value}</p>
       </div>
     </Link>
   );

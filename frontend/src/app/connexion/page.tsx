@@ -63,7 +63,6 @@ function ConnexionContent() {
   const [selectedRole, setSelectedRole] = useState<SignupRole>('chercheur');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [username, setUsername] = useState('');
   const [selectedCountryCode, setSelectedCountryCode] = useState<CountryPhoneOption['code']>('CM');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -126,10 +125,6 @@ function ConnexionContent() {
       setAuthError(isEn ? 'Last name and first name are required.' : 'Le nom et le prenom sont obligatoires.');
       return;
     }
-    if (!username.trim()) {
-      setAuthError(isEn ? 'Please choose a username.' : 'Veuillez choisir un nom d utilisateur.');
-      return;
-    }
     if (!cleanedLocalPhone || cleanedLocalPhone.length < 6 || cleanedLocalPhone.length > 14) {
       setAuthError(isEn ? 'Valid phone number required.' : 'Numero de telephone valide requis.');
       return;
@@ -150,8 +145,8 @@ function ConnexionContent() {
     setIsSubmitting(true);
     try {
       const fullName = selectedRole === 'entreprise'
-        ? `${companyName.trim()} — ${firstName.trim()} ${lastName.trim()} (@${username.trim()})`
-        : `${firstName.trim()} ${lastName.trim()} (@${username.trim()})`;
+        ? `${companyName.trim()} — ${firstName.trim()} ${lastName.trim()}`
+        : `${firstName.trim()} ${lastName.trim()}`;
 
       await createUser({
         email: email.trim() || undefined,
@@ -535,17 +530,6 @@ function ConnexionContent() {
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
                   />
                 </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Username' : 'Nom d utilisateur'} *</label>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, ''))}
-                  placeholder={isEn ? 'e.g. marie.ngono' : 'ex. marie.ngono'}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
-                />
               </div>
 
               {selectedRole === 'entreprise' && (

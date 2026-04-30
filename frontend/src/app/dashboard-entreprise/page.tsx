@@ -112,6 +112,7 @@ function DashboardEntrepriseContent() {
   const accountKey = (companyName || userName || 'entreprise').toLowerCase();
   const hasCompanyPhoto = Boolean(companyLogoPreview || companyLogoFile);
   const isEnterprisePublishingReady = hasCompanyPhoto;
+  const hasApprovedEnterpriseVerification = profileReviewStatus === 'approved';
   const isEnterpriseCertified = isVerifiedFromBackend || profileReviewStatus === 'approved';
   const companyDisplayName = companyName || userName || employerAccountLabel;
 
@@ -490,6 +491,35 @@ function DashboardEntrepriseContent() {
     }
     if (!companyLogoFile) {
       setPublishMessage(isEn ? 'Company logo is required before publication.' : 'Le logo de l entreprise est obligatoire avant publication.');
+      setPublishMessageType('error');
+      return;
+    }
+    if (!hasApprovedEnterpriseVerification) {
+      if (profileReviewStatus === 'pending') {
+        setPublishMessage(
+          isEn
+            ? 'Your company account is being validated by our administrators. Publication is locked until approval.'
+            : 'Votre compte entreprise est en cours de validation par nos administrateurs. La publication reste bloquee jusqu a approbation.'
+        );
+        setPublishMessageType('info');
+        return;
+      }
+
+      if (profileReviewStatus === 'rejected') {
+        setPublishMessage(
+          isEn
+            ? 'Your company verification was rejected. Update your RCCM or registration documents before publishing again.'
+            : 'La verification de votre entreprise a ete refusee. Mettez a jour votre RCCM ou registre de commerce avant de republier.'
+        );
+        setPublishMessageType('error');
+        return;
+      }
+
+      setPublishMessage(
+        isEn
+          ? 'Submit and validate your RCCM or company registration documents before publishing a job.'
+          : 'Soumettez et faites valider votre RCCM ou registre de commerce avant de publier une offre.'
+      );
       setPublishMessageType('error');
       return;
     }
@@ -995,15 +1025,17 @@ function DashboardEntrepriseContent() {
         <main className="flex-1 min-w-0 pb-24 lg:pb-8">
           <div className="max-w-[1000px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
 
-            {/* Welcome banner */}
-            <div className="mb-6 sm:mb-8">
-              <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900">
-                {isEn ? 'Welcome back' : 'Bienvenue'} {companyName ? `— ${companyName}` : ''} {'\u{1F44B}'}
-              </h1>
-              <p className="text-sm text-gray-500 font-medium mt-1">
-                {isEn ? 'Manage your job listings and find the best candidates.' : 'Gerez vos offres d\'emploi et trouvez les meilleurs candidats.'}
-              </p>
-            </div>
+            {/* Welcome banner - UNIQUEMENT SUR L'ACCUEIL */}
+            {activeSection === 'dashboard' && (
+              <div className="mb-6 sm:mb-8">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-gray-900">
+                  {isEn ? 'Welcome back' : 'Bienvenue'} {companyName ? `— ${companyName}` : ''} {'\u{1F44B}'}
+                </h1>
+                <p className="text-sm text-gray-500 font-medium mt-1">
+                  {isEn ? 'Manage your job listings and find the best candidates.' : 'Gerez vos offres d\'emploi et trouvez les meilleurs candidats.'}
+                </p>
+              </div>
+            )}
 
             {/* ═══ DASHBOARD VIEW ═══ */}
             {activeSection === 'dashboard' && (
@@ -1134,16 +1166,16 @@ function DashboardEntrepriseContent() {
                   </button>
                 </div>
 
-                {/* Recent jobs list */}
-                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="font-bold text-gray-900 text-[15px]">{isEn ? 'Recent Listings' : 'Annonces recentes'}</h3>
+                {/* Recent jobs list - VERSION PREMIUM */}
+                <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-6">
+                  <div className="px-5 sm:px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-[16px]">{isEn ? 'Recent Listings' : 'Annonces recentes'}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{isEn ? 'Manage your latest job posts.' : 'Gerez vos dernieres publications.'}</p>
+                    </div>
                     {publishedJobs.length > 0 && (
-                      <button
-                        onClick={() => navigateTo('listings')}
-                        className="text-green-600 font-bold text-xs hover:underline"
-                      >
-                        {isEn ? 'View all' : 'Voir tout'}
+                      <button onClick={() => navigateTo('listings')} className="text-blue-600 font-bold text-sm hover:underline flex items-center gap-1">
+                        {isEn ? 'View all' : 'Tout voir'} <span className="text-lg">→</span>
                       </button>
                     )}
                   </div>
@@ -1167,14 +1199,57 @@ function DashboardEntrepriseContent() {
                       </button>
                     </div>
                   ) : (
-                    <div className="divide-y divide-gray-50">
+                    <div className="divide-y divide-gray-100">
                       {publishedJobs.slice(0, 5).map(job => (
-                        <div key={job.id} className="px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 hover:bg-gray-50/50 transition">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-bold text-gray-900 text-sm truncate">{job.title}</p>
-                            <p className="text-xs text-gray-500 font-medium mt-0.5">{job.contract} &middot; {job.date}</p>
+                        <div key={job.id} className="group px-5 sm:px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-blue-50/30 transition-all duration-200">
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors shrink-0">
+                              {'\u{1F4BC}'}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-extrabold text-gray-900 text-[15px] group-hover:text-blue-700 transition-colors cursor-pointer truncate">
+                                {job.title}
+                              </p>
+                              <div className="flex items-center gap-2 text-xs text-gray-500 font-medium mt-1 flex-wrap">
+                                <span className="bg-gray-100 px-2 py-0.5 rounded-md text-gray-600">{job.contract}</span>
+                                <span>•</span>
+                                <span>{isEn ? 'Posted on' : 'Publie le'} {job.date}</span>
+                              </div>
+                            </div>
                           </div>
-                          {statusBadge(job.status)}
+
+                          <div className="flex items-center gap-4 mt-3 sm:mt-0">
+                            {statusBadge(job.status)}
+
+                            <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+                              <button
+                                title={isEn ? 'View Candidates' : 'Voir les candidats'}
+                                onClick={() => {
+                                  setSelectedMatchJobId(job.id);
+                                  navigateTo('applications');
+                                }}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                              >
+                                {'\u{1F465}'}
+                              </button>
+                              <button
+                                title={isEn ? 'Edit Job' : "Modifier l'offre"}
+                                onClick={() => navigateTo('listings')}
+                                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                              >
+                                {'\u270F\uFE0F'}
+                              </button>
+                              {job.status !== 'rejected' && (
+                                <button
+                                  title={isEn ? 'Close Job' : "Cloturer l'offre"}
+                                  onClick={() => navigateTo('listings')}
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                  {'\u{1F6D1}'}
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1257,26 +1332,54 @@ function DashboardEntrepriseContent() {
                         </div>
 
                         <div>
-                          <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
-                            {isEn ? 'Company logo' : 'Logo entreprise'}
+                          <label className="block text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">
+                            {isEn ? 'Company logo / profile photo' : 'Logo / photo entreprise'}
                           </label>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => {
-                              handleCompanyLogoUpload(e.target.files?.[0] ?? null);
-                              if (profileReviewStatus === 'approved') {
-                                setProfileReviewStatus('not_submitted');
-                              }
-                            }}
-                            className="w-full p-2.5 border border-gray-300 rounded-xl text-sm bg-white"
-                          />
-                          {companyLogoFile && <p className="mt-1 text-[11px] font-medium text-gray-500">{companyLogoFile.name}</p>}
-                          {companyLogoPreview && (
-                            <div className="mt-2 w-14 h-14 rounded-xl border border-gray-200 overflow-hidden bg-white">
-                              <Image src={companyLogoPreview} alt="Apercu logo" width={56} height={56} className="w-full h-full object-cover" />
+
+                          <div className="flex items-center gap-5">
+                            <label className="relative cursor-pointer group flex flex-col items-center justify-center w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-blue-500 transition-all overflow-hidden shadow-sm">
+                              {companyLogoPreview ? (
+                                <Image src={companyLogoPreview} alt="Logo" width={112} height={112} className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="flex flex-col items-center text-gray-400 group-hover:text-blue-500 transition-colors">
+                                  <span className="text-2xl sm:text-3xl font-extrabold">{getInitials()}</span>
+                                  <span className="text-[10px] mt-1 font-bold uppercase tracking-wide">Upload</span>
+                                </div>
+                              )}
+
+                              <input
+                                type="file"
+                                accept="image/jpeg, image/png, image/webp"
+                                className="hidden"
+                                onChange={(e) => {
+                                  handleCompanyLogoUpload(e.target.files?.[0] ?? null);
+                                  if (profileReviewStatus === 'approved') {
+                                    setProfileReviewStatus('not_submitted');
+                                  }
+                                }}
+                              />
+
+                              {companyLogoPreview && (
+                                <div className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center text-white text-xs font-bold transition-all backdrop-blur-sm">
+                                  {isEn ? 'Change' : 'Modifier'}
+                                </div>
+                              )}
+                            </label>
+
+                            <div className="flex-1">
+                              <p className="text-sm font-bold text-gray-900 mb-1">
+                                {isEn ? 'Professional Logo' : 'Logo Professionnel'}
+                              </p>
+                              <p className="text-xs text-gray-500 font-medium">
+                                {isEn ? 'Format: JPG, PNG, WEBP. Max size: 5MB.' : 'Format: JPG, PNG, WEBP. Taille max: 5 Mo.'}
+                              </p>
+                              {companyLogoFile && (
+                                <p className="mt-2 text-[11px] font-bold text-blue-600 bg-blue-50 inline-block px-2 py-1 rounded-md">
+                                  {companyLogoFile.name}
+                                </p>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
 
@@ -1611,10 +1714,13 @@ function DashboardEntrepriseContent() {
             {activeSection === 'listings' && (
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                  <h2 className="text-lg font-extrabold text-gray-900">{isEn ? 'My Job Listings' : 'Mes annonces'}</h2>
+                  <div>
+                    <h2 className="text-lg font-extrabold text-gray-900">{isEn ? 'My Job Listings' : 'Mes annonces'}</h2>
+                    <p className="text-sm text-gray-500">{isEn ? 'Manage all your published and pending jobs.' : 'Gerez toutes vos offres publiees et en attente.'}</p>
+                  </div>
                   <button
                     onClick={() => navigateTo('post')}
-                    className="bg-green-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-green-700 transition active:scale-[0.98] self-start"
+                    className="bg-green-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-green-700 transition shadow-sm active:scale-[0.98] self-start"
                   >
                     + {isEn ? 'New Job' : 'Nouvelle offre'}
                   </button>
@@ -1629,18 +1735,53 @@ function DashboardEntrepriseContent() {
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden divide-y divide-gray-100">
                     {publishedJobs.map(job => (
-                      <div key={job.id} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center gap-3 hover:shadow-md transition">
-                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center text-lg shrink-0">
-                          {'\u{1F4BC}'}
+                      <div key={job.id} className="group px-5 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between hover:bg-blue-50/30 transition-all duration-200">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors text-xl shrink-0">
+                            {'\u{1F4BC}'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-extrabold text-gray-900 text-[15px] group-hover:text-blue-700 transition-colors cursor-pointer truncate">
+                              {job.title}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-gray-500 font-medium mt-1 flex-wrap">
+                              <span className="bg-gray-100 px-2 py-0.5 rounded-md text-gray-600">{job.contract}</span>
+                              <span>•</span>
+                              <span>{isEn ? 'Posted on' : 'Publie le'} {job.date}</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-gray-900 text-sm truncate">{job.title}</p>
-                          <p className="text-xs text-gray-500 font-medium mt-0.5">{job.contract} &middot; {job.date}</p>
-                        </div>
-                        <div className="flex items-center gap-3 self-start sm:self-center">
+
+                        <div className="flex items-center gap-4 mt-4 sm:mt-0">
                           {statusBadge(job.status)}
+
+                          <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+                            <button
+                              title={isEn ? 'View Candidates' : 'Voir les candidats'}
+                              onClick={() => { setSelectedMatchJobId(job.id); navigateTo('applications'); }}
+                              className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            >
+                              {'\u{1F465}'}
+                            </button>
+                            <button
+                              title={isEn ? 'Edit Job' : "Modifier l'offre"}
+                              onClick={() => navigateTo('listings')}
+                              className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                            >
+                              {'\u270F\uFE0F'}
+                            </button>
+                            {job.status !== 'rejected' && (
+                              <button
+                                title={isEn ? 'Close Job' : "Cloturer l'offre"}
+                                onClick={() => navigateTo('listings')}
+                                className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              >
+                                {'\u{1F6D1}'}
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
@@ -1696,20 +1837,54 @@ function DashboardEntrepriseContent() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
+                      <label className="block text-xs font-bold uppercase text-gray-500 mb-3 tracking-wider">
                         {isEn ? 'Company logo / profile photo' : 'Logo / photo entreprise'}
                       </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleCompanyLogoUpload(e.target.files?.[0] ?? null)}
-                        className="w-full p-3 border border-gray-200 rounded-xl text-sm bg-white"
-                      />
-                      {companyLogoPreview && (
-                        <div className="mt-2 w-14 h-14 rounded-xl border border-gray-200 overflow-hidden bg-white">
-                          <Image src={companyLogoPreview} alt="Apercu logo" width={56} height={56} className="w-full h-full object-cover" />
+
+                      <div className="flex items-center gap-5">
+                        <label className="relative cursor-pointer group flex flex-col items-center justify-center w-24 h-24 sm:w-28 sm:h-28 rounded-2xl border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100 hover:border-blue-500 transition-all overflow-hidden shadow-sm">
+                          {companyLogoPreview ? (
+                            <Image src={companyLogoPreview} alt="Logo" width={112} height={112} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="flex flex-col items-center text-gray-400 group-hover:text-blue-500 transition-colors">
+                              <span className="text-2xl sm:text-3xl font-extrabold">{getInitials()}</span>
+                              <span className="text-[10px] mt-1 font-bold uppercase tracking-wide">Upload</span>
+                            </div>
+                          )}
+
+                          <input
+                            type="file"
+                            accept="image/jpeg, image/png, image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              handleCompanyLogoUpload(e.target.files?.[0] ?? null);
+                              if (profileReviewStatus === 'approved') {
+                                setProfileReviewStatus('not_submitted');
+                              }
+                            }}
+                          />
+
+                          {companyLogoPreview && (
+                            <div className="absolute inset-0 bg-black/60 hidden group-hover:flex items-center justify-center text-white text-xs font-bold transition-all backdrop-blur-sm">
+                              {isEn ? 'Change' : 'Modifier'}
+                            </div>
+                          )}
+                        </label>
+
+                        <div className="flex-1">
+                          <p className="text-sm font-bold text-gray-900 mb-1">
+                            {isEn ? 'Professional Logo' : 'Logo Professionnel'}
+                          </p>
+                          <p className="text-xs text-gray-500 font-medium">
+                            {isEn ? 'Format: JPG, PNG, WEBP. Max size: 5MB.' : 'Format: JPG, PNG, WEBP. Taille max: 5 Mo.'}
+                          </p>
+                          {companyLogoFile && (
+                            <p className="mt-2 text-[11px] font-bold text-blue-600 bg-blue-50 inline-block px-2 py-1 rounded-md">
+                              {companyLogoFile.name}
+                            </p>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
                   </div>
                 </div>

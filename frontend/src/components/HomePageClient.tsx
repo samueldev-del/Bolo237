@@ -1,11 +1,13 @@
 "use client";
 
-import { Suspense, useMemo, useState, useTransition, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { Suspense, useEffect, useMemo, useState, useTransition, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
+import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { fetchJobs, type ApiJob, type JobsResponse } from '@/lib/api';
 import { useApi } from '@/lib/useApi';
 import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
@@ -37,6 +39,8 @@ type LocalJob = {
   titre: string;
   entreprise: string;
   lieu: string;
+  authorPhoto: string | null;
+  authorVerified: boolean;
   publishedHours: number;
   temps: string;
   description: string;
@@ -178,6 +182,8 @@ function apiJobToLocal(job: ApiJob, isEn: boolean): LocalJob {
     titre: job.title,
     entreprise: job.company,
     lieu: job.location,
+    authorPhoto: job.author?.photoUrl || null,
+    authorVerified: Boolean(job.author?.isVerified),
     publishedHours: hours,
     temps: timeAgo(job.createdAt, isEn),
     description,
@@ -307,6 +313,26 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
   const [searchInput, setSearchInput] = useState(initialQuery.search);
   const [locationInput, setLocationInput] = useState(initialQuery.location);
   const [filters, setFilters] = useState<HomeFilters>(DEFAULT_HOME_FILTERS);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isMobileFiltersOpen) {
+      return undefined;
+    }
+
+    const { overflow } = document.body.style;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = overflow;
+    };
+  }, [isMobileFiltersOpen]);
+
+  useEffect(() => {
+    if (searchMode !== 'emploi' && isMobileFiltersOpen) {
+      setIsMobileFiltersOpen(false);
+    }
+  }, [isMobileFiltersOpen, searchMode]);
 
   const isBaseHomeQuery = initialQuery.page === DEFAULT_HOME_QUERY.page
     && !initialQuery.search
@@ -335,7 +361,8 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
   const totalActiveJobs = jobsData?.pagination.total ?? 0;
   const currentPage = jobsData?.pagination.page ?? initialQuery.page;
   const currentLimit = jobsData?.pagination.limit ?? HOME_JOBS_PER_PAGE;
-  const totalPages = jobsData?.pagination.totalPages ?? 0;
+  const realTotalPages = jobsData?.pagination.totalPages ?? 0;
+  const totalPages = Math.min(realTotalPages, 5);
   const resultsStart = totalActiveJobs === 0 ? 0 : (currentPage - 1) * currentLimit + 1;
   const resultsEnd = totalActiveJobs === 0 ? 0 : resultsStart + emplois.length - 1;
   const hasActiveSearch = Boolean(initialQuery.search || initialQuery.location);
@@ -570,14 +597,35 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
         </div>
       </section>
 
-      <div className="max-w-[1400px] w-full mx-auto px-4 flex flex-col lg:flex-row gap-8 flex-grow mb-16 -mt-2">
-        <aside className="w-full lg:basis-[28%] lg:max-w-none shrink-0 space-y-4 h-fit lg:sticky lg:top-24">
+      {searchMode === 'emploi' ? (
+        <button
+          type="button"
+          aria-label={isEn ? 'Close filters panel' : 'Fermer le panneau des filtres'}
+          aria-hidden={!isMobileFiltersOpen}
+          tabIndex={isMobileFiltersOpen ? 0 : -1}
+          disabled={!isMobileFiltersOpen}
+          onClick={() => setIsMobileFiltersOpen(false)}
+          className={`fixed inset-0 z-40 bg-black/35 backdrop-blur-[2px] transition-opacity duration-300 ease-out lg:hidden ${isMobileFiltersOpen ? 'opacity-100' : 'pointer-events-none opacity-0'}`}
+        />
+      ) : null}
+
+      <div className="max-w-[1400px] w-full mx-auto px-4 flex flex-col lg:flex-row gap-8 flex-grow mb-16 mt-10">
+        <aside className={`w-full lg:basis-[28%] lg:max-w-none shrink-0 space-y-4 h-fit lg:sticky lg:top-24 ${searchMode === 'emploi' ? `fixed inset-x-4 top-24 bottom-4 z-50 overflow-y-auto overscroll-contain transition-all duration-300 ease-out motion-reduce:transition-none lg:static lg:inset-auto lg:z-auto lg:block lg:overflow-visible ${isMobileFiltersOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-6 opacity-0 lg:pointer-events-auto lg:translate-y-0 lg:opacity-100'}` : 'hidden lg:block'}`}>
           <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
-            <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white font-bold text-black text-sm flex items-center gap-2">
-              <span className="w-5 h-5 bg-[#FEEBD6] rounded flex items-center justify-center text-[#C4623F]">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-              </span>
-              {isEn ? 'Filter listings' : 'Filtrer annonces'}
+            <div className="p-4 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white font-bold text-black text-sm flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="w-5 h-5 bg-[#FEEBD6] rounded flex items-center justify-center text-[#C4623F]">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+                </span>
+                {isEn ? 'Filter listings' : 'Filtrer annonces'}
+              </div>
+              <button
+                onClick={() => setIsMobileFiltersOpen(false)}
+                className="lg:hidden w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-black transition"
+                type="button"
+              >
+                ✕
+              </button>
             </div>
 
             {searchMode === 'emploi' && (
@@ -705,6 +753,14 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                     </div>
                   </div>
                 ) : null}
+
+                <button
+                  onClick={() => setIsMobileFiltersOpen(false)}
+                  className="lg:hidden w-full mt-4 bg-black text-white font-bold py-3 rounded-xl transition hover:bg-gray-800"
+                  type="button"
+                >
+                  {isEn ? 'Show results' : `Voir les résultats (${visibleJobs.length})`}
+                </button>
               </div>
             )}
 
@@ -730,18 +786,18 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
         </aside>
 
         <section className="w-full lg:basis-[72%]">
-          <div className="flex justify-between items-center mb-6">
+          <div className="flex justify-between items-start sm:items-center mb-6 flex-col sm:flex-row gap-4">
             {searchMode === 'emploi' && visibleJobs.length > 0 ? (
               <h2 className="text-[15px] text-gray-600 font-medium">
                 {hasPanelFiltersActive ? (
                   <>
                     <span className="font-extrabold text-gray-900">{visibleJobs.length}</span>{' '}
-                    {isEn ? 'filtered offers on this page' : 'annonces filtrées sur cette page'}
+                    {isEn ? 'filtered offers' : 'annonces filtrées'}
                   </>
                 ) : (
                   <>
                     <span className="font-extrabold text-gray-900">{resultsStart}-{resultsEnd}</span>{' '}
-                    {isEn ? `of ${totalActiveJobs} verified offers` : `sur ${totalActiveJobs} offres vérifiées`}
+                    {isEn ? 'recent offers (Top 50)' : 'offres récentes (Top 50)'}
                   </>
                 )}
               </h2>
@@ -756,6 +812,17 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                   : (isEn ? 'Artisan profiles' : 'Profils artisans')}
               </h2>
             )}
+
+            {searchMode === 'emploi' && !isMobileFiltersOpen && (
+              <button
+                onClick={() => setIsMobileFiltersOpen(true)}
+                className="lg:hidden flex items-center gap-2 bg-white border border-gray-200 px-4 py-2 rounded-xl text-sm font-bold text-gray-700 shadow-sm"
+                type="button"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                {isEn ? 'Filters' : 'Filtres'} {activeFilterCount > 0 && <span className="bg-[#DA7756] text-white px-1.5 rounded-full text-xs">{activeFilterCount}</span>}
+              </button>
+            )}
           </div>
 
           {searchMode === 'emploi' && visibleJobs.length > 0 && (
@@ -763,20 +830,36 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
               {visibleJobs.map((job) => (
                 <Link key={job.id} href={localizePath(`/annonce/${job.id}`)} className="block group">
                   <article className="bg-white p-5 rounded-2xl border border-gray-200 hover:border-[#DA7756] hover:shadow-lg hover:shadow-[#FFF5EF] transition-all duration-200">
-                    <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-50 flex items-center justify-center shadow-sm">
+                        {job.authorPhoto ? (
+                          <Image src={job.authorPhoto} alt={job.entreprise} width={56} height={56} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xl font-bold text-gray-300">{(job.entreprise || 'B').charAt(0)}</span>
+                        )}
+                      </div>
+
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-lg font-bold text-black mb-1 group-hover:text-[#C4623F] transition">{job.titre}</h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-bold text-black group-hover:text-[#C4623F] transition truncate">
+                            {job.titre}
+                          </h3>
+                          {job.authorVerified ? (
+                            <VerifiedBadge
+                              size={16}
+                              title={isEn ? 'Verified profile' : 'Profil vérifié'}
+                            />
+                          ) : null}
+                        </div>
+
                         <div className="text-sm text-gray-600 font-medium flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span className="flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>{job.entreprise}</span>
+                          <span className="font-bold text-gray-900">{job.entreprise}</span>
                           <span className="text-gray-300">•</span>
-                          <span className="flex items-center gap-1.5"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>{job.lieu}</span>
+                          <span>{job.lieu}</span>
                           <span className="text-gray-300">•</span>
                           <span className="text-gray-400">{job.temps}</span>
                         </div>
                       </div>
-                      <span className="text-[#DA7756] font-bold text-sm opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
-                        {isEn ? 'View →' : 'Voir →'}
-                      </span>
                     </div>
                   </article>
                 </Link>
@@ -791,8 +874,8 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm font-medium text-gray-500">
                   {isEn
-                    ? `Page ${currentPage} of ${totalPages}. Showing up to ${currentLimit} verified offers per page.`
-                    : `Page ${currentPage} sur ${totalPages}. Jusqu’à ${currentLimit} offres vérifiées par page.`}
+                    ? `Page ${currentPage} of ${totalPages}.`
+                    : `Page ${currentPage} sur ${totalPages}.`}
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <button
@@ -802,15 +885,23 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                   >
                     {isEn ? 'Previous' : 'Précédent'}
                   </button>
-                  <button
-                    onClick={() => goToPage(currentPage + 1)}
-                    disabled={currentPage === totalPages || isPending}
-                    className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:border-[#DA7756] hover:text-[#C4623F] transition disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isEn ? 'Next' : 'Suivant'}
-                  </button>
-                  <Link href={localizePath('/emplois')} className="rounded-xl bg-[#FFF5EF] px-4 py-2 text-sm font-bold text-[#C4623F] hover:bg-[#FEEBD6] transition">
-                    {isEn ? 'Open full catalog' : 'Ouvrir le catalogue complet'}
+
+                  {currentPage < totalPages ? (
+                    <button
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={isPending}
+                      className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-600 hover:border-[#DA7756] hover:text-[#C4623F] transition disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {isEn ? 'Next' : 'Suivant'}
+                    </button>
+                  ) : (
+                    <Link href={localizePath('/emplois')} className="rounded-xl border border-[#DA7756] text-[#C4623F] px-4 py-2 text-sm font-bold hover:bg-[#FFF5EF] transition">
+                      {isEn ? 'See more offers' : 'Voir plus d\'offres'}
+                    </Link>
+                  )}
+
+                  <Link href={localizePath('/emplois')} className="hidden sm:block rounded-xl bg-[#FFF5EF] px-4 py-2 text-sm font-bold text-[#C4623F] hover:bg-[#FEEBD6] transition">
+                    {isEn ? 'Open full catalog' : 'Catalogue complet'}
                   </Link>
                 </div>
               </div>

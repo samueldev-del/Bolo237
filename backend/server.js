@@ -943,6 +943,10 @@ function profileFromBody(userId, body) {
     fullName: String(body.fullName || ''),
     title: String(body.title || ''),
     location: String(body.location || ''),
+    availability: String(body.availability || ''),
+    profileVisible: body.profileVisible === undefined ? true : Boolean(body.profileVisible),
+    jobAlertRole: String(body.jobAlertRole || ''),
+    jobAlertCity: String(body.jobAlertCity || ''),
     phone: String(body.phone || ''),
     email: String(body.email || ''),
     profile: String(body.profile || ''),
@@ -1502,14 +1506,21 @@ async function handleTrackContact(req, res) {
       return res.status(400).json({ error: 'Ce profil ne correspond pas a un artisan.' });
     }
 
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        contactClicks: {
-          increment: 1,
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          contactClicks: {
+            increment: 1,
+          },
         },
-      },
-    });
+      }),
+      prisma.contactClickEvent.create({
+        data: {
+          artisanId: userId,
+        },
+      }),
+    ]);
 
     return res.json({ success: true, message: 'Contact comptabilise.' });
   } catch (error) {

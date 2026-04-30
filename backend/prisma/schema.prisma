@@ -48,6 +48,7 @@ model User {
   reviewsGiven     UserReview[]      @relation("reviewer")
   reviewsReceived  UserReview[]      @relation("reviewed")
   candidateProfile CandidateProfile?
+  contactEvents    ContactClickEvent[]
 
   @@index([createdAt])
   @@index([role, createdAt])
@@ -199,6 +200,10 @@ model UserProfile {
   fullName      String   @default("")
   title         String   @default("")
   location      String   @default("")
+  availability  String   @default("")
+  profileVisible Boolean @default(true)
+  jobAlertRole  String   @default("")
+  jobAlertCity  String   @default("")
   phone         String   @default("")
   email         String   @default("")
   profile       String   @default("")
@@ -207,6 +212,16 @@ model UserProfile {
   skillsText    String   @default("")
   languagesText String   @default("")
   updatedAt     DateTime @default(now()) @updatedAt
+}
+
+model ContactClickEvent {
+  id        Int      @id @default(autoincrement())
+  artisan   User     @relation(fields: [artisanId], references: [id], onDelete: Cascade)
+  artisanId Int
+  createdAt DateTime @default(now())
+
+  @@index([artisanId, createdAt])
+  @@index([createdAt])
 }
 
 model SavedJob {

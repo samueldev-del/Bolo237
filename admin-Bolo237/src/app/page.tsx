@@ -368,7 +368,7 @@ export default function AdminDashboard() {
             <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 bg-zinc-50 py-12 text-center">
               <CheckCircle className="mb-4 h-12 w-12 text-emerald-400" />
               <p className="text-sm font-bold text-zinc-700">Aucune annonce en attente</p>
-              <p className="mt-1 text-xs font-medium text-zinc-500">L'annuaire est a jour !</p>
+              <p className="mt-1 text-xs font-medium text-zinc-500">L&apos;annuaire est a jour !</p>
             </div>
           ) : (
             <div className="space-y-3">

@@ -97,14 +97,6 @@ function redirectToLogin(request: NextRequest, clearSession = false) {
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const allowedIps = getAdminAllowedIps();
-
-  if (allowedIps.length > 0) {
-    const clientIp = getClientIpFromHeaders(request.headers, request.nextUrl.hostname);
-    if (!clientIp || !allowedIps.includes(clientIp)) {
-      return notFoundResponse();
-    }
-  }
 
   const sessionToken = request.cookies.get(ADMIN_SESSION_COOKIE_NAME)?.value;
   const hasValidSession = sessionToken ? await isValidAdminSessionToken(sessionToken) : false;
@@ -128,6 +120,19 @@ export async function middleware(request: NextRequest) {
     }
 
     return NextResponse.next();
+  }
+
+  const allowedIps = getAdminAllowedIps();
+  if (allowedIps.length > 0) {
+    const clientIp = getClientIpFromHeaders(request.headers, request.nextUrl.hostname);
+    if (!clientIp || !allowedIps.includes(clientIp)) {
+      console.warn('[MIDDLEWARE IP REJECT]', {
+        clientIp,
+        allowedIps,
+        forwardedFor: request.headers.get('x-forwarded-for'),
+      });
+      return notFoundResponse();
+    }
   }
 
   // Verifier la session admin

@@ -99,6 +99,9 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: "#DA7756",
+  viewportFit: "cover",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode; }>) {
@@ -193,7 +196,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           }}
         />
       </head>
-      <body className={`${inter.className} flex flex-col min-h-screen bg-[#f4f6f8] text-black`}>
+      <body
+        className={`${inter.className} flex flex-col min-h-screen bg-[#f4f6f8] text-black`}
+        style={{
+          paddingTop: 'max(env(safe-area-inset-top), 0px)',
+          paddingBottom: 'max(env(safe-area-inset-bottom), 0px)',
+          paddingLeft: 'max(env(safe-area-inset-left), 0px)',
+          paddingRight: 'max(env(safe-area-inset-right), 0px)',
+        }}
+      >
         <LocaleProvider>
           <main className="grow w-full">
             {children}

@@ -235,8 +235,18 @@ export default function Header() {
         <div className="flex items-center gap-3">
           {/* Lang switch (desktop) */}
           <div className="hidden md:flex items-center text-xs font-bold gap-1 text-gray-400">
-            <button onClick={() => setLocale('fr')} className={`px-2 py-1 rounded ${locale === 'fr' ? 'text-[#C4623F] bg-[#FFF5EF]' : 'hover:text-black'}`}>FR</button>
-            <button onClick={() => setLocale('en')} className={`px-2 py-1 rounded ${locale === 'en' ? 'text-[#C4623F] bg-[#FFF5EF]' : 'hover:text-black'}`}>EN</button>
+            <button
+              onClick={() => setLocale('fr')}
+              className={`px-2 py-1 rounded active:scale-[0.98] transition ${locale === 'fr' ? 'text-[#C4623F] bg-[#FFF5EF]' : 'hover:text-black'}`}
+              aria-label="Français"
+              aria-pressed={locale === 'fr'}
+            >FR</button>
+            <button
+              onClick={() => setLocale('en')}
+              className={`px-2 py-1 rounded active:scale-[0.98] transition ${locale === 'en' ? 'text-[#C4623F] bg-[#FFF5EF]' : 'hover:text-black'}`}
+              aria-label="English"
+              aria-pressed={locale === 'en'}
+            >EN</button>
           </div>
 
           {/* Connexion / Mon compte */}
@@ -273,8 +283,9 @@ export default function Header() {
           {/* BOUTON MENU BURGER */}
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className="flex items-center gap-2 rounded-xl border border-gray-100 p-2.5 transition group hover:bg-gray-50"
-            aria-label="Menu"
+            className="flex items-center justify-center gap-2 rounded-xl border border-gray-100 p-2.5 min-h-[44px] min-w-[44px] transition group hover:bg-gray-50 active:scale-[0.98]"
+            aria-label={isMenuOpen ? (isEn ? 'Close menu' : 'Fermer le menu') : (isEn ? 'Open menu' : 'Ouvrir le menu')}
+            aria-expanded={isMenuOpen}
           >
             {user && (
               <div className="sm:hidden flex items-center gap-2 min-w-0">
@@ -344,8 +355,18 @@ export default function Header() {
             {/* Lang switch mobile */}
             <div className="md:hidden px-6 pt-4 pb-2">
               <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5 text-xs font-extrabold">
-                <button onClick={() => setLocale('fr')} className={`px-4 py-1.5 rounded-full transition ${locale === 'fr' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-500'}`}>FR</button>
-                <button onClick={() => setLocale('en')} className={`px-4 py-1.5 rounded-full transition ${locale === 'en' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-500'}`}>EN</button>
+                <button
+                  onClick={() => setLocale('fr')}
+                  className={`px-4 py-1.5 rounded-full transition active:scale-[0.98] min-h-[36px] ${locale === 'fr' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-500'}`}
+                  aria-label="Français"
+                  aria-pressed={locale === 'fr'}
+                >FR</button>
+                <button
+                  onClick={() => setLocale('en')}
+                  className={`px-4 py-1.5 rounded-full transition active:scale-[0.98] min-h-[36px] ${locale === 'en' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-500'}`}
+                  aria-label="English"
+                  aria-pressed={locale === 'en'}
+                >EN</button>
               </div>
             </div>
 
@@ -448,7 +469,7 @@ export default function Header() {
                   <div className="h-px bg-gray-100 my-2 mx-6"></div>
                   <button
                     onClick={handleLogout}
-                    className="mx-6 my-3 flex items-center gap-3 px-4 py-3 rounded-xl text-red-600 hover:bg-red-50 transition text-sm font-semibold"
+                    className="mx-6 my-3 flex items-center gap-3 px-4 py-3 min-h-[44px] rounded-xl text-red-600 hover:bg-red-50 active:scale-[0.98] transition text-sm font-semibold"
                   >
                     <span>🚪</span>
                     {isEn ? 'Sign out' : 'Se déconnecter'}

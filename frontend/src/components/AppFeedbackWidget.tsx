@@ -12,15 +12,21 @@ const FEEDBACK_SUBMITTED_AT_KEY = 'bolo237-feedback-submitted-at';
 const FEEDBACK_DISMISSED_AT_KEY = 'bolo237-feedback-dismissed-at';
 
 function StarButton({
+  value,
   active,
+  selected,
   onClick,
   onEnter,
   onLeave,
+  isEn,
 }: {
+  value: number;
   active: boolean;
+  selected: boolean;
   onClick: () => void;
   onEnter: () => void;
   onLeave: () => void;
+  isEn: boolean;
 }) {
   return (
     <button
@@ -28,8 +34,9 @@ function StarButton({
       onClick={onClick}
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      className="text-3xl leading-none transition-transform hover:scale-110"
-      aria-label="Rate star"
+      className="text-3xl leading-none flex items-center justify-center min-h-[44px] min-w-[44px] transition-transform hover:scale-110 active:scale-[0.98]"
+      aria-label={isEn ? `Rate ${value} ${value === 1 ? 'star' : 'stars'}` : `Note ${value} ${value === 1 ? 'étoile' : 'étoiles'}`}
+      aria-pressed={selected}
     >
       <span className={active ? 'text-amber-400' : 'text-gray-300'}>★</span>
     </button>
@@ -219,10 +226,13 @@ export default function AppFeedbackWidget() {
             {[1, 2, 3, 4, 5].map((n) => (
               <StarButton
                 key={n}
+                value={n}
                 active={n <= visualRating}
+                selected={n === rating}
                 onClick={() => setRating(n)}
                 onEnter={() => setHoverRating(n)}
                 onLeave={() => setHoverRating(0)}
+                isEn={isEn}
               />
             ))}
           </div>

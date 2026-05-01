@@ -605,7 +605,13 @@ function ConnexionContent() {
                     placeholder={isEn ? '6 characters minimum' : '6 caracteres minimum'}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 text-[15px] pr-12 hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]"
                   />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm flex items-center justify-center min-h-[44px] min-w-[44px] active:scale-[0.98] transition"
+                    aria-label={showPassword ? (isEn ? 'Hide password' : 'Masquer le mot de passe') : (isEn ? 'Show password' : 'Afficher le mot de passe')}
+                    aria-pressed={showPassword}
+                  >
                     {showPassword ? '🙈' : '👁️'}
                   </button>
                 </div>

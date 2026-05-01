@@ -107,7 +107,9 @@ export default function RatingModal({ isOpen, onClose, reviewedId, reviewedName,
               onClick={() => setRating(n)}
               onMouseEnter={() => setHover(n)}
               onMouseLeave={() => setHover(0)}
-              className="text-3xl leading-none p-1"
+              className="text-3xl leading-none flex items-center justify-center min-h-[44px] min-w-[44px] p-1 active:scale-[0.98] transition"
+              aria-label={isEn ? `Rate ${n} ${n === 1 ? 'star' : 'stars'}` : `Note ${n} ${n === 1 ? 'étoile' : 'étoiles'}`}
+              aria-pressed={n === rating}
             >
               <span className={n <= activeStars ? 'text-amber-400' : 'text-gray-300'}>★</span>
             </button>

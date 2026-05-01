@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, memo, useCallback, useEffect, useMemo, useState, useTransition, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { Suspense, memo, useCallback, useEffect, useMemo, useRef, useState, useTransition, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
@@ -227,8 +227,16 @@ function LoadingJobCards() {
 }
 
 const FilterGroup = memo(function FilterGroup({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
+  // Use a ref to set the initial `open` state without rebinding the attribute on
+  // every parent re-render — otherwise React reopens the panel that the user
+  // just closed (very visible on mobile where filter changes re-render often).
+  const detailsRef = useRef<HTMLDetailsElement | null>(null);
+  useEffect(() => {
+    if (detailsRef.current) detailsRef.current.open = defaultOpen;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
-    <details open={defaultOpen} className="group rounded-2xl border border-gray-200 bg-white">
+    <details ref={detailsRef} className="group rounded-2xl border border-gray-200 bg-white">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-gray-900">
         <span>{title}</span>
         <span className="text-gray-400 transition group-open:rotate-180">▾</span>

@@ -270,27 +270,27 @@ function ConnexionContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-black">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1500px]">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col lg:flex-row">
         {/* LEFT PANEL (Form) */}
-        <div className="relative isolate flex w-full lg:w-1/2 overflow-y-auto max-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-24 lg:py-16 xl:px-32">
+        <div className="relative isolate flex w-full lg:w-1/2 lg:overflow-y-auto lg:max-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-24 lg:py-16 xl:px-32">
           <div className="pointer-events-none absolute -top-10 -left-8 h-44 w-44 rounded-full bg-[#FFE6D8] blur-3xl" />
           <div className="pointer-events-none absolute bottom-6 right-2 h-40 w-40 rounded-full bg-[#DBECFF] blur-3xl" />
-          <div className="mx-auto w-full max-w-md rounded-[2rem] border border-white/80 bg-white/95 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-sm sm:p-12 lg:max-w-none lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
+          <div className="mx-auto w-full max-w-md rounded-3xl border border-white/80 bg-white/95 p-5 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-sm sm:rounded-[2rem] sm:p-8 md:p-12 lg:max-w-none lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
           <div className="relative z-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-          <div className="mb-10 flex items-center justify-between gap-3">
+          <div className="mb-6 sm:mb-10 flex items-center justify-between gap-3">
             <div className="flex items-center">
-              <Image src="/logo.svg" alt="Bolo237" width={144} height={40} className="h-10 w-auto" priority />
+              <Image src="/logo.svg" alt="Bolo237" width={144} height={40} className="h-9 sm:h-10 w-auto" priority />
             </div>
-            <Link href={localizePath('/')} className="self-start text-gray-400 hover:text-gray-600 transition">
+            <Link href={localizePath('/')} className="self-start text-gray-400 hover:text-gray-600 transition" aria-label={isEn ? 'Close' : 'Fermer'}>
               <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </Link>
           </div>
 
-          <div className="mb-8">
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">{hero.title}</h1>
-            <p className="text-base font-medium text-gray-500 leading-relaxed">{hero.subtitle}</p>
+          <div className="mb-6 sm:mb-8">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-2 sm:mb-3">{hero.title}</h1>
+            <p className="text-sm sm:text-base font-medium text-gray-500 leading-relaxed">{hero.subtitle}</p>
           </div>
 
           {/* Toggle */}
@@ -550,7 +550,7 @@ function ConnexionContent() {
                   <select
                     value={selectedCountryCode}
                     onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
-                    className="w-[170px] px-3 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 hover:border-gray-400"
+                    className="w-[120px] sm:w-[170px] px-2 sm:px-3 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 hover:border-gray-400 shrink-0"
                   >
                     {COUNTRY_PHONE_OPTIONS.map((country) => (
                       <option key={country.code} value={country.code}>

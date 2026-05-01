@@ -374,7 +374,6 @@ export default function Header() {
               {(localRoleNormalized === 'chercheur' || !localRoleNormalized) && (
                 <>
                   <MenuLink href={localizePath('/recherche')} icon="🔍" label={isEn ? 'Search' : 'Rechercher'} desc={isEn ? 'Find jobs and artisans' : 'Trouver des offres et des artisans'} />
-                  <MenuLink href={localizePath('/connexion')} icon="🔑" label={isEn ? 'Sign in' : 'Se connecter'} desc={isEn ? 'Access your account' : 'Acceder a votre compte'} />
                 </>
               )}
 

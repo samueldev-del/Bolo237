@@ -30,19 +30,19 @@ const BACKEND_ROLE_TO_LOCAL: Record<string, Role> = {
 
 const AUTH_HERO_BY_ROLE: Record<HeroRole, { image: string; title: string; subtitle: string }> = {
   artisan: {
-    image: '/artisant.webp',
-    title: 'Developpez votre activite locale',
-    subtitle: 'Trouvez de nouveaux chantiers et clients pres de chez vous.',
+    image: '/artisant.jpg',
+    title: 'Développez votre activité locale',
+    subtitle: 'Trouvez de nouveaux chantiers et clients près de chez vous.',
   },
   entreprise: {
-    image: '/talent.webp',
+    image: '/talent.jpg',
     title: 'Trouvez vos futurs talents',
     subtitle: 'Publiez vos offres et recrutez les meilleurs profils du Cameroun.',
   },
   candidat: {
     image: '/jobsearch.jpg',
-    title: 'Donnez un elan a votre carriere',
-    subtitle: 'Des centaines d offres d emploi vous attendent chaque jour.',
+    title: 'Donnez un élan à votre carrière',
+    subtitle: "Des centaines d'offres d'emploi vous attendent chaque jour.",
   },
 };
 
@@ -269,27 +269,32 @@ function ConnexionContent() {
   const compactInputClass = 'w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 text-sm hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]';
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#fef3ec,_#f3f4f6_35%,_#eef2ff_100%)] font-sans text-black">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1500px] lg:overflow-hidden">
+    <div className="min-h-screen bg-gray-50 font-sans text-black">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1500px]">
         {/* LEFT PANEL (Form) */}
-        <div className="relative w-full lg:w-1/2 bg-white/90 backdrop-blur-sm p-5 sm:p-8 lg:p-10 overflow-y-auto max-h-screen">
-          <div className="pointer-events-none absolute -top-20 -left-20 h-64 w-64 rounded-full bg-[#FFDCC9]/40 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-24 right-10 h-72 w-72 rounded-full bg-[#CFE6FF]/35 blur-3xl" />
+        <div className="relative isolate flex w-full lg:w-1/2 overflow-y-auto max-h-screen px-4 py-6 sm:px-6 sm:py-8 lg:px-24 lg:py-16 xl:px-32">
+          <div className="pointer-events-none absolute -top-10 -left-8 h-44 w-44 rounded-full bg-[#FFE6D8] blur-3xl" />
+          <div className="pointer-events-none absolute bottom-6 right-2 h-40 w-40 rounded-full bg-[#DBECFF] blur-3xl" />
+          <div className="mx-auto w-full max-w-md rounded-[2rem] border border-white/80 bg-white/95 p-8 shadow-[0_20px_60px_rgba(15,23,42,0.12)] backdrop-blur-sm sm:p-12 lg:max-w-none lg:rounded-none lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none">
           <div className="relative z-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
-          {/* Mobile logo + close */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="md:hidden">
-              <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
+          <div className="mb-10 flex items-center justify-between gap-3">
+            <div className="flex items-center">
+              <Image src="/logo.svg" alt="Bolo237" width={144} height={40} className="h-10 w-auto" priority />
             </div>
-            <Link href={localizePath('/')} className="text-gray-400 hover:text-gray-600 transition ml-auto">
+            <Link href={localizePath('/')} className="self-start text-gray-400 hover:text-gray-600 transition">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </Link>
           </div>
 
+          <div className="mb-8">
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-gray-900 mb-3">{hero.title}</h1>
+            <p className="text-base font-medium text-gray-500 leading-relaxed">{hero.subtitle}</p>
+          </div>
+
           {/* Toggle */}
-          <div className="bg-gray-100 p-1 rounded-full inline-flex mb-6 self-start w-full sm:w-auto">
+          <div className="mb-6 inline-flex w-full self-start rounded-2xl bg-white/70 p-1.5 ring-1 ring-gray-200 sm:w-auto">
             <button
               onClick={() => { setIsLogin(true); setAuthError(''); }}
               className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-200 ${isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-white/50'}`}
@@ -308,8 +313,8 @@ function ConnexionContent() {
           {isLogin && (
             <div className="space-y-5 flex-1">
               <div>
-                <h2 className="text-2xl font-extrabold mb-1">{isEn ? 'Sign in' : 'Connexion'}</h2>
-                <p className="text-sm text-gray-500">{isEn ? 'Access your dashboard.' : 'Accedez a votre espace candidat, entreprise ou artisan.'}</p>
+                <h2 className="mb-2 text-3xl font-extrabold tracking-tight text-gray-900">{isEn ? 'Sign in' : 'Connexion'}</h2>
+                <p className="text-base text-gray-500">{isEn ? 'Access your dashboard.' : 'Accedez a votre espace candidat, entreprise ou artisan.'}</p>
               </div>
               <div className="space-y-3">
                 <div>
@@ -475,8 +480,8 @@ function ConnexionContent() {
           {!isLogin && (
             <div className="space-y-5 flex-1">
               <div>
-                <h2 className="text-2xl font-extrabold mb-1">{isEn ? 'Create your account' : 'Creer votre compte'}</h2>
-                <p className="text-sm text-gray-500">
+                <h2 className="mb-2 text-3xl font-extrabold tracking-tight text-gray-900">{isEn ? 'Create your account' : 'Creer votre compte'}</h2>
+                <p className="text-base text-gray-500">
                   {isEn ? 'One simple form, instant access to your dashboard.' : 'Un formulaire unique, acces instantane a votre dashboard.'}
                 </p>
               </div>
@@ -628,7 +633,7 @@ function ConnexionContent() {
               >
                 {isSubmitting
                   ? (isEn ? 'Creating account...' : 'Creation du compte...')
-                  : (isEn ? 'Sign up instantly' : 'Inscription instantanee')}
+                  : (isEn ? 'Sign up' : 'S\'inscrire')}
               </button>
             </div>
           )}
@@ -651,25 +656,26 @@ function ConnexionContent() {
             </p>
           </div>
           </div>
+          </div>
         </div>
 
         {/* RIGHT PANEL (Illustration) */}
         <aside className="relative hidden lg:block lg:w-1/2">
           <Image
+            key={hero.image}
             src={hero.image}
             alt={hero.title}
             fill
             priority
             className="object-cover"
           />
-          <div className="absolute inset-0 bg-black/20" />
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.22),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.14),transparent_40%)]" />
+          <div className="absolute inset-0 bg-gradient-to-br from-black/10 via-black/30 to-black/60" />
           <div className="absolute inset-0 flex flex-col justify-between p-10 text-white xl:p-14">
             <Link href={localizePath('/')}>
               <Image src="/logo-white.svg" alt="Bolo237" width={160} height={42} priority className="h-10 w-auto" />
             </Link>
 
-            <div>
+            <div className="max-w-xl rounded-3xl border border-white/20 bg-white/10 p-6 backdrop-blur-md xl:p-8">
               <p className="mb-3 inline-flex rounded-full bg-white/15 px-4 py-1.5 text-xs font-bold uppercase tracking-wide backdrop-blur-sm">
                 {heroRole === 'artisan' ? 'Artisan' : heroRole === 'entreprise' ? 'Entreprise' : 'Candidat'}
               </p>

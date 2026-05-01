@@ -3,12 +3,7 @@ import "server-only";
 const DEFAULT_BACKEND_API_URL = "https://api-237jobs.onrender.com";
 const SESSION_COOKIE_NAME = "bolo237_session";
 const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
-const TRUSTED_FRONTEND_HOSTS = new Set([
-  "admin.bolo237.com",
-  "www.bolo237.com",
-  "localhost",
-  "127.0.0.1",
-]);
+const PROD_ORIGIN = String(process.env.NEXT_PUBLIC_APP_URL || "").trim() || "https://admin.bolo237.com";
 
 type CachedBackendSession = {
   cookie: string;
@@ -18,80 +13,8 @@ type CachedBackendSession = {
 let cachedBackendSession: CachedBackendSession | null = null;
 let pendingBackendLogin: Promise<string> | null = null;
 
-type BackendRequestContext = {
-  origin?: string;
-};
-
 function normalizeBase(value: string) {
   return String(value || "").trim().replace(/\/$/, "");
-}
-
-function normalizeHost(value: string) {
-  const normalizedInput = String(value || "").trim().toLowerCase();
-  if (!normalizedInput) {
-    return "";
-  }
-
-  const first = normalizedInput.split(",")[0]?.trim() || "";
-  if (!first) {
-    return "";
-  }
-
-  const withoutProtocol = first.replace(/^https?:\/\//, "");
-  const withoutPath = withoutProtocol.split("/")[0] || "";
-  const withoutPort = withoutPath.split(":")[0] || "";
-  return withoutPort.trim();
-}
-
-function isTrustedFrontendHost(host: string) {
-  return TRUSTED_FRONTEND_HOSTS.has(host) || host.endsWith(".vercel.app");
-}
-
-function buildOrigin(protocol: string, host: string) {
-  return `${protocol}://${host}`;
-}
-
-export function resolveTrustedOriginFromRequest(request: Request) {
-  const originHeader = String(request.headers.get("origin") || "").trim();
-  if (originHeader) {
-    try {
-      const parsed = new URL(originHeader);
-      const host = normalizeHost(parsed.hostname);
-      if (host && isTrustedFrontendHost(host)) {
-        return parsed.origin;
-      }
-    } catch {
-      // Ignore malformed origin and continue with host-based fallback.
-    }
-  }
-
-  const forwardedProto = String(request.headers.get("x-forwarded-proto") || "").trim().toLowerCase();
-  const requestProtocol = (() => {
-    try {
-      return new URL(request.url).protocol.replace(":", "").toLowerCase();
-    } catch {
-      return "https";
-    }
-  })();
-  const protocol = forwardedProto === "http" || forwardedProto === "https"
-    ? forwardedProto
-    : requestProtocol === "http" || requestProtocol === "https"
-      ? requestProtocol
-      : "https";
-
-  const hostCandidates = [
-    request.headers.get("x-forwarded-host"),
-    request.headers.get("host"),
-  ];
-
-  for (const candidate of hostCandidates) {
-    const host = normalizeHost(candidate || "");
-    if (host && isTrustedFrontendHost(host)) {
-      return buildOrigin(protocol, host);
-    }
-  }
-
-  throw new Error("Origine admin non autorisee.");
 }
 
 function getBackendApiBase() {
@@ -172,7 +95,7 @@ function isAdminRole(role: unknown) {
   return ADMIN_ROLES.has(String(role || "").toUpperCase());
 }
 
-async function loginAsBackendAdmin(forceRefresh = false, context?: BackendRequestContext): Promise<string> {
+async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
   if (!forceRefresh) {
     const cachedCookie = getCachedSessionCookie();
     if (cachedCookie) {
@@ -186,11 +109,8 @@ async function loginAsBackendAdmin(forceRefresh = false, context?: BackendReques
   pendingBackendLogin = (async () => {
     const { email, password } = getBackendAdminCredentials();
     const headers = new Headers({ "Content-Type": "application/json" });
-    const trustedOrigin = String(context?.origin || "").trim();
-    if (trustedOrigin) {
-      headers.set("origin", trustedOrigin);
-      headers.set("referer", `${trustedOrigin}/`);
-    }
+    headers.set("origin", PROD_ORIGIN);
+    headers.set("referer", `${PROD_ORIGIN}/`);
 
     const response = await fetch(`${getBackendApiBase()}/api/auth/login`, {
       method: "POST",
@@ -227,8 +147,8 @@ async function loginAsBackendAdmin(forceRefresh = false, context?: BackendReques
   return pendingBackendLogin;
 }
 
-export async function ensureBackendAdminSession(forceRefresh = false, context?: BackendRequestContext) {
-  return loginAsBackendAdmin(forceRefresh, context);
+export async function ensureBackendAdminSession(forceRefresh = false) {
+  return loginAsBackendAdmin(forceRefresh);
 }
 
 export function clearBackendAdminSession() {
@@ -236,18 +156,20 @@ export function clearBackendAdminSession() {
   pendingBackendLogin = null;
 }
 
-export async function fetchBackendAsAdmin(path: string, init?: RequestInit, context?: BackendRequestContext) {
+export async function fetchBackendAsAdmin(path: string, init?: RequestInit) {
   if (!String(path || "").startsWith("/api/")) {
     throw new Error("Chemin backend invalide.");
   }
 
   const execute = async (forceRefresh: boolean) => {
-    const sessionCookie = await loginAsBackendAdmin(forceRefresh, context);
+    const sessionCookie = await loginAsBackendAdmin(forceRefresh);
     const headers = new Headers(init?.headers);
     headers.delete("connection");
     headers.delete("content-length");
     headers.delete("cookie");
     headers.delete("host");
+    headers.set("origin", PROD_ORIGIN);
+    headers.set("referer", `${PROD_ORIGIN}/`);
     headers.set("cookie", sessionCookie);
 
     return fetch(`${getBackendApiBase()}${path}`, {

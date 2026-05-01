@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAuthenticated } from "@/lib/auth";
-import { fetchBackendAsAdmin, resolveTrustedOriginFromRequest } from "@/lib/backend-admin";
+import { fetchBackendAsAdmin } from "@/lib/backend-admin";
 
 // Render free-tier cold starts can take 30s+
 export const maxDuration = 60;
@@ -29,8 +29,6 @@ async function proxyRequest(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Chemin backend manquant." }, { status: 400 });
     }
 
-    const trustedOrigin = resolveTrustedOriginFromRequest(request);
-
     const requestUrl = new URL(request.url);
     const backendPath = `/api/${path.join("/")}${requestUrl.search}`;
     const method = request.method.toUpperCase();
@@ -40,7 +38,7 @@ async function proxyRequest(request: Request, context: RouteContext) {
       method,
       headers: forwardHeaders(request),
       body: bodyText && bodyText.length > 0 ? bodyText : undefined,
-    }, { origin: trustedOrigin });
+    });
 
     // Read full body to avoid streaming issues in serverless
     const body = await upstream.arrayBuffer();

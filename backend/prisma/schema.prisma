@@ -28,34 +28,36 @@ enum JobStatus {
 
 // 1. Table des Utilisateurs
 model User {
-  id               Int               @id @default(autoincrement())
-  email            String            @unique
+  id               Int                 @id @default(autoincrement())
+  email            String              @unique
   password         String
   name             String?
-  phone            String?           @unique
+  phone            String?             @unique
   photoUrl         String?
-  contactClicks    Int               @default(0)
-  role             Role              @default(CANDIDAT)
-  isVerified       Boolean           @default(false)
-  isBanned         Boolean           @default(false)
+  contactClicks    Int                 @default(0)
+  role             Role                @default(CANDIDAT)
+  isVerified       Boolean             @default(false)
+  isBanned         Boolean             @default(false)
   bannedAt         DateTime?
   banReason        String?
-  createdAt        DateTime          @default(now())
+  createdAt        DateTime            @default(now())
   jobs             Job[]
   notifications    Notification[]
   privacyRequests  PrivacyRequest[]
   appFeedbacks     AppFeedback[]
-  reviewsGiven     UserReview[]      @relation("reviewer")
-  reviewsReceived  UserReview[]      @relation("reviewed")
+  reviewsGiven     UserReview[]        @relation("reviewer")
+  reviewsReceived  UserReview[]        @relation("reviewed")
   candidateProfile CandidateProfile?
   contactEvents    ContactClickEvent[]
   applications     Application[]
   services         ArtisanService[]
   portfolio        ArtisanPortfolio[]
+  userProfile      UserProfile?
 
   @@index([createdAt])
   @@index([role, createdAt])
   @@index([role, isVerified])
+  @@index([role, isVerified, createdAt])
   @@index([isBanned, bannedAt])
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_name_trgm_idx")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_email_trgm_idx")
@@ -70,41 +72,40 @@ model ArtisanService {
   price       String?
   createdAt   DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
 
 model ArtisanPortfolio {
-  id          Int      @id @default(autoincrement())
-  userId      Int
-  imageUrl    String
-  title       String?
-  createdAt   DateTime @default(now())
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  imageUrl  String
+  title     String?
+  createdAt DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
 
 // 2. Table des Offres d'Emploi
 model Job {
-  id          Int       @id @default(autoincrement())
-  title       String
-  company     String
-  location    String
-  description String
-  salary      String?
-  status      JobStatus @default(PENDING)
-  author      User      @relation(fields: [authorId], references: [id])
-  authorId    Int
-  createdAt   DateTime  @default(now())
+  id           Int           @id @default(autoincrement())
+  title        String
+  company      String
+  location     String
+  description  String
+  salary       String?
+  status       JobStatus     @default(PENDING)
+  author       User          @relation(fields: [authorId], references: [id])
+  authorId     Int
+  createdAt    DateTime      @default(now())
+  applications Application[]
 
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([authorId, createdAt])
-  applications     Application[]
-
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_title_trgm_idx")
   @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_company_trgm_idx")
   @@index([location(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_location_trgm_idx")
@@ -226,22 +227,23 @@ model CandidateProfile {
 }
 
 model UserProfile {
-  userId        Int      @id
-  fullName      String   @default("")
-  title         String   @default("")
-  location      String   @default("")
-  availability  String   @default("")
-  profileVisible Boolean @default(true)
-  jobAlertRole  String   @default("")
-  jobAlertCity  String   @default("")
-  phone         String   @default("")
-  email         String   @default("")
-  profile       String   @default("")
-  experience    String   @default("")
-  education     String   @default("")
-  skillsText    String   @default("")
-  languagesText String   @default("")
-  updatedAt     DateTime @default(now()) @updatedAt
+  userId         Int      @id
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fullName       String   @default("")
+  title          String   @default("")
+  location       String   @default("")
+  availability   String   @default("")
+  profileVisible Boolean  @default(true)
+  jobAlertRole   String   @default("")
+  jobAlertCity   String   @default("")
+  phone          String   @default("")
+  email          String   @default("")
+  profile        String   @default("")
+  experience     String   @default("")
+  education      String   @default("")
+  skillsText     String   @default("")
+  languagesText  String   @default("")
+  updatedAt      DateTime @default(now()) @updatedAt
 }
 
 model ContactClickEvent {
@@ -317,6 +319,7 @@ model SupportTicket {
   @@index([mailboxPath, createdAt])
   @@index([mailboxPath, status])
 }
+
 model Application {
   id          Int      @id @default(autoincrement())
   jobId       Int
@@ -328,9 +331,12 @@ model Application {
   updatedAt   DateTime @updatedAt
 
   // Relations
-  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  candidate   User     @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  job       Job  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate User @relation(fields: [candidateId], references: [id], onDelete: Cascade)
 
   // 🛡️ Double sécurité Anti-Spam directement dans la BDD (Un candidat ne peut postuler qu'une seule fois à une offre)
   @@unique([jobId, candidateId])
+  @@index([candidateId, createdAt])
+  @@index([jobId, status])
+  @@index([status, createdAt])
 }

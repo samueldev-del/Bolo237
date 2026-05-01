@@ -27,11 +27,18 @@ router.get('/artisans', async (req, res) => {
 		};
 
 		if (categorie) {
-			whereClause.title = { contains: categorie, mode: 'insensitive' };
+			whereClause.userProfile = {
+				is: { title: { contains: categorie, mode: 'insensitive' } },
+			};
 		}
 
 		if (location) {
-			whereClause.location = { contains: location, mode: 'insensitive' };
+			whereClause.userProfile = {
+				is: {
+					...(whereClause.userProfile?.is || {}),
+					location: { contains: location, mode: 'insensitive' },
+				},
+			};
 		}
 
 		if (service) {
@@ -45,25 +52,31 @@ router.get('/artisans', async (req, res) => {
 			};
 		}
 
-		const [total, artisans] = await prisma.$transaction([
+		const [total, artisanRows] = await prisma.$transaction([
 			prisma.user.count({ where: whereClause }),
 			prisma.user.findMany({
 				where: whereClause,
 				select: {
 					id: true,
-					fullName: true,
 					name: true,
-					title: true,
-					location: true,
 					photoUrl: true,
 					phone: true,
-					profile: true,
+					userProfile: {
+						select: {
+							fullName: true,
+							title: true,
+							location: true,
+							profile: true,
+						},
+					},
+					// Cap related rows fetched for the directory listing to avoid over-fetch.
 					services: {
 						select: {
 							name: true,
 							price: true,
 						},
 						orderBy: { createdAt: 'desc' },
+						take: 3,
 					},
 					portfolio: {
 						select: {
@@ -72,12 +85,30 @@ router.get('/artisans', async (req, res) => {
 						orderBy: { createdAt: 'desc' },
 						take: 3,
 					},
+					_count: {
+						select: { services: true, portfolio: true },
+					},
 				},
 				orderBy,
 				skip,
 				take: limit,
 			}),
 		]);
+
+		// Flatten userProfile fields onto each artisan to preserve the legacy API shape.
+		const artisans = artisanRows.map((a) => ({
+			id: a.id,
+			name: a.name,
+			photoUrl: a.photoUrl,
+			phone: a.phone,
+			fullName: a.userProfile?.fullName || '',
+			title: a.userProfile?.title || '',
+			location: a.userProfile?.location || '',
+			profile: a.userProfile?.profile || '',
+			services: a.services,
+			portfolio: a.portfolio,
+			_count: a._count,
+		}));
 
 		const totalPages = Math.max(1, Math.ceil(total / limit));
 
@@ -105,7 +136,7 @@ router.get('/artisans/:id', async (req, res) => {
 			return res.status(400).json({ success: false, message: 'Identifiant artisan invalide' });
 		}
 
-		const artisan = await prisma.user.findFirst({
+		const row = await prisma.user.findFirst({
 			where: {
 				id: artisanId,
 				role: 'ARTISAN',
@@ -113,13 +144,17 @@ router.get('/artisans/:id', async (req, res) => {
 			},
 			select: {
 				id: true,
-				fullName: true,
 				name: true,
-				title: true,
-				location: true,
 				photoUrl: true,
 				phone: true,
-				profile: true,
+				userProfile: {
+					select: {
+						fullName: true,
+						title: true,
+						location: true,
+						profile: true,
+					},
+				},
 				services: {
 					select: {
 						id: true,
@@ -142,9 +177,22 @@ router.get('/artisans/:id', async (req, res) => {
 			},
 		});
 
-		if (!artisan) {
+		if (!row) {
 			return res.status(404).json({ success: false, message: 'Artisan introuvable' });
 		}
+
+		const artisan = {
+			id: row.id,
+			name: row.name,
+			photoUrl: row.photoUrl,
+			phone: row.phone,
+			fullName: row.userProfile?.fullName || '',
+			title: row.userProfile?.title || '',
+			location: row.userProfile?.location || '',
+			profile: row.userProfile?.profile || '',
+			services: row.services,
+			portfolio: row.portfolio,
+		};
 
 		return res.json({ success: true, artisan });
 	} catch (error) {

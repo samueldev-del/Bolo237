@@ -7,7 +7,11 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
+  addArtisanService,
+  addPortfolioImage,
   createJob,
+  fetchArtisanPortfolio,
+  fetchArtisanServices,
   fetchArtisanDashboardOverview,
   fetchSessionUser,
   fetchUserProfile,
@@ -15,10 +19,15 @@ import {
   upsertUserProfile,
   uploadFile,
   type ApiJob,
+  type ArtisanPortfolioItem,
+  type ArtisanService,
   type ArtisanClickHistoryPoint,
   fetchVerificationStatus,
   createVerificationSubmission,
+  removeArtisanService,
+  removePortfolioImage,
   ApiError,
+  type Pagination,
   type UserProfile,
   type VerificationStatus,
 } from '@/lib/api';
@@ -31,6 +40,25 @@ type AdDraft = {
   location: string;
   contract?: string;
   salary?: string;
+};
+
+type ArtisanServiceView = {
+  id?: number;
+  name: string;
+  desc: string;
+  price: string;
+};
+
+type PortfolioImageView = {
+  id?: number;
+  url: string;
+  name: string;
+};
+
+type PendingDeleteTarget = {
+  kind: 'portfolio' | 'service';
+  index: number;
+  label: string;
 };
 
 /* ------------------------------------------------------------------ */
@@ -249,7 +277,7 @@ export default function DashboardArtisan() {
   const [serviceName, setServiceName] = useState('');
   const [serviceDesc, setServiceDesc] = useState('');
   const [servicePrice, setServicePrice] = useState('');
-  const [services, setServices] = useState<{ name: string; desc: string; price: string }[]>([]);
+  const [services, setServices] = useState<ArtisanServiceView[]>([]);
   const [profileDraft, setProfileDraft] = useState<Omit<UserProfile, 'userId' | 'updatedAt'>>(() => createEmptyUserProfileDraft({
     fullName: userName || '',
     title: userSpecialty || '',
@@ -260,8 +288,18 @@ export default function DashboardArtisan() {
 
   /* portfolio */
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [portfolioImages, setPortfolioImages] = useState<{ url: string; name: string }[]>([]);
+  const [portfolioImages, setPortfolioImages] = useState<PortfolioImageView[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [portfolioPage, setPortfolioPage] = useState(1);
+  const [portfolioPagination, setPortfolioPagination] = useState<Pagination | null>(null);
+  const [isLoadingMorePortfolio, setIsLoadingMorePortfolio] = useState(false);
+  const [uploadingPortfolioNames, setUploadingPortfolioNames] = useState<string[]>([]);
+  const [deletingPortfolioId, setDeletingPortfolioId] = useState<number | null>(null);
+  const [deletingServiceId, setDeletingServiceId] = useState<number | null>(null);
+  const [pendingDeleteTarget, setPendingDeleteTarget] = useState<PendingDeleteTarget | null>(null);
+  const [isDeleteDialogBusy, setIsDeleteDialogBusy] = useState(false);
+
+  const portfolioLimit = 9;
 
   const isArtisanVerified = isVerifiedFromBackend || verificationStatus === 'approved';
   const accountKey = (userName || 'artisan').toLowerCase();
@@ -318,10 +356,34 @@ export default function DashboardArtisan() {
 
     const loadEditableProfile = async () => {
       try {
-        const profile = await fetchUserProfile(userId);
+        const [profile, servicesRows, portfolioPageData] = await Promise.all([
+          fetchUserProfile(userId),
+          fetchArtisanServices(userId).catch(() => [] as ArtisanService[]),
+          fetchArtisanPortfolio(userId, { page: 1, limit: portfolioLimit }).catch(() => ({
+            items: [] as ArtisanPortfolioItem[],
+            pagination: { page: 1, limit: portfolioLimit, total: 0, totalPages: 1 },
+          })),
+        ]);
         if (!active) return;
 
         setProfileDraft(createEmptyUserProfileDraft(profile));
+        setServices(
+          servicesRows.map((service) => ({
+            id: service.id,
+            name: service.name,
+            desc: service.description || '',
+            price: service.price || '',
+          }))
+        );
+        setPortfolioImages(
+          portfolioPageData.items.map((item) => ({
+            id: item.id,
+            url: item.imageUrl,
+            name: item.title || item.imageUrl.split('/').pop() || 'Portfolio',
+          }))
+        );
+        setPortfolioPage(1);
+        setPortfolioPagination(portfolioPageData.pagination);
 
         if (profile.title) {
           setUserSpecialty(profile.title);
@@ -347,6 +409,31 @@ export default function DashboardArtisan() {
             title: current.title || userSpecialty || '',
             location: current.location || userLocation || '',
           }));
+          const [servicesRows, portfolioPageData] = await Promise.all([
+            fetchArtisanServices(userId).catch(() => [] as ArtisanService[]),
+            fetchArtisanPortfolio(userId, { page: 1, limit: portfolioLimit }).catch(() => ({
+              items: [] as ArtisanPortfolioItem[],
+              pagination: { page: 1, limit: portfolioLimit, total: 0, totalPages: 1 },
+            })),
+          ]);
+          if (!active) return;
+          setServices(
+            servicesRows.map((service) => ({
+              id: service.id,
+              name: service.name,
+              desc: service.description || '',
+              price: service.price || '',
+            }))
+          );
+          setPortfolioImages(
+            portfolioPageData.items.map((item) => ({
+              id: item.id,
+              url: item.imageUrl,
+              name: item.title || item.imageUrl.split('/').pop() || 'Portfolio',
+            }))
+          );
+          setPortfolioPage(1);
+          setPortfolioPagination(portfolioPageData.pagination);
           return;
         }
       }
@@ -690,26 +777,209 @@ export default function DashboardArtisan() {
     setVerificationMessage(isEn ? 'AI draft applied. You can still edit.' : 'Brouillon IA applique. Vous pouvez encore modifier.');
   };
 
-  /* portfolio file handler */
-  const handleFiles = (files: FileList | null) => {
-    if (!files) return;
-    const newImages: { url: string; name: string }[] = [];
-    Array.from(files).forEach((f) => {
-      if (f.type.startsWith('image/') && f.size <= 5 * 1024 * 1024) {
-        newImages.push({ url: URL.createObjectURL(f), name: f.name });
+  /* portfolio file handler (upload + persistence) */
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || !userId) return;
+
+    for (const file of Array.from(files)) {
+      if (!file.type.startsWith('image/')) continue;
+
+      if (file.size > 5 * 1024 * 1024) {
+        setVerificationMessage(
+          isEn
+            ? `Image ${file.name} exceeds 5MB and was skipped.`
+            : `L image ${file.name} depasse 5 Mo et a ete ignoree.`
+        );
+        continue;
       }
-    });
-    setPortfolioImages((prev) => [...prev, ...newImages]);
+
+      setUploadingPortfolioNames((prev) => [...prev, file.name]);
+      try {
+        const uploaded = await uploadFile(file, 'artisan-portfolio');
+        const saved = await addPortfolioImage(userId, {
+          imageUrl: uploaded.url,
+          title: file.name,
+        });
+
+        setPortfolioImages((prev) => [
+          {
+            id: saved.id,
+            url: saved.imageUrl,
+            name: saved.title || file.name,
+          },
+          ...prev,
+        ]);
+        setPortfolioPagination((prev) => {
+          if (!prev) return prev;
+          return { ...prev, total: prev.total + 1 };
+        });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setVerificationMessage(
+          isEn
+            ? `Portfolio upload failed for ${file.name}: ${message}`
+            : `Echec de l upload portfolio pour ${file.name} : ${message}`
+        );
+      } finally {
+        setUploadingPortfolioNames((prev) => prev.filter((name) => name !== file.name));
+      }
+    }
   };
 
-  /* add service */
-  const addService = () => {
-    if (!serviceName.trim()) return;
-    setServices((prev) => [...prev, { name: serviceName, desc: serviceDesc, price: servicePrice }]);
-    setServiceName('');
-    setServiceDesc('');
-    setServicePrice('');
-    setShowServiceForm(false);
+  const loadMorePortfolio = async () => {
+    if (!userId || isLoadingMorePortfolio) return;
+    if (!portfolioPagination || portfolioPage >= portfolioPagination.totalPages) return;
+
+    const nextPage = portfolioPage + 1;
+    setIsLoadingMorePortfolio(true);
+    try {
+      const next = await fetchArtisanPortfolio(userId, { page: nextPage, limit: portfolioLimit });
+      setPortfolioImages((prev) => [
+        ...prev,
+        ...next.items.map((item) => ({
+          id: item.id,
+          url: item.imageUrl,
+          name: item.title || item.imageUrl.split('/').pop() || 'Portfolio',
+        })),
+      ]);
+      setPortfolioPage(nextPage);
+      setPortfolioPagination(next.pagination);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVerificationMessage(
+        isEn
+          ? `Unable to load more portfolio images: ${message}`
+          : `Impossible de charger plus d images portfolio : ${message}`
+      );
+    } finally {
+      setIsLoadingMorePortfolio(false);
+    }
+  };
+
+  const deletePortfolioEntry = async (index: number) => {
+    const target = portfolioImages[index];
+    if (!target) return;
+
+    if (!target.id) {
+      setPortfolioImages((prev) => prev.filter((_, idx) => idx !== index));
+      return;
+    }
+
+    if (!userId) return;
+    setDeletingPortfolioId(target.id);
+    try {
+      await removePortfolioImage(userId, target.id);
+      setPortfolioImages((prev) => prev.filter((item) => item.id !== target.id));
+      setPortfolioPagination((prev) => {
+        if (!prev) return prev;
+        return { ...prev, total: Math.max(0, prev.total - 1) };
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVerificationMessage(
+        isEn
+          ? `Unable to delete portfolio image: ${message}`
+          : `Impossible de supprimer l image portfolio : ${message}`
+      );
+    } finally {
+      setDeletingPortfolioId(null);
+    }
+  };
+
+  /* add service (DB persistence) */
+  const addService = async () => {
+    if (!serviceName.trim() || !userId) return;
+
+    try {
+      const saved = await addArtisanService(userId, {
+        name: serviceName.trim(),
+        description: serviceDesc.trim(),
+        price: servicePrice.trim(),
+      });
+
+      setServices((prev) => [
+        {
+          id: saved.id,
+          name: saved.name,
+          desc: saved.description || '',
+          price: saved.price || '',
+        },
+        ...prev,
+      ]);
+      setServiceName('');
+      setServiceDesc('');
+      setServicePrice('');
+      setShowServiceForm(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVerificationMessage(
+        isEn
+          ? `Service save failed: ${message}`
+          : `Echec lors de l enregistrement du service : ${message}`
+      );
+    }
+  };
+
+  const deleteService = async (index: number) => {
+    const target = services[index];
+    if (!target) return;
+
+    if (!target.id) {
+      setServices((prev) => prev.filter((_, idx) => idx !== index));
+      return;
+    }
+
+    if (!userId) return;
+    setDeletingServiceId(target.id);
+    try {
+      await removeArtisanService(userId, target.id);
+      setServices((prev) => prev.filter((item) => item.id !== target.id));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setVerificationMessage(
+        isEn
+          ? `Unable to delete service: ${message}`
+          : `Impossible de supprimer le service : ${message}`
+      );
+    } finally {
+      setDeletingServiceId(null);
+    }
+  };
+
+  const requestDeletePortfolio = (index: number) => {
+    const target = portfolioImages[index];
+    if (!target) return;
+    setPendingDeleteTarget({
+      kind: 'portfolio',
+      index,
+      label: target.name || (isEn ? 'this photo' : 'cette photo'),
+    });
+  };
+
+  const requestDeleteService = (index: number) => {
+    const target = services[index];
+    if (!target) return;
+    setPendingDeleteTarget({
+      kind: 'service',
+      index,
+      label: target.name || (isEn ? 'this service' : 'ce service'),
+    });
+  };
+
+  const confirmDeleteTarget = async () => {
+    if (!pendingDeleteTarget) return;
+    setIsDeleteDialogBusy(true);
+
+    try {
+      if (pendingDeleteTarget.kind === 'portfolio') {
+        await deletePortfolioEntry(pendingDeleteTarget.index);
+      } else {
+        await deleteService(pendingDeleteTarget.index);
+      }
+    } finally {
+      setIsDeleteDialogBusy(false);
+      setPendingDeleteTarget(null);
+    }
   };
 
   const submitToSuperAdmin = async () => {
@@ -1362,6 +1632,10 @@ export default function DashboardArtisan() {
                   />
                 </div>
 
+                <p className="mb-4 text-xs font-semibold text-gray-600">
+                  {completionLabel}
+                </p>
+
                 <div className="flex flex-wrap gap-4 text-xs font-bold">
                   <span className={`flex items-center gap-1.5 rounded-md px-2 py-1 ${profilePhotoPreview ? 'bg-green-50 text-green-600' : 'border border-gray-100 bg-gray-50 text-gray-500'}`}>
                     {profilePhotoPreview ? '✓' : '○'} {isEn ? 'Photo added' : 'Photo ajoutee'}
@@ -1392,7 +1666,7 @@ export default function DashboardArtisan() {
                 <div
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
-                  onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFiles(e.dataTransfer.files); }}
+                  onDrop={(e) => { e.preventDefault(); setDragOver(false); void handleFiles(e.dataTransfer.files); }}
                   onClick={() => fileInputRef.current?.click()}
                   className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center transition cursor-pointer flex flex-col items-center justify-center ${dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:bg-gray-50'}`}
                 >
@@ -1401,7 +1675,7 @@ export default function DashboardArtisan() {
                     type="file"
                     accept="image/*"
                     multiple
-                    onChange={(e) => handleFiles(e.target.files)}
+                    onChange={(e) => { void handleFiles(e.target.files); }}
                     className="hidden"
                   />
                   <span className="mb-3 block text-4xl">📱</span>
@@ -1418,6 +1692,13 @@ export default function DashboardArtisan() {
                     <span>📸</span>
                     {isEn ? 'Open camera' : 'Ouvrir l appareil photo'}
                   </button>
+                  {uploadingPortfolioNames.length > 0 ? (
+                    <p className="mt-3 text-xs font-bold text-blue-600">
+                      {isEn
+                        ? `Uploading ${uploadingPortfolioNames.length} image(s)...`
+                        : `Telechargement de ${uploadingPortfolioNames.length} image(s)...`}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="mt-6">
@@ -1439,16 +1720,32 @@ export default function DashboardArtisan() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              setPortfolioImages((prev) => prev.filter((_, idx) => idx !== i));
+                              requestDeletePortfolio(i);
                             }}
-                            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-xs font-bold text-red-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-50"
+                            disabled={deletingPortfolioId === img.id}
+                            className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-white/90 text-xs font-bold text-red-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-50 disabled:opacity-60"
                           >
-                            &#10005;
+                            {deletingPortfolioId === img.id ? '…' : '&#10005;'}
                           </button>
                         </div>
                       ))}
                     </div>
                   )}
+
+                  {portfolioPagination && portfolioPage < portfolioPagination.totalPages ? (
+                    <div className="mt-4 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => { void loadMorePortfolio(); }}
+                        disabled={isLoadingMorePortfolio}
+                        className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                      >
+                        {isLoadingMorePortfolio
+                          ? (isEn ? 'Loading...' : 'Chargement...')
+                          : (isEn ? 'Load more photos' : 'Charger plus de photos')}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -1507,10 +1804,11 @@ export default function DashboardArtisan() {
                     {services.map((service, index) => (
                       <div key={index} className="group relative rounded-xl border border-gray-100 bg-gray-50/70 p-4 transition hover:border-gray-200 hover:bg-white hover:shadow-sm">
                         <button
-                          onClick={() => setServices((prev) => prev.filter((_, idx) => idx !== index))}
-                          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-red-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-50"
+                          onClick={() => requestDeleteService(index)}
+                          disabled={deletingServiceId === service.id}
+                          className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-white text-xs font-bold text-red-500 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 hover:bg-red-50 disabled:opacity-60"
                         >
-                          &#10005;
+                          {deletingServiceId === service.id ? '…' : '&#10005;'}
                         </button>
                         <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-lg">
                           🛠️
@@ -1787,6 +2085,43 @@ export default function DashboardArtisan() {
         </section>
 
       </main>
+
+      {pendingDeleteTarget ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+            <h3 className="text-base font-extrabold text-gray-900">
+              {isEn ? 'Confirm deletion' : 'Confirmer la suppression'}
+            </h3>
+            <p className="mt-2 text-sm text-gray-600">
+              {pendingDeleteTarget.kind === 'portfolio'
+                ? (isEn
+                    ? `Delete photo "${pendingDeleteTarget.label}"? This action cannot be undone.`
+                    : `Supprimer la photo "${pendingDeleteTarget.label}" ? Cette action est irreversible.`)
+                : (isEn
+                    ? `Delete service "${pendingDeleteTarget.label}"? This action cannot be undone.`
+                    : `Supprimer le service "${pendingDeleteTarget.label}" ? Cette action est irreversible.`)}
+            </p>
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setPendingDeleteTarget(null)}
+                disabled={isDeleteDialogBusy}
+                className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
+              >
+                {isEn ? 'Cancel' : 'Annuler'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { void confirmDeleteTarget(); }}
+                disabled={isDeleteDialogBusy}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {isDeleteDialogBusy ? (isEn ? 'Deleting...' : 'Suppression...') : (isEn ? 'Delete' : 'Supprimer')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* ============================================================ */}
       {/*  MOBILE BOTTOM NAVIGATION                                     */}

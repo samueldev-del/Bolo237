@@ -15,7 +15,17 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
   console.warn('⚠️ Cloudinary not configured — file uploads will fail');
 }
 
-const ALLOWED_UPLOAD_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_UPLOAD_MIME = new Set([
+  // Images (Profils, Logos)
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+
+  // Documents (CVs)
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+]);
 
 const uploadsRoot = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsRoot)) {
@@ -27,7 +37,7 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_UPLOAD_MIME.has(String(file.mimetype || '').toLowerCase())) {
-      return cb(new Error('Invalid file type'));
+      return cb(new Error('Format de fichier non supporte. Veuillez envoyer un PDF, DOC, DOCX, JPG ou PNG.'));
     }
     cb(null, true);
   },

@@ -5,7 +5,13 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
-import { fetchUserProfile, fetchUserReviews, trackArtisanContactClick, type UserReview } from '@/lib/api';
+import {
+  fetchPublicArtisanProfile,
+  fetchUserReviews,
+  trackArtisanContactClick,
+  type ApiArtisanPublicDetail,
+  type UserReview,
+} from '@/lib/api';
 import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import RatingModal from '@/components/RatingModal';
 
@@ -37,6 +43,7 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
   const isLoggedIn = Boolean(userSnapshot);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [publicDetail, setPublicDetail] = useState<ApiArtisanPublicDetail | null>(null);
   const [artisan, setArtisan] = useState<{
     id: string;
     nom: string;
@@ -75,17 +82,19 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
         return;
       }
       try {
-        const profile = await fetchUserProfile(artisanId);
+        const profile = await fetchPublicArtisanProfile(artisanId);
+        setPublicDetail(profile);
         setArtisan({
           id,
-          nom: profile.fullName || (locale === 'fr' ? 'Artisan' : 'Artisan'),
+          nom: profile.fullName || profile.name || (locale === 'fr' ? 'Artisan' : 'Artisan'),
           specialite: profile.title || '',
-          verifie: false,
+          verifie: true,
           whatsapp: profile.phone || '',
           location: profile.location || '',
           profile: profile.profile || '',
         });
       } catch {
+        setPublicDetail(null);
         setArtisan(null);
       } finally {
         setLoading(false);
@@ -272,6 +281,57 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
             <p className="text-gray-700 leading-relaxed whitespace-pre-line">{artisan.profile}</p>
           </section>
         )}
+
+        <section className="bg-white border border-gray-200 rounded-2xl p-6">
+          <h2 className="text-xl md:text-2xl font-extrabold mb-4">{locale === 'fr' ? 'Services proposes' : 'Offered services'}</h2>
+          {publicDetail?.services?.length ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {publicDetail.services.map((service) => (
+                <article key={service.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                  <p className="font-extrabold text-gray-900">{service.name}</p>
+                  {service.description ? (
+                    <p className="mt-1 text-sm text-gray-600 leading-relaxed">{service.description}</p>
+                  ) : null}
+                  {service.price ? (
+                    <p className="mt-2 inline-flex rounded-lg bg-green-50 border border-green-100 text-green-700 px-2 py-1 text-xs font-extrabold">
+                      {service.price}
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 font-medium">
+              {locale === 'fr' ? 'Aucun service detaille pour le moment.' : 'No detailed services yet.'}
+            </p>
+          )}
+        </section>
+
+        <section className="bg-white border border-gray-200 rounded-2xl p-6">
+          <h2 className="text-xl md:text-2xl font-extrabold mb-4">Portfolio</h2>
+          {publicDetail?.portfolio?.length ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {publicDetail.portfolio.map((item) => (
+                <figure key={item.id} className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+                  <Image
+                    src={item.imageUrl}
+                    alt={item.title || `${artisan.nom} portfolio`}
+                    width={420}
+                    height={320}
+                    className="h-32 w-full object-cover"
+                  />
+                  {item.title ? (
+                    <figcaption className="px-3 py-2 text-xs font-bold text-gray-600">{item.title}</figcaption>
+                  ) : null}
+                </figure>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 font-medium">
+              {locale === 'fr' ? 'Pas encore de photos partagees.' : 'No photos shared yet.'}
+            </p>
+          )}
+        </section>
 
         <section className="bg-white border border-gray-200 rounded-2xl p-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">

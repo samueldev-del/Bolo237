@@ -9,8 +9,11 @@ import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
   createJob,
+  updateJob,
+  updateApplicationStatus,
   fetchEnterpriseDashboardOverview,
   fetchCandidateProfileDetail,
+  fetchJobApplications,
   uploadFile,
   fetchSessionUser,
   fetchUserNotifications,
@@ -19,6 +22,7 @@ import {
   fetchVerificationStatus,
   createVerificationSubmission,
   ApiError,
+  type ApiApplication,
   type ApiNotification,
   type ApiJob,
   type VerificationStatus,
@@ -52,6 +56,8 @@ type CandidateMatchResult = {
   strengths: string[];
   gaps: string[];
 };
+
+type ApplicationStatusFilter = 'ALL' | 'PENDING' | 'REVIEWED' | 'ACCEPTED' | 'REJECTED';
 
 type SidebarSection = 'dashboard' | 'post' | 'listings' | 'applications' | 'interviews' | 'cvtheque' | 'profile' | 'billing';
 
@@ -108,6 +114,12 @@ function DashboardEntrepriseContent() {
   const [matchError, setMatchError] = useState('');
   const [matchSource, setMatchSource] = useState<'gemini' | 'heuristic' | ''>('');
   const [candidateMatches, setCandidateMatches] = useState<CandidateMatchResult[]>([]);
+  const [jobApplications, setJobApplications] = useState<ApiApplication[]>([]);
+  const [isLoadingApplications, setIsLoadingApplications] = useState(false);
+  const [applicationActionMessage, setApplicationActionMessage] = useState('');
+  const [applicationActionBusyId, setApplicationActionBusyId] = useState<number | null>(null);
+  const [applicationStatusFilter, setApplicationStatusFilter] = useState<ApplicationStatusFilter>('ALL');
+  const [pendingRejectApplicationId, setPendingRejectApplicationId] = useState<number | null>(null);
 
   const accountKey = (companyName || userName || 'entreprise').toLowerCase();
   const hasCompanyPhoto = Boolean(companyLogoPreview || companyLogoFile);
@@ -355,6 +367,32 @@ function DashboardEntrepriseContent() {
     }
   }, [notifications, authoredJobs, selectedMatchJobId]);
 
+  useEffect(() => {
+    if (!selectedMatchJobId || !userId) {
+      setJobApplications([]);
+      return;
+    }
+
+    let active = true;
+    const loadApplications = async () => {
+      setIsLoadingApplications(true);
+      try {
+        const apps = await fetchJobApplications(selectedMatchJobId);
+        if (active) setJobApplications(apps);
+      } catch {
+        if (active) setJobApplications([]);
+      } finally {
+        if (active) setIsLoadingApplications(false);
+      }
+    };
+
+    loadApplications();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedMatchJobId, userId]);
+
   // Get company initials
   const getInitials = useCallback(() => {
     return companyDisplayName
@@ -417,6 +455,17 @@ function DashboardEntrepriseContent() {
 
   // Publishing state
   const [isPublishing, setIsPublishing] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [editingJobId, setEditingJobId] = useState<number | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    title: '',
+    location: '',
+    description: '',
+    salary: '',
+  });
+  const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editMessage, setEditMessage] = useState('');
 
   const optimizeJobWithAi = async () => {
     if (!jobTitle.trim() || !jobDescription.trim()) {
@@ -483,8 +532,14 @@ function DashboardEntrepriseContent() {
 
   /* ── Publish Job ── */
   const publishJob = async () => {
+    setFormErrors({});
+
     const blocked = containsBlockedKeyword(`${jobTitle} ${jobDescription}`);
     if (!jobTitle.trim() || !jobDescription.trim()) {
+      setFormErrors({
+        ...(!jobTitle.trim() ? { title: isEn ? 'Job title is required.' : 'Le titre du poste est obligatoire.' } : {}),
+        ...(!jobDescription.trim() ? { description: isEn ? 'Job description is required.' : 'La description est obligatoire.' } : {}),
+      });
       setPublishMessage(isEn ? 'Fill in title and description first.' : 'Renseignez d\'abord le titre et la description.');
       setPublishMessageType('error');
       return;
@@ -600,8 +655,33 @@ function DashboardEntrepriseContent() {
       setJobContract('CDI');
       setJobLocation('');
       setJobSalary('');
+      setFormErrors({});
       setWizardStep(1);
     } catch (err) {
+      if (err instanceof ApiError) {
+        const payload = err.details as { errors?: Array<{ champ?: string; message?: string }>; message?: string; error?: string } | undefined;
+        if (payload?.errors && Array.isArray(payload.errors)) {
+          const nextErrors: Record<string, string> = {};
+          payload.errors.forEach((errorItem) => {
+            const field = String(errorItem?.champ || '').trim();
+            const message = String(errorItem?.message || '').trim();
+            if (field && message) {
+              nextErrors[field] = message;
+            }
+          });
+          if (Object.keys(nextErrors).length > 0) {
+            setFormErrors(nextErrors);
+            setPublishMessage(
+              isEn
+                ? 'Please correct the highlighted form fields.'
+                : 'Veuillez corriger les champs en erreur dans le formulaire.'
+            );
+            setPublishMessageType('error');
+            return;
+          }
+        }
+      }
+
       const message = err instanceof Error ? err.message : String(err);
       setPublishMessage(
         isEn
@@ -611,6 +691,97 @@ function DashboardEntrepriseContent() {
       setPublishMessageType('error');
     } finally {
       setIsPublishing(false);
+    }
+  };
+
+  const openEditJob = (jobId: number) => {
+    const source = authoredJobs.find((job) => job.id === jobId);
+    if (!source) {
+      setEditMessage(isEn ? 'Job not found for editing.' : 'Annonce introuvable pour edition.');
+      return;
+    }
+
+    setEditingJobId(jobId);
+    setEditFormData({
+      title: source.title || '',
+      location: source.location || '',
+      description: source.description || '',
+      salary: source.salary || '',
+    });
+    setEditFormErrors({});
+    setEditMessage('');
+  };
+
+  const closeEditJob = () => {
+    setEditingJobId(null);
+    setEditFormErrors({});
+    setEditMessage('');
+  };
+
+  const saveEditedJob = async () => {
+    if (!editingJobId) return;
+
+    setEditFormErrors({});
+    setEditMessage('');
+
+    const nextErrors: Record<string, string> = {};
+    if (!editFormData.title.trim()) {
+      nextErrors.title = isEn ? 'Job title is required.' : 'Le titre du poste est obligatoire.';
+    }
+    if (!editFormData.description.trim()) {
+      nextErrors.description = isEn ? 'Job description is required.' : 'La description est obligatoire.';
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setEditFormErrors(nextErrors);
+      setEditMessage(
+        isEn
+          ? 'Please correct the highlighted form fields.'
+          : 'Veuillez corriger les champs en erreur dans le formulaire.'
+      );
+      return;
+    }
+
+    setIsSavingEdit(true);
+    try {
+      const updated = await updateJob(editingJobId, {
+        title: editFormData.title.trim(),
+        location: editFormData.location.trim(),
+        description: editFormData.description.trim(),
+        salary: editFormData.salary.trim() || null,
+      });
+
+      setAuthoredJobs((prev) => prev.map((job) => (job.id === editingJobId ? { ...job, ...updated } : job)));
+      setPublishedJobs((prev) => prev.map((job) => (job.id === editingJobId ? { ...job, title: updated.title } : job)));
+      closeEditJob();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const payload = error.details as { errors?: Array<{ champ?: string; message?: string }>; message?: string; error?: string } | undefined;
+        if (payload?.errors && Array.isArray(payload.errors)) {
+          const mappedErrors: Record<string, string> = {};
+          payload.errors.forEach((item) => {
+            const field = String(item?.champ || '').trim();
+            const message = String(item?.message || '').trim();
+            if (field && message) {
+              mappedErrors[field] = message;
+            }
+          });
+          if (Object.keys(mappedErrors).length > 0) {
+            setEditFormErrors(mappedErrors);
+            setEditMessage(
+              isEn
+                ? 'Please correct the highlighted form fields.'
+                : 'Veuillez corriger les champs en erreur dans le formulaire.'
+            );
+            return;
+          }
+        }
+      }
+
+      const message = error instanceof Error ? error.message : String(error);
+      setEditMessage(isEn ? `Unable to update this listing: ${message}` : `Impossible de mettre a jour cette annonce : ${message}`);
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -739,6 +910,105 @@ function DashboardEntrepriseContent() {
       setIsMatchingCandidates(false);
     }
   };
+
+  const applicationStatusUi = (status: string) => {
+    const normalized = String(status || '').toUpperCase();
+    if (normalized === 'ACCEPTED') {
+      return {
+        label: isEn ? 'Accepted' : 'Acceptee',
+        className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      };
+    }
+
+    if (normalized === 'REJECTED') {
+      return {
+        label: isEn ? 'Rejected' : 'Refusee',
+        className: 'bg-red-50 text-red-700 border-red-200',
+      };
+    }
+
+    if (normalized === 'REVIEWED') {
+      return {
+        label: isEn ? 'Reviewed' : 'Vue',
+        className: 'bg-amber-50 text-amber-700 border-amber-200',
+      };
+    }
+
+    return {
+      label: isEn ? 'Pending' : 'En attente',
+      className: 'bg-blue-50 text-blue-700 border-blue-200',
+    };
+  };
+
+  const handleApplicationStatusUpdate = async (
+    applicationId: number,
+    status: 'REVIEWED' | 'ACCEPTED' | 'REJECTED'
+  ) => {
+    if (!selectedMatchJobId) return;
+
+    setApplicationActionMessage('');
+    setApplicationActionBusyId(applicationId);
+
+    try {
+      const updated = await updateApplicationStatus(applicationId, status);
+      setJobApplications((prev) =>
+        prev.map((item) => (item.id === applicationId ? { ...item, status: updated.status } : item))
+      );
+
+      setApplicationActionMessage(
+        isEn
+          ? 'Application status updated successfully.'
+          : 'Le statut de la candidature a ete mis a jour avec succes.'
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setApplicationActionMessage(
+        isEn
+          ? `Unable to update application status: ${message}`
+          : `Impossible de mettre a jour le statut de candidature : ${message}`
+      );
+    } finally {
+      setApplicationActionBusyId(null);
+    }
+  };
+
+  const filteredJobApplications = jobApplications.filter((application) => {
+    if (applicationStatusFilter === 'ALL') return true;
+    return String(application.status || '').toUpperCase() === applicationStatusFilter;
+  });
+
+  const applicationStatusCounts: Record<ApplicationStatusFilter, number> = {
+    ALL: jobApplications.length,
+    PENDING: 0,
+    REVIEWED: 0,
+    ACCEPTED: 0,
+    REJECTED: 0,
+  };
+
+  jobApplications.forEach((application) => {
+    const normalized = String(application.status || 'PENDING').toUpperCase();
+    if (normalized === 'REVIEWED' || normalized === 'ACCEPTED' || normalized === 'REJECTED') {
+      applicationStatusCounts[normalized] += 1;
+      return;
+    }
+    applicationStatusCounts.PENDING += 1;
+  });
+
+  const applicationStatusChipClass: Record<ApplicationStatusFilter, string> = {
+    ALL: 'border-gray-200 bg-gray-50 text-gray-700',
+    PENDING: 'border-blue-200 bg-blue-50 text-blue-700',
+    REVIEWED: 'border-amber-200 bg-amber-50 text-amber-700',
+    ACCEPTED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    REJECTED: 'border-red-200 bg-red-50 text-red-700',
+  };
+
+  const applyStatusFilterOptions: Array<{ value: ApplicationStatusFilter; label: string }> = [
+    { value: 'ALL', label: isEn ? 'All statuses' : 'Tous les statuts' },
+    { value: 'PENDING', label: isEn ? 'Pending' : 'En attente' },
+    { value: 'REVIEWED', label: isEn ? 'Reviewed' : 'Vue' },
+    { value: 'ACCEPTED', label: isEn ? 'Accepted' : 'Acceptee' },
+    { value: 'REJECTED', label: isEn ? 'Rejected' : 'Refusee' },
+  ];
 
   /* ── Status badge helper ── */
   const statusBadge = (status: JobEntry['status']) => {
@@ -1464,10 +1734,21 @@ function DashboardEntrepriseContent() {
                           <input
                             type="text"
                             value={jobTitle}
-                            onChange={(e) => setJobTitle(e.target.value)}
+                            onChange={(e) => {
+                              setJobTitle(e.target.value);
+                              setFormErrors((prev) => {
+                                if (!prev.title) return prev;
+                                const next = { ...prev };
+                                delete next.title;
+                                return next;
+                              });
+                            }}
                             placeholder={isEn ? 'e.g. Senior Accountant' : 'ex: Comptable Senior'}
-                            className="w-full p-3.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-gray-50/50 text-sm"
+                            className={`w-full p-3.5 border rounded-xl outline-none bg-gray-50/50 text-sm ${formErrors.title ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
                           />
+                          {formErrors.title ? (
+                            <p className="mt-1 text-xs font-bold text-red-500">{formErrors.title}</p>
+                          ) : null}
                         </div>
                         <div>
                           <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
@@ -1475,14 +1756,25 @@ function DashboardEntrepriseContent() {
                           </label>
                           <select
                             value={jobContract}
-                            onChange={(e) => setJobContract(e.target.value)}
-                            className="w-full p-3.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-gray-50/50 text-sm cursor-pointer"
+                            onChange={(e) => {
+                              setJobContract(e.target.value);
+                              setFormErrors((prev) => {
+                                if (!prev.contractType) return prev;
+                                const next = { ...prev };
+                                delete next.contractType;
+                                return next;
+                              });
+                            }}
+                            className={`w-full p-3.5 border rounded-xl outline-none bg-gray-50/50 text-sm cursor-pointer ${formErrors.contractType ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
                           >
                             <option value="CDI">CDI</option>
                             <option value="CDD">CDD</option>
                             <option value="Stage">Stage</option>
                             <option value="Freelance">Freelance</option>
                           </select>
+                          {formErrors.contractType ? (
+                            <p className="mt-1 text-xs font-bold text-red-500">{formErrors.contractType}</p>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1494,10 +1786,21 @@ function DashboardEntrepriseContent() {
                           <input
                             type="text"
                             value={jobLocation}
-                            onChange={(e) => setJobLocation(e.target.value)}
+                            onChange={(e) => {
+                              setJobLocation(e.target.value);
+                              setFormErrors((prev) => {
+                                if (!prev.location) return prev;
+                                const next = { ...prev };
+                                delete next.location;
+                                return next;
+                              });
+                            }}
                             placeholder={isEn ? 'e.g. Douala, Cameroon' : 'ex: Douala, Cameroun'}
-                            className="w-full p-3.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-gray-50/50 text-sm"
+                            className={`w-full p-3.5 border rounded-xl outline-none bg-gray-50/50 text-sm ${formErrors.location ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
                           />
+                          {formErrors.location ? (
+                            <p className="mt-1 text-xs font-bold text-red-500">{formErrors.location}</p>
+                          ) : null}
                         </div>
                         <div>
                           <label className="block text-xs font-bold uppercase text-gray-500 mb-2 tracking-wider">
@@ -1506,10 +1809,21 @@ function DashboardEntrepriseContent() {
                           <input
                             type="text"
                             value={jobSalary}
-                            onChange={(e) => setJobSalary(e.target.value)}
+                            onChange={(e) => {
+                              setJobSalary(e.target.value);
+                              setFormErrors((prev) => {
+                                if (!prev.salary) return prev;
+                                const next = { ...prev };
+                                delete next.salary;
+                                return next;
+                              });
+                            }}
                             placeholder={isEn ? 'e.g. 250,000 - 400,000 FCFA' : 'ex: 250 000 - 400 000 FCFA'}
-                            className="w-full p-3.5 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-gray-50/50 text-sm"
+                            className={`w-full p-3.5 border rounded-xl outline-none bg-gray-50/50 text-sm ${formErrors.salary ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
                           />
+                          {formErrors.salary ? (
+                            <p className="mt-1 text-xs font-bold text-red-500">{formErrors.salary}</p>
+                          ) : null}
                         </div>
                       </div>
 
@@ -1519,10 +1833,21 @@ function DashboardEntrepriseContent() {
                         </label>
                         <textarea
                           value={jobDescription}
-                          onChange={(e) => setJobDescription(e.target.value)}
+                          onChange={(e) => {
+                            setJobDescription(e.target.value);
+                            setFormErrors((prev) => {
+                              if (!prev.description) return prev;
+                              const next = { ...prev };
+                              delete next.description;
+                              return next;
+                            });
+                          }}
                           placeholder={isEn ? 'Describe the responsibilities, requirements, and qualifications...' : 'Decrivez les responsabilites, exigences et qualifications...'}
-                          className="w-full h-40 sm:h-48 p-4 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-gray-50/50 resize-none text-sm"
+                          className={`w-full h-40 sm:h-48 p-4 border rounded-xl outline-none bg-gray-50/50 resize-none text-sm ${formErrors.description ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
                         />
+                        {formErrors.description ? (
+                          <p className="mt-1 text-xs font-bold text-red-500">{formErrors.description}</p>
+                        ) : null}
                       </div>
 
                       <div className="space-y-3">
@@ -1767,7 +2092,7 @@ function DashboardEntrepriseContent() {
                             </button>
                             <button
                               title={isEn ? 'Edit Job' : "Modifier l'offre"}
-                              onClick={() => navigateTo('listings')}
+                              onClick={() => openEditJob(job.id)}
                               className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
                             >
                               {'\u270F\uFE0F'}
@@ -1787,6 +2112,139 @@ function DashboardEntrepriseContent() {
                     ))}
                   </div>
                 )}
+
+                {editingJobId ? (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+                    <div className="w-full max-w-2xl rounded-2xl border border-gray-200 bg-white shadow-2xl">
+                      <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+                        <h3 className="text-base font-extrabold text-gray-900">
+                          {isEn ? 'Edit job listing' : 'Modifier une annonce'}
+                        </h3>
+                        <button
+                          type="button"
+                          onClick={closeEditJob}
+                          className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-bold text-gray-600 hover:bg-gray-50"
+                        >
+                          {isEn ? 'Close' : 'Fermer'}
+                        </button>
+                      </div>
+
+                      <div className="space-y-4 p-5">
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                            {isEn ? 'Job title' : 'Intitule du poste'}
+                          </label>
+                          <input
+                            type="text"
+                            value={editFormData.title}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setEditFormData((prev) => ({ ...prev, title: value }));
+                              setEditFormErrors((prev) => {
+                                if (!prev.title) return prev;
+                                const next = { ...prev };
+                                delete next.title;
+                                return next;
+                              });
+                            }}
+                            className={`w-full rounded-xl border p-3 text-sm outline-none ${editFormErrors.title ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
+                          />
+                          {editFormErrors.title ? <p className="mt-1 text-xs font-bold text-red-500">{editFormErrors.title}</p> : null}
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                              {isEn ? 'Location' : 'Lieu'}
+                            </label>
+                            <input
+                              type="text"
+                              value={editFormData.location}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setEditFormData((prev) => ({ ...prev, location: value }));
+                                setEditFormErrors((prev) => {
+                                  if (!prev.location) return prev;
+                                  const next = { ...prev };
+                                  delete next.location;
+                                  return next;
+                                });
+                              }}
+                              className={`w-full rounded-xl border p-3 text-sm outline-none ${editFormErrors.location ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
+                            />
+                            {editFormErrors.location ? <p className="mt-1 text-xs font-bold text-red-500">{editFormErrors.location}</p> : null}
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                              {isEn ? 'Salary (optional)' : 'Salaire (optionnel)'}
+                            </label>
+                            <input
+                              type="text"
+                              value={editFormData.salary}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                setEditFormData((prev) => ({ ...prev, salary: value }));
+                                setEditFormErrors((prev) => {
+                                  if (!prev.salary) return prev;
+                                  const next = { ...prev };
+                                  delete next.salary;
+                                  return next;
+                                });
+                              }}
+                              className={`w-full rounded-xl border p-3 text-sm outline-none ${editFormErrors.salary ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
+                            />
+                            {editFormErrors.salary ? <p className="mt-1 text-xs font-bold text-red-500">{editFormErrors.salary}</p> : null}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-2">
+                            {isEn ? 'Job description' : 'Description des missions'}
+                          </label>
+                          <textarea
+                            value={editFormData.description}
+                            onChange={(event) => {
+                              const value = event.target.value;
+                              setEditFormData((prev) => ({ ...prev, description: value }));
+                              setEditFormErrors((prev) => {
+                                if (!prev.description) return prev;
+                                const next = { ...prev };
+                                delete next.description;
+                                return next;
+                              });
+                            }}
+                            className={`h-36 w-full resize-none rounded-xl border p-3 text-sm outline-none ${editFormErrors.description ? 'border-red-500 bg-red-50 focus:ring-2 focus:ring-red-500 focus:border-red-500' : 'border-gray-200 bg-gray-50/50 focus:ring-2 focus:ring-green-500 focus:border-green-500'}`}
+                          />
+                          {editFormErrors.description ? <p className="mt-1 text-xs font-bold text-red-500">{editFormErrors.description}</p> : null}
+                        </div>
+
+                        {editMessage ? (
+                          <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                            {editMessage}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div className="flex flex-col-reverse gap-2 border-t border-gray-100 px-5 py-4 sm:flex-row sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={closeEditJob}
+                          className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50"
+                        >
+                          {isEn ? 'Cancel' : 'Annuler'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={saveEditedJob}
+                          disabled={isSavingEdit}
+                          className="rounded-xl bg-green-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-60"
+                        >
+                          {isSavingEdit ? (isEn ? 'Saving...' : 'Enregistrement...') : (isEn ? 'Save changes' : 'Enregistrer')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -1893,108 +2351,269 @@ function DashboardEntrepriseContent() {
 
             {/* ═══ PLACEHOLDER VIEWS ═══ */}
             {activeSection === 'applications' && (
-              <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <h3 className="font-bold text-gray-900 text-[15px]">{isEn ? 'Applications Inbox' : 'Boite de candidatures'}</h3>
-                  <span className="text-xs font-bold text-gray-500">
-                    {isEn ? `${notifications.length} notifications` : `${notifications.length} notifications`}
-                  </span>
-                </div>
+              <div className="space-y-5">
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                  <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-[16px]">{isEn ? 'Applications Inbox' : 'Boite de candidatures'}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{isEn ? 'Manage incoming applications and CVs' : 'Gerez les candidatures entrantes et les CV'}</p>
+                    </div>
+                  </div>
 
-                <div className="px-5 sm:px-6 py-4 border-b border-gray-100 bg-gray-50/50 space-y-3">
-                  <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
-                    {isEn ? 'Intelligent matching' : 'Matching intelligent'}
-                  </p>
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="p-5 sm:p-6 border-b border-gray-100">
                     <select
                       value={selectedMatchJobId || ''}
                       onChange={(e) => setSelectedMatchJobId(Number(e.target.value || 0))}
-                      className="flex-1 p-2.5 border border-gray-200 rounded-xl bg-white text-sm"
+                      className="w-full p-3.5 border border-gray-200 rounded-xl bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                     >
-                      <option value="">{isEn ? 'Select a job listing' : 'Selectionnez une annonce'}</option>
+                      <option value="">{isEn ? 'Select a job listing...' : 'Selectionnez une annonce...'}</option>
                       {authoredJobs.map((job) => (
                         <option key={job.id} value={job.id}>
                           #{job.id} - {job.title}
                         </option>
                       ))}
                     </select>
-                    <button
-                      onClick={matchCandidatesWithAi}
-                      disabled={isMatchingCandidates || authoredJobs.length === 0}
-                      className="bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-indigo-700 transition disabled:opacity-60"
-                    >
-                      {isMatchingCandidates
-                        ? (isEn ? 'Scoring...' : 'Scoring...')
-                        : (isEn ? 'See top qualified candidates' : 'Voir les candidats les plus qualifies')}
-                    </button>
                   </div>
-                  <p className="text-xs text-gray-500 font-medium">
-                    {isEn
-                      ? `Candidates detected from applications: ${new Set(notifications.map((n) => Number(n.data?.candidateId || 0)).filter((id) => id > 0)).size}`
-                      : `Candidats detectes depuis les candidatures: ${new Set(notifications.map((n) => Number(n.data?.candidateId || 0)).filter((id) => id > 0)).size}`}
-                  </p>
-                  {matchSource === 'gemini' && (
-                    <p className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-                      {isEn ? 'Scoring generated by Gemini.' : 'Scoring genere par Gemini.'}
-                    </p>
-                  )}
-                  {matchError && (
-                    <p className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                      {matchError}
-                    </p>
-                  )}
-                  {candidateMatches.length > 0 && (
-                    <div className="space-y-2">
+
+                  <div className="bg-white p-5 sm:p-6">
+                    {applicationActionMessage && (
+                      <p className={`mb-4 rounded-xl border px-4 py-3 text-sm font-bold ${applicationActionMessage.toLowerCase().includes('impossible') || applicationActionMessage.toLowerCase().includes('unable') ? 'border-red-200 bg-red-50 text-red-700' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+                        {applicationActionMessage}
+                      </p>
+                    )}
+                    {!selectedMatchJobId ? (
+                      <div className="text-center py-10">
+                        <div className="text-4xl mb-3">{'\u{1F4C2}'}</div>
+                        <p className="text-sm font-medium text-gray-500">
+                          {isEn ? 'Please select a job listing above to view its applications.' : 'Veuillez selectionner une annonce ci-dessus pour voir ses candidatures.'}
+                        </p>
+                      </div>
+                    ) : isLoadingApplications ? (
+                      <div className="flex justify-center items-center py-12">
+                        <div className="h-8 w-8 rounded-full border-4 border-gray-200 border-t-blue-600 animate-spin"></div>
+                      </div>
+                    ) : jobApplications.length === 0 ? (
+                      <div className="text-center py-10 rounded-xl border border-dashed border-gray-200 bg-gray-50">
+                        <p className="text-sm font-medium text-gray-500">
+                          {isEn ? 'No applications received for this job yet.' : 'Aucune candidature recue pour cette annonce pour le moment.'}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-5">
+                        <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <h4 className="font-extrabold text-gray-900">{filteredJobApplications.length} {isEn ? 'Candidate(s)' : 'Candidat(s)'}</h4>
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                            <select
+                              value={applicationStatusFilter}
+                              onChange={(event) => setApplicationStatusFilter(event.target.value as ApplicationStatusFilter)}
+                              className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              {applyStatusFilterOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={matchCandidatesWithAi}
+                              disabled={isMatchingCandidates}
+                              className="text-xs font-bold text-indigo-700 bg-indigo-50 px-4 py-2 rounded-xl hover:bg-indigo-100 transition flex items-center gap-1.5 disabled:opacity-50 border border-indigo-100"
+                            >
+                              {'\u2728'} {isMatchingCandidates ? (isEn ? 'Scoring...' : 'Scoring...') : (isEn ? 'Rank with AI' : "Classer avec l'IA")}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                          {applyStatusFilterOptions.map((option) => {
+                            const isActive = applicationStatusFilter === option.value;
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => setApplicationStatusFilter(option.value)}
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-extrabold transition ${applicationStatusChipClass[option.value]} ${isActive ? 'ring-2 ring-offset-1 ring-gray-300' : 'opacity-85 hover:opacity-100'}`}
+                              >
+                                <span>{option.label}</span>
+                                <span className="rounded-full bg-white/80 px-1.5 py-0.5 text-[10px] leading-none">
+                                  {applicationStatusCounts[option.value]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {filteredJobApplications.length === 0 ? (
+                          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 px-4 py-8 text-center">
+                            <p className="text-sm font-medium text-gray-500">
+                              {isEn ? 'No applications match this status.' : 'Aucune candidature pour ce statut.'}
+                            </p>
+                          </div>
+                        ) : filteredJobApplications.map((app) => (
+                          <div key={app.id} className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden hover:border-blue-300 transition-colors group">
+                            <div className="p-5 flex flex-col sm:flex-row gap-5">
+                              <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg shrink-0 overflow-hidden">
+                                {app.candidate.photoUrl ? (
+                                  <Image src={app.candidate.photoUrl} alt={app.candidate.name} width={48} height={48} className="w-full h-full object-cover" />
+                                ) : (
+                                  app.candidate.name.charAt(0).toUpperCase()
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0 space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                                  <div>
+                                    <div className="flex items-center gap-2.5">
+                                      <h4 className="font-extrabold text-gray-900 text-base">{app.candidate.name}</h4>
+                                      {(() => {
+                                        const meta = applicationStatusUi(app.status);
+                                        return (
+                                          <span className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${meta.className}`}>
+                                            {meta.label}
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-1.5 text-xs font-medium text-gray-500">
+                                      <span className="flex items-center gap-1">{'\u2709\uFE0F'} {app.candidate.email}</span>
+                                      {app.candidate.phone && <span className="flex items-center gap-1">{'\u{1F4DE}'} {app.candidate.phone}</span>}
+                                      <span className="flex items-center gap-1 text-gray-400">{'\u{1F552}'} {new Date(app.createdAt).toLocaleDateString(isEn ? 'en-US' : 'fr-FR')}</span>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-2 self-start">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplicationStatusUpdate(app.id, 'REVIEWED')}
+                                      disabled={applicationActionBusyId === app.id || app.status === 'REVIEWED'}
+                                      className="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-extrabold text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
+                                      title={isEn ? 'Mark as reviewed' : 'Marquer comme vue'}
+                                    >
+                                      {'\u{1F441}\uFE0F'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplicationStatusUpdate(app.id, 'ACCEPTED')}
+                                      disabled={applicationActionBusyId === app.id || app.status === 'ACCEPTED'}
+                                      className="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-extrabold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
+                                      title={isEn ? 'Accept candidate' : 'Accepter le candidat'}
+                                    >
+                                      {'\u2705'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setPendingRejectApplicationId(app.id)}
+                                      disabled={applicationActionBusyId === app.id || app.status === 'REJECTED'}
+                                      className="inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-extrabold text-red-700 transition hover:bg-red-100 disabled:opacity-50"
+                                      title={isEn ? 'Reject candidate' : 'Refuser le candidat'}
+                                    >
+                                      {'\u274C'}
+                                    </button>
+                                    <a
+                                      href={app.cvUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-600 hover:text-white transition shrink-0 self-start border border-blue-100 hover:border-blue-600"
+                                    >
+                                      {'\u{1F4C4}'} {isEn ? 'Download CV' : 'Telecharger le CV'}
+                                    </a>
+                                  </div>
+                                </div>
+
+                                <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-700 whitespace-pre-line border border-gray-100 relative">
+                                  <p className="text-[10px] font-bold uppercase text-gray-400 mb-2 tracking-wider">{isEn ? 'Cover Message' : 'Message de motivation'}</p>
+                                  {app.message}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {pendingRejectApplicationId !== null ? (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
+                    <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-2xl">
+                      <div className="border-b border-gray-100 px-5 py-4">
+                        <h4 className="text-base font-extrabold text-gray-900">
+                          {isEn ? 'Confirm rejection' : 'Confirmer le refus'}
+                        </h4>
+                        <p className="mt-1 text-sm text-gray-600">
+                          {isEn
+                            ? 'This action will mark the application as rejected and notify the candidate.'
+                            : 'Cette action marquera la candidature comme refusee et notifiera le candidat.'}
+                        </p>
+                      </div>
+                      <div className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setPendingRejectApplicationId(null)}
+                          className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-50"
+                        >
+                          {isEn ? 'Cancel' : 'Annuler'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const applicationId = pendingRejectApplicationId;
+                            if (applicationId === null) return;
+                            setPendingRejectApplicationId(null);
+                            await handleApplicationStatusUpdate(applicationId, 'REJECTED');
+                          }}
+                          className="rounded-xl bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700"
+                        >
+                          {isEn ? 'Confirm rejection' : 'Confirmer le refus'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {candidateMatches.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden p-5 sm:p-6 mt-6">
+                    <h3 className="font-bold text-gray-900 text-[15px] mb-4">{'\u2728'} {isEn ? 'AI Shortlist' : "Shortlist generee par l'IA"}</h3>
+                    {matchSource === 'gemini' && (
+                      <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                        {isEn ? 'Scoring generated by Gemini.' : 'Scoring genere par Gemini.'}
+                      </p>
+                    )}
+                    {matchSource === 'heuristic' && (
+                      <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                        {isEn ? 'Fallback scoring is currently active.' : 'Le scoring de secours est actuellement actif.'}
+                      </p>
+                    )}
+                    {matchError && (
+                      <p className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                        {matchError}
+                      </p>
+                    )}
+                    <div className="space-y-3">
                       {candidateMatches.map((match) => (
-                        <div key={match.candidateId} className="bg-white border border-gray-200 rounded-xl p-3">
-                          <div className="flex items-center justify-between gap-2">
+                        <div key={match.candidateId} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                          <div className="flex items-center justify-between gap-3">
                             <p className="text-sm font-bold text-gray-900">
                               {isEn ? 'Candidate' : 'Candidat'} #{match.candidateId}
                             </p>
-                            <span className="text-xs font-extrabold px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700">
+                            <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-extrabold text-indigo-700">
                               {match.score}%
                             </span>
                           </div>
-                          <p className="text-xs text-gray-600 mt-1">{match.explanation}</p>
+                          <p className="mt-2 text-xs text-gray-600">{match.explanation}</p>
                           {match.strengths.length > 0 && (
                             <p className="text-[11px] text-emerald-700 mt-2">
-                              {isEn ? 'Strengths:' : 'Forces:'} {match.strengths.join(' | ')}
+                              {isEn ? 'Strengths:' : 'Forces :'} {match.strengths.join(' | ')}
                             </p>
                           )}
                           {match.gaps.length > 0 && (
                             <p className="text-[11px] text-amber-700 mt-1">
-                              {isEn ? 'Gaps:' : 'Ecarts:'} {match.gaps.join(' | ')}
+                              {isEn ? 'Gaps:' : 'Ecarts :'} {match.gaps.join(' | ')}
                             </p>
                           )}
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-
-                {notifications.length === 0 ? (
-                  <div className="p-10 text-center">
-                    <div className="text-4xl mb-3">{'\u{1F514}'}</div>
-                    <p className="text-sm text-gray-500 font-medium">
-                      {isEn ? 'No new applications yet.' : 'Aucune nouvelle candidature pour le moment.'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {notifications.map((n) => (
-                      <div key={n.id} className={`px-5 sm:px-6 py-4 ${n.isRead ? 'bg-white' : 'bg-emerald-50/60'}`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-bold text-gray-900">{n.title}</p>
-                            <p className="text-sm text-gray-600 mt-1">{n.message}</p>
-                            <p className="text-xs text-gray-400 mt-2">
-                              {new Date(n.createdAt).toLocaleString(isEn ? 'en-US' : 'fr-FR')}
-                            </p>
-                          </div>
-                          {!n.isRead && <span className="w-2.5 h-2.5 rounded-full bg-red-500 mt-2" />}
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 )}
               </div>

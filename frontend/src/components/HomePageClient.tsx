@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState, useTransition, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
@@ -198,47 +198,29 @@ function apiJobToLocal(job: ApiJob, isEn: boolean): LocalJob {
   };
 }
 
-function buildHomeQueryString(query: HomeQuery) {
-  const params = new URLSearchParams();
-
-  if (query.search) {
-    params.set('search', query.search);
-  }
-
-  if (query.location) {
-    params.set('location', query.location);
-  }
-
-  if (query.page > 1) {
-    params.set('page', String(query.page));
-  }
-
-  return params.toString();
-}
-
-function buildLocalizedHomeUrl(localizePath: (path: string) => string, query: HomeQuery) {
-  const basePath = localizePath('/');
-  const queryString = buildHomeQueryString(query);
-  return queryString ? `${basePath}?${queryString}` : basePath;
-}
-
 function LoadingJobCards() {
   return (
     <div className="space-y-3" aria-hidden="true">
-      {Array.from({ length: 3 }, (_, index) => (
-        <div
+      {Array.from({ length: 4 }, (_, index) => (
+        <article
           key={index}
-          className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm animate-pulse"
+          className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm animate-pulse"
         >
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0 space-y-3">
-              <div className="h-5 w-2/3 rounded bg-gray-200"></div>
-              <div className="h-4 w-5/6 rounded bg-gray-100"></div>
-              <div className="h-4 w-2/5 rounded bg-gray-100"></div>
+          <div className="flex items-start gap-4">
+            {/* 🦴 Skeleton du Logo / Photo */}
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl bg-gray-200 flex-shrink-0"></div>
+
+            {/* 🦴 Skeleton des Textes */}
+            <div className="flex-1 min-w-0 space-y-3 py-1">
+              <div className="h-4 w-3/4 sm:w-1/2 rounded-md bg-gray-200"></div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                <div className="h-3 w-20 rounded-md bg-gray-100"></div>
+                <div className="h-3 w-24 rounded-md bg-gray-100"></div>
+                <div className="h-3 w-16 rounded-md bg-gray-100"></div>
+              </div>
             </div>
-            <div className="h-4 w-14 rounded bg-gray-100"></div>
           </div>
-        </div>
+        </article>
       ))}
     </div>
   );
@@ -312,8 +294,52 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
   const isEnterprise = useMemo(() => roleSnapshot === 'entreprise', [roleSnapshot]);
   const [searchInput, setSearchInput] = useState(initialQuery.search);
   const [locationInput, setLocationInput] = useState(initialQuery.location);
-  const [filters, setFilters] = useState<HomeFilters>(DEFAULT_HOME_FILTERS);
+
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // 1. Initialiser les filtres avec les valeurs présentes dans l'URL
+  const [filters, setFilters] = useState<HomeFilters>(() => {
+    const initialState: HomeFilters = { ...DEFAULT_HOME_FILTERS };
+
+    const assignFilterValue = <K extends keyof HomeFilters>(key: K) => {
+      const val = searchParams.get(key);
+      if (val) initialState[key] = val as HomeFilters[K];
+    };
+
+    (Object.keys(DEFAULT_HOME_FILTERS) as Array<keyof HomeFilters>).forEach((key) => {
+      assignFilterValue(key);
+    });
+
+    return initialState;
+  });
+
   const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+
+  // 2. Synchroniser l'URL silencieusement dès qu'un filtre change
+  useEffect(() => {
+    if (searchMode !== 'emploi') return;
+
+    const params = new URLSearchParams(searchParams.toString());
+    let hasChanges = false;
+
+    Object.entries(filters).forEach(([key, value]) => {
+      const defaultValue = DEFAULT_HOME_FILTERS[key as keyof HomeFilters];
+      if (value !== defaultValue) {
+        if (params.get(key) !== value) {
+          params.set(key, value as string);
+          hasChanges = true;
+        }
+      } else if (params.has(key)) {
+        params.delete(key);
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  }, [filters, pathname, router, searchParams, searchMode]);
 
   useEffect(() => {
     if (!isMobileFiltersOpen) {
@@ -403,10 +429,24 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
   const uniqueCities = Array.from(new Set(emplois.map((job) => job.city))).sort((left, right) => left.localeCompare(right));
 
   const navigateToHome = (query: HomeQuery) => {
-    const nextUrl = buildLocalizedHomeUrl(localizePath, query);
+    const params = new URLSearchParams(searchParams.toString());
+
+    // Mettre à jour la recherche, localisation et page, en gardant les filtres existants
+    if (query.search) params.set('search', query.search);
+    else params.delete('search');
+
+    if (query.location) params.set('location', query.location);
+    else params.delete('location');
+
+    if (query.page > 1) params.set('page', String(query.page));
+    else params.delete('page');
+
+    const queryString = params.toString();
+    const basePath = localizePath('/');
+    const nextUrl = queryString ? `${basePath}?${queryString}` : basePath;
 
     startTransition(() => {
-      router.push(nextUrl);
+      router.push(nextUrl, { scroll: true });
     });
   };
 

@@ -1,33 +1,406 @@
-// backend/routes/jobs.js
 const express = require('express');
 const router = express.Router();
-
-// ⚠️ N'oublie pas d'importer tes outils (ajuste les chemins si besoin)
+const { z } = require('zod');
 const { prisma } = require('../lib/db');
-// const { requireUserSession, requireAdminSession } = require('../lib/sessions');
-// const { upload } = require('../lib/uploads'); // Si tu as des uploads de CV dans "postuler"
-// const { sendEmail } = require('../lib/transactionalEmail');
+const { upload } = require('../lib/uploads');
+const { requireUserSession } = require('../lib/session');
+const { createNotification } = require('../lib/notifications');
+const { transporter } = require('../lib/emailService');
 
-// 🛑 /api/jobs devient /
+// 🛡️ 1. LE SCHÉMA ZOD : Le plan strict de ce qu'on accepte
+const jobSchema = z.object({
+  title: z.string().trim().min(5, "Le titre doit faire au moins 5 caractères").max(100),
+  description: z.string().trim().min(50, "La description doit être détaillée (min 50 caractères)"),
+  location: z.string().trim().min(2, "La localisation est requise"),
+  company: z.string().trim().min(2, "Le nom de l'entreprise est requis").max(120).optional(),
+  salary: z.string().optional().nullable(),
+});
+
+// 🛑 2. LE MIDDLEWARE : Le "Videur" qui bloque ou laisse passer
+const validateRequest = (schema) => async (req, res, next) => {
+  try {
+    // Zod va vérifier le body, enlever les espaces inutiles (.trim()) 
+    // et remplacer req.body par les données propres.
+    req.body = await schema.parseAsync(req.body);
+    next();
+  } catch (error) {
+    // Si Zod détecte une erreur (ex: titre trop court), on bloque ici ! Prisma n'est jamais touché.
+    return res.status(400).json({
+      success: false,
+      message: "Données invalides",
+      errors: error.errors.map(err => ({
+        champ: err.path.join('.'),
+        message: err.message
+      }))
+    });
+  }
+};
+
+// ==========================================
+// 🚀 LES ROUTES
+// ==========================================
+
+// GET /jobs (Liste)
 router.get('/', async (req, res) => {
-  // ✂️ Logique pour lister les jobs
+  try {
+    const jobs = await prisma.job.findMany({
+      where: { status: 'APPROVED' },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json({ success: true, jobs });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Erreur serveur" });
+  }
 });
 
-// 🛑 /api/jobs/:id devient /:id
-router.get('/:id', async (req, res) => {
-  // ✂️ Logique pour un job spécifique
+// POST /jobs (Création avec validation Zod)
+// On place `validateRequest(jobSchema)` AVANT la logique de création
+router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res) => {
+  try {
+    // Si on arrive ici, req.body est 100% garanti valide grâce à Zod !
+    const { title, description, location, salary, company } = req.body;
+    const authorId = req.sessionUser.id;
+    const companyLabel = String(company || req.sessionUser.name || '').trim();
+
+    if (!companyLabel) {
+      return res.status(400).json({
+        success: false,
+        message: "Le nom de l'entreprise est requis pour publier l'offre.",
+        errors: [{ champ: 'company', message: "Le nom de l'entreprise est requis." }],
+      });
+    }
+
+    const newJob = await prisma.job.create({
+      data: {
+        title,
+        company: companyLabel,
+        description,
+        location,
+        salary,
+        authorId,
+        status: 'PENDING', // Toujours en attente pour modération admin
+      }
+    });
+
+    res.status(201).json({ 
+      success: true, 
+      message: "Offre soumise avec succès. En attente de validation.",
+      job: newJob 
+    });
+
+  } catch (error) {
+    console.error("Erreur création job:", error);
+    res.status(500).json({ success: false, message: "Erreur interne lors de la création de l'offre" });
+  }
 });
 
-// 🛑 /api/jobs (POST) devient /
-router.post('/', /* tes middlewares (auth, upload) */ async (req, res) => {
-  // ✂️ Logique pour créer un job
+// PUT /jobs/:id (Modification avec validation Zod)
+router.put('/:id', requireUserSession, validateRequest(jobSchema), async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id, 10);
+    const userId = req.sessionUser.id;
+
+    // 1. Vérifier que l'offre existe
+    const existingJob = await prisma.job.findUnique({
+      where: { id: jobId }
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ success: false, message: "Offre introuvable." });
+    }
+
+    // 🛡️ SÉCURITÉ : Vérifier que l'utilisateur connecté est bien le propriétaire de l'offre
+    // (Ajuste "authorId" si ta colonne s'appelle différemment dans schema.prisma)
+    if (existingJob.authorId !== userId) {
+      return res.status(403).json({ success: false, message: "Vous n'êtes pas autorisé à modifier cette offre." });
+    }
+
+    // 2. Si on arrive ici, req.body est validé par Zod ET l'utilisateur est le bon
+    const { title, description, location, salary, company } = req.body;
+    const companyLabel = String(company || existingJob.company || req.sessionUser.name || '').trim();
+
+    if (!companyLabel) {
+      return res.status(400).json({
+        success: false,
+        message: "Le nom de l'entreprise est requis pour modifier l'offre.",
+        errors: [{ champ: 'company', message: "Le nom de l'entreprise est requis." }],
+      });
+    }
+
+    const updatedJob = await prisma.job.update({
+      where: { id: jobId },
+      data: {
+        title,
+        company: companyLabel,
+        description,
+        location,
+        salary,
+        // Tu peux choisir de repasser le statut en 'PENDING' si tu veux remodérer les offres modifiées
+        // status: 'PENDING'
+      }
+    });
+
+    res.json({
+      success: true,
+      message: "Offre modifiée avec succès.",
+      job: updatedJob
+    });
+
+  } catch (error) {
+    console.error("Erreur modification job:", error);
+    res.status(500).json({ success: false, message: "Erreur interne lors de la modification de l'offre." });
+  }
 });
 
-// 🛑 /api/jobs/:id/apply devient /:id/apply
-router.post('/:id/apply', /* middlewares */ async (req, res) => {
-  // ✂️ Logique pour postuler
+// 📦 GET /jobs/:id/applications (Récupérer les candidatures d'une offre)
+router.get('/:id/applications', requireUserSession, async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id, 10);
+    const userId = req.sessionUser.id;
+
+    // 1. Vérifier que l'offre existe ET appartient à l'utilisateur connecté
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { authorId: true }
+    });
+
+    if (!job) {
+      return res.status(404).json({ success: false, message: 'Offre introuvable.' });
+    }
+
+    if (job.authorId !== userId) {
+      return res.status(403).json({ success: false, message: "Acces refuse. Vous n'etes pas l'auteur de cette offre." });
+    }
+
+    // 2. Récupérer les candidatures avec les infos du candidat
+    const applications = await prisma.application.findMany({
+      where: { jobId: jobId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        candidate: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            photoUrl: true
+          }
+        }
+      }
+    });
+
+    res.json({ success: true, applications });
+  } catch (error) {
+    console.error('Erreur recuperation candidatures:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur lors de la recuperation des candidatures.' });
+  }
 });
 
-// Ajoute aussi les PUT (modification) et DELETE (suppression) liés aux jobs
+const applicationStatusSchema = z.object({
+  status: z.enum(['REVIEWED', 'ACCEPTED', 'REJECTED']),
+});
+
+// PATCH /jobs/applications/:id/status (Changer le statut d'une candidature)
+router.patch('/applications/:id/status', requireUserSession, async (req, res) => {
+  try {
+    const applicationId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(applicationId) || applicationId <= 0) {
+      return res.status(400).json({ success: false, message: 'ID de candidature invalide.' });
+    }
+
+    const parsed = await applicationStatusSchema.parseAsync(req.body);
+    const recruiterId = req.sessionUser.id;
+
+    const existingApplication = await prisma.application.findUnique({
+      where: { id: applicationId },
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            authorId: true,
+            company: true,
+          },
+        },
+        candidate: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    if (!existingApplication) {
+      return res.status(404).json({ success: false, message: 'Candidature introuvable.' });
+    }
+
+    if (existingApplication.job.authorId !== recruiterId) {
+      return res.status(403).json({ success: false, message: 'Acces refuse. Vous ne pouvez pas modifier cette candidature.' });
+    }
+
+    const updatedApplication = await prisma.application.update({
+      where: { id: applicationId },
+      data: {
+        status: parsed.status,
+      },
+      include: {
+        candidate: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            photoUrl: true,
+          },
+        },
+      },
+    });
+
+    const statusLabelMap = {
+      REVIEWED: 'Vue par l employeur',
+      ACCEPTED: 'Acceptee',
+      REJECTED: 'Refusee',
+    };
+
+    try {
+      await createNotification({
+        userId: existingApplication.candidate.id,
+        type: 'application_status_updated',
+        title: 'Mise a jour de votre candidature',
+        message: `Votre candidature pour \"${existingApplication.job.title}\" est maintenant: ${statusLabelMap[parsed.status]}.`,
+        data: {
+          applicationId: existingApplication.id,
+          jobId: existingApplication.job.id,
+          jobTitle: existingApplication.job.title,
+          status: parsed.status,
+        },
+      });
+    } catch (notificationError) {
+      console.warn('Notification candidat non envoyee (status update):', notificationError?.message || notificationError);
+    }
+
+    try {
+      const candidateEmail = String(existingApplication.candidate?.email || '').trim();
+      if (candidateEmail && candidateEmail.includes('@')) {
+        await transporter.sendMail({
+          from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+          to: candidateEmail,
+          subject: '[Bolo237] Mise a jour de candidature',
+          text: `Bonjour ${existingApplication.candidate?.name || ''},\n\nVotre candidature pour \"${existingApplication.job.title}\" est maintenant: ${statusLabelMap[parsed.status]}.\n\nConnectez-vous a votre dashboard candidat pour suivre les details.\n\nBolo237`,
+        });
+      }
+    } catch (emailError) {
+      console.warn('Email candidat non envoye (status update):', emailError?.message || emailError);
+    }
+
+    return res.json({
+      success: true,
+      message: 'Statut de candidature mis a jour.',
+      application: updatedApplication,
+    });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        message: 'Statut invalide.',
+        errors: error.errors.map((err) => ({
+          champ: err.path.join('.'),
+          message: err.message,
+        })),
+      });
+    }
+
+    console.error('Erreur mise a jour statut candidature:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur lors de la mise a jour du statut.' });
+  }
+});
+
+// 🛡️ 1. LE SCHÉMA ZOD POUR LA CANDIDATURE
+const applySchema = z.object({
+  message: z.string().trim().min(20, "Votre message de motivation doit faire au moins 20 caractères.").max(2000),
+});
+
+// 🛑 2. MIDDLEWARE DE VALIDATION POUR LES FORMULAIRES MULTIPART (fichiers)
+// (Légèrement différent du précédent car 'multer' met les textes dans req.body et le fichier dans req.file)
+const validateApply = async (req, res, next) => {
+  try {
+    req.body = await applySchema.parseAsync(req.body);
+
+    // On vérifie manuellement que Multer a bien intercepté un fichier
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: "Vous devez joindre un CV." });
+    }
+
+    next();
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: "Données de candidature invalides",
+      errors: error.errors?.map(err => err.message) || [error.message]
+    });
+  }
+};
+
+// ==========================================
+// 🚀 ROUTE : POSTULER À UNE OFFRE
+// ==========================================
+
+// L'ordre des middlewares est crucial :
+// 1. Authentification -> 2. Upload du fichier -> 3. Validation Zod -> 4. Logique métier
+router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply, async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id, 10);
+    const candidateId = req.sessionUser.id;
+    const { message } = req.body;
+
+    // Selon ta configuration d'upload (Cloudinary, AWS S3, ou local), req.file contiendra l'URL ou le chemin.
+    const cvUrl = req.file.path || req.file.secure_url;
+
+    // 1. Vérifier que l'offre existe et est approuvée
+    const job = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true, status: true, title: true, company: true }
+    });
+
+    if (!job || job.status !== 'APPROVED') {
+      return res.status(404).json({ success: false, message: "Cette offre n'est plus disponible." });
+    }
+
+    // 2. Vérifier si le candidat n'a pas DÉJÀ postulé à cette offre (Anti-spam)
+    const existingApplication = await prisma.application.findFirst({
+      where: { jobId: jobId, candidateId: candidateId }
+    });
+
+    if (existingApplication) {
+      return res.status(400).json({ success: false, message: "Vous avez déjà postulé à cette offre." });
+    }
+
+    // 3. Créer la candidature dans la base de données
+    const application = await prisma.application.create({
+      data: {
+        jobId,
+        candidateId,
+        message,
+        cvUrl,
+        status: 'PENDING'
+      }
+    });
+
+    // 4. (Optionnel) Envoyer un email à l'entreprise pour la prévenir
+    // sendEmail(job.companyEmail, "Nouvelle candidature !", `Quelqu'un a postulé à ${job.title}...`);
+
+    res.status(201).json({
+      success: true,
+      message: "Votre candidature a été envoyée avec succès !",
+      applicationId: application.id
+    });
+
+  } catch (error) {
+    console.error("Erreur lors de la candidature:", error);
+    res.status(500).json({ success: false, message: "Erreur interne lors de l'envoi de la candidature." });
+  }
+});
 
 module.exports = router;

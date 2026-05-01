@@ -61,6 +61,9 @@ const {
 } = require('./lib/transactionalEmail');
 const createDashboardArtisanRouter = require('./routes/dashboard-artisan');
 const createDashboardEntrepriseRouter = require('./routes/dashboard-entreprise');
+const adminRouter = require('./routes/admin');
+const jobsRouter = require('./routes/jobs');
+const usersRouter = require('./routes/users');
 
 function logFatalError(label, error) {
   if (error instanceof Error) {
@@ -734,6 +737,9 @@ async function requireUserSession(req, res, next) {
 
 app.use('/api/dashboard-artisan', createDashboardArtisanRouter({ prisma, requireUserSession }));
 app.use('/api/dashboard-entreprise', createDashboardEntrepriseRouter({ prisma, requireUserSession }));
+app.use('/api/admin', adminRouter);
+app.use('/api/jobs', jobsRouter);
+app.use('/api/users', usersRouter);
 
 const REPORT_TARGET_ALLOWLIST = new Set(['annonce', 'artisan']);
 const REPORT_REASON_ALLOWLIST = new Set(['demande-argent', 'fausse-identite', 'artisan-injoignable']);
@@ -1085,6 +1091,7 @@ function formatShortDate(date, locale = 'fr-FR') {
 // =============================================
 
 // GET /api/jobs — Liste des offres (avec filtres optionnels)
+/*
 app.get('/api/jobs', async (req, res) => {
   try {
     const { status, location, search, authorId, page = '1', limit = '20' } = req.query;
@@ -1143,6 +1150,7 @@ app.get('/api/jobs', async (req, res) => {
     res.status(500).json({ error: 'Erreur lors de la lecture des offres.' });
   }
 });
+*/
 
 // =============================================
 // ROUTES: Verifications (Identite)
@@ -1618,6 +1626,7 @@ app.get('/api/jobs/:id', async (req, res) => {
 });
 
 // POST /api/jobs/:id/apply — Simuler une candidature et notifier l'entreprise
+/*
 app.post('/api/jobs/:id/apply', jobApplicationLimiter, async (req, res) => {
   try {
     const jobId = parseInt(req.params.id, 10);
@@ -1719,8 +1728,10 @@ app.post('/api/jobs/:id/apply', jobApplicationLimiter, async (req, res) => {
     res.status(500).json({ error: 'Erreur lors de la candidature.' });
   }
 });
+*/
 
 // POST /api/jobs — Créer une offre
+/*
 app.post('/api/jobs', jobCreationLimiter, async (req, res) => {
   try {
     const { title, company, location, description, salary, authorId } = req.body;
@@ -1774,8 +1785,10 @@ app.post('/api/jobs', jobCreationLimiter, async (req, res) => {
     res.status(500).json({ error: "Erreur lors de la création de l'offre." });
   }
 });
+*/
 
 // PUT /api/jobs/:id — Modifier une offre
+/*
 app.put('/api/jobs/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
@@ -1820,6 +1833,7 @@ app.put('/api/jobs/:id', async (req, res) => {
     res.status(500).json({ error: "Erreur lors de la mise à jour." });
   }
 });
+*/
 
 // DELETE /api/jobs/:id — Supprimer une offre
 app.delete('/api/jobs/:id', async (req, res) => {
@@ -2146,27 +2160,52 @@ app.patch('/api/users/:id/notifications/read-all', async (req, res) => {
   }
 });
 
-// GET /api/users/:id/applications — Liste des candidatures envoyées par un candidat
-app.get('/api/users/:id/applications', async (req, res) => {
+// GET /api/users/:id/applications — Liste des candidatures envoyees par un candidat (temps reel)
+app.get('/api/users/:id/applications', requireUserSession, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
 
-    const notifications = await prisma.notification.findMany({
-      where: { userId, type: 'application_sent' },
+    const sessionUserId = Number(req.sessionUser?.id || 0);
+    const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
+    const isAdmin = sessionRole === 'ADMIN' || sessionRole === 'SUPER_ADMIN';
+
+    if (!isAdmin && sessionUserId !== userId) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const applicationsRows = await prisma.application.findMany({
+      where: { candidateId: userId },
       orderBy: { createdAt: 'desc' },
       take: 50,
+      include: {
+        job: {
+          select: {
+            id: true,
+            title: true,
+            company: true,
+          },
+        },
+      },
     });
 
-    const applications = notifications.map((n) => {
-      const data = (typeof n.data === 'object' && n.data !== null) ? n.data : {};
+    const statusLabelMap = {
+      PENDING: 'En attente',
+      REVIEWED: 'Vue par l employeur',
+      ACCEPTED: 'Acceptee',
+      REJECTED: 'Refusee',
+    };
+
+    const applications = applicationsRows.map((row) => {
+      const rawStatus = String(row.status || 'PENDING').toUpperCase();
       return {
-        id: n.id,
-        jobId: data.jobId || null,
-        jobTitle: data.jobTitle || '',
-        company: data.company || '',
-        date: n.createdAt,
-        statut: 'Envoyee',
+        id: row.id,
+        jobId: row.jobId || null,
+        jobTitle: row.job?.title || '',
+        company: row.job?.company || '',
+        date: row.createdAt,
+        status: rawStatus,
+        statut: statusLabelMap[rawStatus] || 'En attente',
       };
     });
 
@@ -2174,6 +2213,201 @@ app.get('/api/users/:id/applications', async (req, res) => {
   } catch (error) {
     console.error('GET /api/users/:id/applications error:', error);
     res.status(500).json({ error: 'Erreur lors de la lecture des candidatures.' });
+  }
+});
+
+// GET /api/users/:id/services — Liste des services artisan
+app.get('/api/users/:id/services', requireUserSession, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    const sessionUserId = Number(req.sessionUser?.id || 0);
+    const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
+    const isAdmin = sessionRole === 'ADMIN' || sessionRole === 'SUPER_ADMIN';
+
+    if (!isAdmin && sessionUserId !== userId) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const services = await prisma.artisanService.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return res.json({ services });
+  } catch (error) {
+    console.error('GET /api/users/:id/services error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la lecture des services artisan.' });
+  }
+});
+
+// POST /api/users/:id/services — Ajouter un service artisan
+app.post('/api/users/:id/services', requireUserSession, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    if (Number(req.sessionUser?.id || 0) !== userId) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const name = String(req.body?.name || '').trim();
+    const description = String(req.body?.description || '').trim();
+    const price = String(req.body?.price || '').trim();
+
+    if (!name) {
+      return res.status(400).json({ error: 'Le nom du service est obligatoire.' });
+    }
+
+    const service = await prisma.artisanService.create({
+      data: {
+        userId,
+        name,
+        description: description || null,
+        price: price || null,
+      },
+    });
+
+    return res.status(201).json({ success: true, service });
+  } catch (error) {
+    console.error('POST /api/users/:id/services error:', error);
+    return res.status(500).json({ error: 'Erreur serveur lors de la creation du service.' });
+  }
+});
+
+// DELETE /api/users/:id/services/:serviceId — Supprimer un service artisan
+app.delete('/api/users/:id/services/:serviceId', requireUserSession, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const serviceId = parseInt(req.params.serviceId, 10);
+    if (isNaN(userId) || isNaN(serviceId)) {
+      return res.status(400).json({ error: 'Identifiants invalides.' });
+    }
+
+    if (Number(req.sessionUser?.id || 0) !== userId) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const existing = await prisma.artisanService.findUnique({
+      where: { id: serviceId },
+      select: { id: true, userId: true },
+    });
+
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Service introuvable.' });
+    }
+
+    await prisma.artisanService.delete({ where: { id: serviceId } });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('DELETE /api/users/:id/services/:serviceId error:', error);
+    return res.status(500).json({ error: 'Erreur serveur lors de la suppression du service.' });
+  }
+});
+
+// GET /api/users/:id/portfolio — Liste du portfolio artisan
+app.get('/api/users/:id/portfolio', requireUserSession, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    const sessionUserId = Number(req.sessionUser?.id || 0);
+    const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
+    const isAdmin = sessionRole === 'ADMIN' || sessionRole === 'SUPER_ADMIN';
+
+    if (!isAdmin && sessionUserId !== userId) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(24, Math.max(1, parseInt(String(req.query.limit || '9'), 10) || 9));
+    const skip = (page - 1) * limit;
+
+    const [portfolio, total] = await Promise.all([
+      prisma.artisanPortfolio.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+      prisma.artisanPortfolio.count({ where: { userId } }),
+    ]);
+
+    return res.json({
+      portfolio,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
+  } catch (error) {
+    console.error('GET /api/users/:id/portfolio error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la lecture du portfolio artisan.' });
+  }
+});
+
+// POST /api/users/:id/portfolio — Ajouter une image portfolio
+app.post('/api/users/:id/portfolio', requireUserSession, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
+
+    if (Number(req.sessionUser?.id || 0) !== userId) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const imageUrl = String(req.body?.imageUrl || '').trim();
+    const title = String(req.body?.title || '').trim();
+
+    if (!imageUrl) {
+      return res.status(400).json({ error: 'imageUrl est obligatoire.' });
+    }
+
+    const portfolioItem = await prisma.artisanPortfolio.create({
+      data: {
+        userId,
+        imageUrl,
+        title: title || null,
+      },
+    });
+
+    return res.status(201).json({ success: true, portfolioItem });
+  } catch (error) {
+    console.error('POST /api/users/:id/portfolio error:', error);
+    return res.status(500).json({ error: 'Erreur serveur lors de l ajout du portfolio.' });
+  }
+});
+
+// DELETE /api/users/:id/portfolio/:portfolioId — Supprimer une image portfolio
+app.delete('/api/users/:id/portfolio/:portfolioId', requireUserSession, async (req, res) => {
+  try {
+    const userId = parseInt(req.params.id, 10);
+    const portfolioId = parseInt(req.params.portfolioId, 10);
+    if (isNaN(userId) || isNaN(portfolioId)) {
+      return res.status(400).json({ error: 'Identifiants invalides.' });
+    }
+
+    if (Number(req.sessionUser?.id || 0) !== userId) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const existing = await prisma.artisanPortfolio.findUnique({
+      where: { id: portfolioId },
+      select: { id: true, userId: true },
+    });
+
+    if (!existing || existing.userId !== userId) {
+      return res.status(404).json({ error: 'Image portfolio introuvable.' });
+    }
+
+    await prisma.artisanPortfolio.delete({ where: { id: portfolioId } });
+    return res.json({ success: true });
+  } catch (error) {
+    console.error('DELETE /api/users/:id/portfolio/:portfolioId error:', error);
+    return res.status(500).json({ error: 'Erreur serveur lors de la suppression du portfolio.' });
   }
 });
 

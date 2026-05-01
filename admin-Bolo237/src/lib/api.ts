@@ -352,11 +352,17 @@ export function fetchJob(id: number): Promise<Job> {
   return apiFetch<Job>(`/api/jobs/${id}`);
 }
 
-export function updateJob(id: number, data: Partial<Pick<Job, 'title' | 'company' | 'location' | 'description' | 'salary' | 'status'>>): Promise<Job> {
-  return apiFetch<Job>(`/api/jobs/${id}`, {
-    method: 'PUT',
+export async function updateJob(id: number, data: { status: string }): Promise<Job> {
+  const payload = await apiFetch<{ success?: boolean; message?: string; job?: Job }>(`/api/admin/jobs/${id}/status`, {
+    method: 'PATCH',
     body: JSON.stringify(data),
   });
+
+  if (!payload?.job) {
+    throw new Error(payload?.message || 'Erreur lors de la mise a jour du statut');
+  }
+
+  return payload.job;
 }
 
 export function deleteJob(id: number): Promise<void> {

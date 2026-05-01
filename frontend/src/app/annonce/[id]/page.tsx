@@ -1,11 +1,11 @@
 "use client";
 
-import { use, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { use, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
-import { applyToJob, fetchJob, fetchUserProfile } from '@/lib/api';
+import { fetchJob, fetchUserProfile } from '@/lib/api';
 import {
   extractExternalApplyUrl,
   getContractLabel,
@@ -79,10 +79,13 @@ export default function OffreEmploiPage({ params }: JobParams) {
   const isEn = locale === 'en';
   const [maskedByReports, setMaskedByReports] = useState(false);
   const [applyMessage, setApplyMessage] = useState('');
-  const [isApplying, setIsApplying] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showApplicationReview, setShowApplicationReview] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
+  const [message, setMessage] = useState('');
+  const [cvFile, setCvFile] = useState<File | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Fetch le détail de l'offre depuis le backend
   const { data: apiJob, loading } = useApi(
@@ -310,11 +313,36 @@ export default function OffreEmploiPage({ params }: JobParams) {
       return;
     }
 
+    setMessage('');
+    setCvFile(null);
+    setFormErrors({});
     setApplyMessage('');
     setShowApplicationReview(true);
   };
 
-  const handleConfirmApply = async () => {
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || !event.target.files[0]) {
+      return;
+    }
+
+    const file = event.target.files[0];
+    if (file.size > 5 * 1024 * 1024) {
+      setFormErrors((prev) => ({ ...prev, cv: isEn ? 'File is too large (5MB max).' : 'Le fichier est trop volumineux (5 Mo max).' }));
+      return;
+    }
+
+    setCvFile(file);
+    setFormErrors((prev) => {
+      const next = { ...prev };
+      delete next.cv;
+      return next;
+    });
+  };
+
+  const handleApply = async (event: FormEvent) => {
+    event.preventDefault();
+    setFormErrors({});
+
     if (!apiJob || !userProfile) return;
 
     if (userProfile.missingItems.length > 0) {
@@ -326,26 +354,82 @@ export default function OffreEmploiPage({ params }: JobParams) {
       return;
     }
 
-    setIsApplying(true);
+    if (!cvFile) {
+      setFormErrors({ cv: isEn ? 'Please attach your CV.' : 'Veuillez joindre votre CV.' });
+      return;
+    }
+
+    setIsSubmitting(true);
     setApplyMessage('');
 
     try {
-      await applyToJob({
-        jobId: apiJob.id,
-        candidateId: userProfile.id,
-        candidateName: userProfile.name,
+      const payload = new FormData();
+      payload.append('message', message);
+      payload.append('cv', cvFile);
+
+      const response = await fetch(`/api/backend/jobs/${apiJob.id}/apply`, {
+        method: 'POST',
+        credentials: 'include',
+        body: payload,
       });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        const nextErrors: Record<string, string> = {};
+
+        if (Array.isArray(data?.errors)) {
+          data.errors.forEach((err: { champ?: string; message?: string } | string) => {
+            if (typeof err === 'string') {
+              const normalized = err.toLowerCase();
+              if (normalized.includes('motivation')) {
+                nextErrors.message = err;
+              } else if (normalized.includes('cv') || normalized.includes('fichier')) {
+                nextErrors.cv = err;
+              } else {
+                nextErrors.global = err;
+              }
+              return;
+            }
+
+            if (err?.champ && err?.message) {
+              nextErrors[err.champ] = err.message;
+            } else if (err?.message) {
+              nextErrors.global = err.message;
+            }
+          });
+        }
+
+        if (!nextErrors.cv && typeof data?.message === 'string' && data.message.toLowerCase().includes('cv')) {
+          nextErrors.cv = data.message;
+        }
+
+        if (Object.keys(nextErrors).length > 0) {
+          setFormErrors(nextErrors);
+          setApplyMessage(
+            isEn
+              ? 'Please check the information provided.'
+              : 'Veuillez vérifier les informations fournies.'
+          );
+          return;
+        }
+
+        throw new Error(data?.message || (isEn ? 'An error occurred.' : 'Une erreur est survenue.'));
+      }
+
       setShowApplicationReview(false);
+      setMessage('');
+      setCvFile(null);
       setApplyMessage(
         isEn
-          ? 'Application sent. The company has been notified.'
-          : 'Candidature envoyee. L entreprise a ete notifiee.'
+          ? 'Your application has been sent successfully!'
+          : 'Votre candidature a été envoyée avec succès !'
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setApplyMessage((isEn ? 'Application failed: ' : 'Echec candidature: ') + message);
     } finally {
-      setIsApplying(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -515,10 +599,10 @@ export default function OffreEmploiPage({ params }: JobParams) {
                   {!isExternalOnlyApplication ? (
                     <button
                       onClick={handleApplyClick}
-                      disabled={maskedByReports || isApplying}
+                      disabled={maskedByReports || isSubmitting}
                       className="inline-flex items-center justify-center rounded-2xl bg-[#0F4C81] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#0C3E69] disabled:cursor-not-allowed disabled:bg-slate-300"
                     >
-                      {maskedByReports ? t.security.adMaskedCta : isApplying ? (isEn ? 'Sending...' : 'Envoi...') : t.security.applyNow}
+                      {maskedByReports ? t.security.adMaskedCta : isSubmitting ? (isEn ? 'Sending...' : 'Envoi...') : t.security.applyNow}
                     </button>
                   ) : null}
                 </div>
@@ -645,10 +729,10 @@ export default function OffreEmploiPage({ params }: JobParams) {
           {!isExternalOnlyApplication && (
             <button
               onClick={handleApplyClick}
-              disabled={maskedByReports || isApplying}
+              disabled={maskedByReports || isSubmitting}
               className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
             >
-              {maskedByReports ? t.security.adMaskedCta : isApplying ? (isEn ? 'Sending...' : 'Envoi...') : t.security.applyNow}
+              {maskedByReports ? t.security.adMaskedCta : isSubmitting ? (isEn ? 'Sending...' : 'Envoi...') : t.security.applyNow}
             </button>
           )}
         </div>
@@ -786,25 +870,69 @@ export default function OffreEmploiPage({ params }: JobParams) {
                 {isEn ? 'Complete my profile' : 'Completer mon profil'}
               </Link>
 
-              {/* Action buttons */}
-              <div className="flex flex-col gap-3 mt-2">
+              <form onSubmit={handleApply} className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-sm font-bold text-gray-700">
+                    {isEn ? 'Your CV (PDF, DOC, DOCX)' : 'Votre CV (PDF, DOC, DOCX)'}
+                  </label>
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    onChange={handleFileChange}
+                    className={`w-full rounded-xl border p-2 text-sm ${formErrors.cv ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white'}`}
+                  />
+                  {formErrors.cv ? <p className="mt-1 text-xs font-bold text-red-500">{formErrors.cv}</p> : null}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-sm font-bold text-gray-700">
+                    {isEn ? 'Motivation message' : 'Message de motivation'}
+                  </label>
+                  <textarea
+                    value={message}
+                    onChange={(event) => {
+                      setMessage(event.target.value);
+                      setFormErrors((prev) => {
+                        if (!prev.message) return prev;
+                        const next = { ...prev };
+                        delete next.message;
+                        return next;
+                      });
+                    }}
+                    rows={4}
+                    placeholder={isEn ? 'Explain why you are the right candidate...' : 'Expliquez pourquoi vous êtes le candidat idéal...'}
+                    className={`w-full rounded-xl border p-3 text-sm ${formErrors.message ? 'border-red-500 bg-red-50 focus:ring-red-500' : 'border-gray-200 focus:ring-[#DA7756]'}`}
+                  />
+                  {formErrors.message ? <p className="mt-1 text-xs font-bold text-red-500">{formErrors.message}</p> : null}
+                </div>
+
+                {formErrors.global ? (
+                  <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
+                    {formErrors.global}
+                  </p>
+                ) : null}
+
+                {/* Action buttons */}
+                <div className="flex flex-col gap-3 mt-2">
                 <button
-                  onClick={handleConfirmApply}
-                  disabled={isApplying || isLoadingReview || Boolean(userProfile?.missingItems.length)}
+                  type="submit"
+                  disabled={isSubmitting || isLoadingReview || Boolean(userProfile?.missingItems.length)}
                   className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
                 >
-                  {isApplying
+                  {isSubmitting
                     ? (isEn ? 'Sending...' : 'Envoi en cours...')
                     : (isEn ? 'Confirm and send' : 'Confirmer et envoyer')
                   }
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowApplicationReview(false)}
                   className="w-full text-gray-600 font-bold py-2 rounded-xl hover:bg-gray-50 transition"
                 >
                   {isEn ? 'Cancel' : 'Annuler'}
                 </button>
               </div>
+              </form>
 
               {/* Apply error inside modal */}
               {applyMessage && (

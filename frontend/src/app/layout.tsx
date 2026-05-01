@@ -159,26 +159,22 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-        <Script
+        <script
           id="hydration-attribute-sanitizer"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: hydrationAttributeSanitizerScript }}
         />
-        <Script
+        <script
           id="locale-bootstrap"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: localeBootstrapScript }}
         />
-        <Script
+        <script
           id="schema-website"
           type="application/ld+json"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
         />
-        <Script
+        <script
           id="schema-organization"
           type="application/ld+json"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
         />
         <Script

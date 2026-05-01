@@ -49,6 +49,9 @@ model User {
   reviewsReceived  UserReview[]      @relation("reviewed")
   candidateProfile CandidateProfile?
   contactEvents    ContactClickEvent[]
+  applications     Application[]
+  services         ArtisanService[]
+  portfolio        ArtisanPortfolio[]
 
   @@index([createdAt])
   @@index([role, createdAt])
@@ -57,6 +60,31 @@ model User {
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_name_trgm_idx")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_email_trgm_idx")
   @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_phone_trgm_idx")
+}
+
+model ArtisanService {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  name        String
+  description String?  @db.Text
+  price       String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ArtisanPortfolio {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  imageUrl    String
+  title       String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // 2. Table des Offres d'Emploi
@@ -75,6 +103,8 @@ model Job {
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([authorId, createdAt])
+  applications     Application[]
+
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_title_trgm_idx")
   @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_company_trgm_idx")
   @@index([location(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_location_trgm_idx")
@@ -286,4 +316,21 @@ model SupportTicket {
 
   @@index([mailboxPath, createdAt])
   @@index([mailboxPath, status])
+}
+model Application {
+  id          Int      @id @default(autoincrement())
+  jobId       Int
+  candidateId Int
+  message     String   @db.Text
+  cvUrl       String
+  status      String   @default("PENDING") // Ex: PENDING, REVIEWED, REJECTED, HIRED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  job         Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate   User     @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  // 🛡️ Double sécurité Anti-Spam directement dans la BDD (Un candidat ne peut postuler qu'une seule fois à une offre)
+  @@unique([jobId, candidateId])
 }

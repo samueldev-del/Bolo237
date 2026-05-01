@@ -155,6 +155,70 @@ export type UserProfile = {
   updatedAt: string;
 };
 
+export type ArtisanService = {
+  id: number;
+  userId: number;
+  name: string;
+  description: string | null;
+  price: string | null;
+  createdAt: string;
+};
+
+export type ArtisanPortfolioItem = {
+  id: number;
+  userId: number;
+  imageUrl: string;
+  title: string | null;
+  createdAt: string;
+};
+
+export type ApiArtisanProfile = {
+  id: number;
+  fullName?: string | null;
+  name?: string | null;
+  title?: string | null;
+  location?: string | null;
+  photoUrl?: string | null;
+  phone?: string | null;
+  profile?: string | null;
+  services: { name: string; price?: string | null }[];
+  portfolio: { imageUrl: string }[];
+};
+
+export type ArtisanDirectoryPage = {
+  items: ApiArtisanProfile[];
+  pagination: Pagination;
+};
+
+export type ApiArtisanPublicDetail = {
+  id: number;
+  fullName?: string | null;
+  name?: string | null;
+  title?: string | null;
+  location?: string | null;
+  photoUrl?: string | null;
+  phone?: string | null;
+  profile?: string | null;
+  services: {
+    id: number;
+    name: string;
+    description?: string | null;
+    price?: string | null;
+    createdAt: string;
+  }[];
+  portfolio: {
+    id: number;
+    imageUrl: string;
+    title?: string | null;
+    createdAt: string;
+  }[];
+};
+
+export type PortfolioPage = {
+  items: ArtisanPortfolioItem[];
+  pagination: Pagination;
+};
+
 export type ApiNotification = {
   id: number;
   userId: number;
@@ -197,9 +261,11 @@ export type AdminTrendPoint = {
 
 class ApiError extends Error {
   status: number;
-  constructor(message: string, status: number) {
+  details?: unknown;
+  constructor(message: string, status: number, details?: unknown) {
     super(message);
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -257,7 +323,7 @@ async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> 
         status: res.status,
       });
     }
-    throw new ApiError(body.error || `API error ${res.status}`, res.status);
+    throw new ApiError(body.error || body.message || `API error ${res.status}`, res.status, body);
   }
 
   return res.json();
@@ -352,12 +418,64 @@ export type UserApplication = {
   jobTitle: string;
   company: string;
   date: string;
+  status?: string;
   statut: string;
 };
+
+export type RecruiterApplicationStatus = 'REVIEWED' | 'ACCEPTED' | 'REJECTED';
+
+export type ApiApplication = {
+  id: number;
+  jobId: number;
+  candidateId: number;
+  message: string;
+  cvUrl: string;
+  status: string;
+  createdAt: string;
+  candidate: {
+    id: number;
+    name: string;
+    email: string;
+    phone?: string;
+    photoUrl?: string;
+  };
+};
+
+export async function fetchJobApplications(jobId: number): Promise<ApiApplication[]> {
+  const response = await fetch(`/api/backend/jobs/${jobId}/applications`, {
+    method: 'GET',
+    credentials: 'include',
+    cache: 'no-store',
+  });
+
+  const payload = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(payload.message || 'Erreur lors de la recuperation des candidatures');
+  }
+
+  return Array.isArray(payload.applications) ? (payload.applications as ApiApplication[]) : [];
+}
 
 export async function fetchUserApplications(userId: number): Promise<UserApplication[]> {
   const res = await apiFetch<{ applications: UserApplication[] }>(`/api/users/${userId}/applications`);
   return res.applications;
+}
+
+export async function updateApplicationStatus(
+  applicationId: number,
+  status: RecruiterApplicationStatus
+): Promise<ApiApplication> {
+  const response = await apiFetch<{ application?: ApiApplication }>(`/api/jobs/applications/${applicationId}/status`, {
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+
+  if (!response.application) {
+    throw new Error('Reponse invalide: candidature absente.');
+  }
+
+  return response.application;
 }
 
 export async function updateJob(
@@ -632,6 +750,112 @@ export async function trackArtisanContactClick(userId: number): Promise<void> {
   await apiFetch(`/api/artisans/${userId}/track-contact`, {
     method: 'POST',
   });
+}
+
+export async function fetchArtisanServices(userId: number): Promise<ArtisanService[]> {
+  const res = await apiFetch<{ services: ArtisanService[] }>(`/api/users/${userId}/services`);
+  return Array.isArray(res.services) ? res.services : [];
+}
+
+export async function addArtisanService(
+  userId: number,
+  data: { name: string; description?: string; price?: string }
+): Promise<ArtisanService> {
+  const res = await apiFetch<{ service: ArtisanService }>(`/api/users/${userId}/services`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.service;
+}
+
+export async function removeArtisanService(userId: number, serviceId: number): Promise<void> {
+  await apiFetch(`/api/users/${userId}/services/${serviceId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchArtisanPortfolio(
+  userId: number,
+  options: { page?: number; limit?: number } = {}
+): Promise<PortfolioPage> {
+  const params = new URLSearchParams();
+  if (options.page) params.set('page', String(options.page));
+  if (options.limit) params.set('limit', String(options.limit));
+  const query = params.toString();
+
+  const res = await apiFetch<{ portfolio: ArtisanPortfolioItem[]; pagination?: Pagination }>(
+    `/api/users/${userId}/portfolio${query ? `?${query}` : ''}`
+  );
+
+  const items = Array.isArray(res.portfolio) ? res.portfolio : [];
+  return {
+    items,
+    pagination: res.pagination || {
+      page: options.page || 1,
+      limit: options.limit || items.length || 1,
+      total: items.length,
+      totalPages: 1,
+    },
+  };
+}
+
+export async function addPortfolioImage(
+  userId: number,
+  data: { imageUrl: string; title?: string }
+): Promise<ArtisanPortfolioItem> {
+  const res = await apiFetch<{ portfolioItem: ArtisanPortfolioItem }>(`/api/users/${userId}/portfolio`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  return res.portfolioItem;
+}
+
+export async function removePortfolioImage(userId: number, portfolioId: number): Promise<void> {
+  await apiFetch(`/api/users/${userId}/portfolio/${portfolioId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchArtisanDirectory(filters?: {
+  categorie?: string;
+  location?: string;
+  service?: string;
+  sortBy?: 'recent' | 'services' | 'portfolio';
+  page?: number;
+  limit?: number;
+}): Promise<ArtisanDirectoryPage> {
+  const params = new URLSearchParams();
+
+  if (filters?.categorie) params.set('categorie', filters.categorie);
+  if (filters?.location) params.set('location', filters.location);
+  if (filters?.service) params.set('service', filters.service);
+  if (filters?.sortBy) params.set('sortBy', filters.sortBy);
+  if (filters?.page) params.set('page', String(filters.page));
+  if (filters?.limit) params.set('limit', String(filters.limit));
+
+  const queryString = params.toString();
+  const res = await apiFetch<{ artisans: ApiArtisanProfile[]; pagination?: Pagination }>(
+    `/api/users/artisans${queryString ? `?${queryString}` : ''}`
+  );
+
+  const items = Array.isArray(res.artisans) ? res.artisans : [];
+  const page = filters?.page || 1;
+  const limit = filters?.limit || items.length || 1;
+
+  return {
+    items,
+    pagination: res.pagination || {
+      page,
+      limit,
+      total: items.length,
+      totalPages: 1,
+    },
+  };
+}
+
+export async function fetchPublicArtisanProfile(artisanId: number): Promise<ApiArtisanPublicDetail> {
+  const res = await apiFetch<{ artisan: ApiArtisanPublicDetail }>(`/api/users/artisans/${artisanId}`);
+  return res.artisan;
 }
 
 // ── Saved jobs ────────────────────────────────────────────────────

@@ -128,15 +128,27 @@ export default function DashboardCandidat() {
 
   useEffect(() => {
     if (!userId) return;
+    let active = true;
+
     const loadApplications = async () => {
       try {
         const apps = await fetchUserApplications(userId);
+        if (!active) return;
         setCandidatures(apps);
       } catch {
+        if (!active) return;
         setCandidatures([]);
       }
     };
+
     loadApplications();
+
+    const timer = setInterval(loadApplications, 20000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
   }, [userId]);
 
   useEffect(() => {
@@ -271,9 +283,11 @@ export default function DashboardCandidat() {
   };
 
   const statusClass = (status: string) => {
-    if (status === 'En attente d entretien') return 'bg-blue-50 text-blue-700 border-blue-200';
+    if (status === 'En attente') return 'bg-blue-50 text-blue-700 border-blue-200';
     if (status === 'Vue par l employeur') return 'bg-amber-50 text-amber-700 border-amber-200';
     if (status === 'Refusee') return 'bg-red-50 text-red-700 border-red-200';
+    if (status === 'Acceptee') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    if (status === 'En attente d entretien') return 'bg-blue-50 text-blue-700 border-blue-200';
     return 'bg-green-50 text-green-700 border-green-200';
   };
 

@@ -3,7 +3,20 @@ const jwt = require('jsonwebtoken');
 const { prisma } = require('./db');
 
 const SESSION_COOKIE_NAME = 'bolo237_session';
-const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET || 'change-me-in-production';
+
+if (!process.env.SESSION_JWT_SECRET) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_JWT_SECRET environment variable is required in production');
+  }
+  console.warn('⚠️  SESSION_JWT_SECRET not set — using insecure development fallback');
+}
+if (process.env.SESSION_JWT_SECRET && process.env.SESSION_JWT_SECRET.length < 32) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('SESSION_JWT_SECRET must be at least 32 characters in production');
+  }
+  console.warn('⚠️  SESSION_JWT_SECRET should be at least 32 chars');
+}
+const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET || 'dev-only-insecure-fallback-do-not-use-in-prod';
 
 function getSessionCookieOptions() {
   const isProd = process.env.NODE_ENV === 'production';
@@ -71,34 +84,43 @@ async function readSessionToken(req) {
   return payload;
 }
 
-async function requireAdminSession(req, res, next) {
-  try {
-    const payload = await readSessionToken(req);
-    if (!payload?.userId) {
-      return res.status(401).json({ error: 'Session admin requise.' });
+const ADMIN_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
+const MODERATOR_ROLES = new Set(['ADMIN', 'SUPER_ADMIN', 'MODERATOR']);
+
+function buildRoleGuard(allowedRoles, errorLabel) {
+  return async function roleGuard(req, res, next) {
+    try {
+      const payload = await readSessionToken(req);
+      if (!payload?.userId) {
+        return res.status(401).json({ error: 'Session admin requise.' });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: Number(payload.userId) },
+        select: { id: true, role: true, isBanned: true },
+      });
+
+      if (!user || user.isBanned) {
+        return res.status(403).json({ error: 'Acces refuse.' });
+      }
+
+      const role = String(user.role || '').toUpperCase();
+      if (!allowedRoles.has(role)) {
+        return res.status(403).json({ error: errorLabel });
+      }
+
+      req.adminUserId = user.id;
+      req.adminRole = role;
+      return next();
+    } catch (error) {
+      console.error('requireAdminSession error:', error);
+      return res.status(500).json({ error: 'Erreur de verification admin.' });
     }
-
-    const user = await prisma.user.findUnique({
-      where: { id: Number(payload.userId) },
-      select: { id: true, role: true, isBanned: true },
-    });
-
-    if (!user || user.isBanned) {
-      return res.status(403).json({ error: 'Acces refuse.' });
-    }
-
-    const role = String(user.role || '').toUpperCase();
-    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'Acces admin requis.' });
-    }
-
-    req.adminUserId = user.id;
-    return next();
-  } catch (error) {
-    console.error('requireAdminSession error:', error);
-    return res.status(500).json({ error: 'Erreur de verification admin.' });
-  }
+  };
 }
+
+const requireAdminSession = buildRoleGuard(ADMIN_ROLES, 'Acces admin requis.');
+const requireModeratorSession = buildRoleGuard(MODERATOR_ROLES, 'Acces moderation requis.');
 
 async function requireUserSession(req, res, next) {
   try {
@@ -147,5 +169,6 @@ module.exports = {
   createSessionToken,
   readSessionToken,
   requireAdminSession,
+  requireModeratorSession,
   requireUserSession,
 };

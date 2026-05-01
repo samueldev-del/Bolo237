@@ -34,7 +34,7 @@ if (!fs.existsSync(uploadsRoot)) {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (_req, file, cb) => {
     if (!ALLOWED_UPLOAD_MIME.has(String(file.mimetype || '').toLowerCase())) {
       return cb(new Error('Format de fichier non supporte. Veuillez envoyer un PDF, DOC, DOCX, JPG ou PNG.'));
@@ -43,4 +43,13 @@ const upload = multer({
   },
 });
 
-module.exports = { cloudinary, upload, ALLOWED_UPLOAD_MIME, uploadsRoot };
+const { sniffFileType, safeExtensionForMime } = require('./fileSniff');
+
+module.exports = {
+  cloudinary,
+  upload,
+  ALLOWED_UPLOAD_MIME,
+  uploadsRoot,
+  sniffFileType,
+  safeExtensionForMime,
+};

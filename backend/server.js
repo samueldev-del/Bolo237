@@ -64,6 +64,7 @@ const createDashboardEntrepriseRouter = require('./routes/dashboard-entreprise')
 const adminRouter = require('./routes/admin');
 const jobsRouter = require('./routes/jobs');
 const usersRouter = require('./routes/users');
+const { sniffFileType, safeExtensionForMime } = require('./lib/fileSniff');
 
 function logFatalError(label, error) {
   if (error instanceof Error) {
@@ -426,7 +427,10 @@ function isAllowedOrigin(origin) {
 }
 
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  crossOriginResourcePolicy: { policy: 'same-origin' },
+  crossOriginOpenerPolicy: { policy: 'same-origin' },
+  frameguard: { action: 'deny' },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
 app.use(cors({
@@ -603,8 +607,16 @@ const uploadIpLimiter = rateLimit({
 
 app.use('/api', apiGlobalLimiter);
 app.use(cookieParser());
-app.use(express.json());
-app.use('/uploads', express.static(uploadsRoot));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ limit: '1mb', extended: true }));
+app.use('/uploads', express.static(uploadsRoot, {
+  setHeaders: (res) => {
+    res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  },
+}));
 app.use('/api/admin', requireAdminSession);
 
 function getSessionCookieOptions() {
@@ -3671,7 +3683,14 @@ app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res)
       return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp, pdf, doc, docx.' });
     }
 
-    const safeFolder = String(req.query.folder || 'general').replace(/[^a-zA-Z0-9/_-]/g, '') || 'general';
+    const safeFolder = String(req.query.folder || 'general')
+      .replace(/[^a-zA-Z0-9_-]/g, '')
+      .slice(0, 32) || 'general';
+
+    const detectedType = await sniffFileType(req.file.buffer, req.file.mimetype);
+    if (!detectedType || !ALLOWED_UPLOAD_MIME.has(detectedType)) {
+      return res.status(415).json({ error: 'Type de fichier reel invalide.' });
+    }
 
     if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
       const folder = `bolo237/${safeFolder}`;
@@ -3687,9 +3706,12 @@ app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res)
       return res.json({ url: result.secure_url, publicId: result.public_id });
     }
 
-    const extension = path.extname(req.file.originalname || '') || '';
-    const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${extension}`;
+    const extension = safeExtensionForMime(detectedType);
+    const fileName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${extension}`;
     const targetDir = path.join(uploadsRoot, safeFolder);
+    if (!targetDir.startsWith(uploadsRoot + path.sep) && targetDir !== uploadsRoot) {
+      return res.status(400).json({ error: 'Folder invalide.' });
+    }
     fs.mkdirSync(targetDir, { recursive: true });
 
     const fullPath = path.join(targetDir, fileName);

@@ -10,6 +10,7 @@ import { markRecentAuthSuccess, storeAuthenticatedUser } from '@/lib/session';
 
 type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
 type Role = SignupRole | 'admin';
+type HeroRole = 'artisan' | 'entreprise' | 'candidat';
 
 const SIGNUP_HONEYPOT_FIELD = 'website';
 
@@ -25,6 +26,24 @@ const BACKEND_ROLE_TO_LOCAL: Record<string, Role> = {
   ARTISAN: 'artisan',
   ADMIN: 'admin',
   SUPER_ADMIN: 'admin',
+};
+
+const AUTH_HERO_BY_ROLE: Record<HeroRole, { image: string; title: string; subtitle: string }> = {
+  artisan: {
+    image: '/artisant.webp',
+    title: 'Developpez votre activite locale',
+    subtitle: 'Trouvez de nouveaux chantiers et clients pres de chez vous.',
+  },
+  entreprise: {
+    image: '/talent.webp',
+    title: 'Trouvez vos futurs talents',
+    subtitle: 'Publiez vos offres et recrutez les meilleurs profils du Cameroun.',
+  },
+  candidat: {
+    image: '/jobsearch.jpg',
+    title: 'Donnez un elan a votre carriere',
+    subtitle: 'Des centaines d offres d emploi vous attendent chaque jour.',
+  },
 };
 
 function toLocalRole(role: string | null | undefined): Role {
@@ -92,14 +111,23 @@ function ConnexionContent() {
   const [authError, setAuthError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const roleFromQuery = searchParams.get('role');
+  const heroRole: HeroRole =
+    roleFromQuery === 'artisan' || roleFromQuery === 'entreprise' || roleFromQuery === 'candidat'
+      ? roleFromQuery
+      : 'candidat';
+  const hero = AUTH_HERO_BY_ROLE[heroRole];
+
   const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];
   const cleanedLocalPhone = phone.replace(/\D/g, '');
   const internationalPhone = `${selectedCountry.dialCode}${cleanedLocalPhone}`;
 
   useEffect(() => {
     const requestedRole = searchParams.get('role');
-    if (requestedRole === 'chercheur' || requestedRole === 'entreprise' || requestedRole === 'artisan') {
+    if (requestedRole === 'entreprise' || requestedRole === 'artisan') {
       setSelectedRole(requestedRole);
+    } else if (requestedRole === 'chercheur' || requestedRole === 'candidat') {
+      setSelectedRole('chercheur');
     }
 
     const requestedMode = searchParams.get('mode');
@@ -237,51 +265,17 @@ function ConnexionContent() {
   };
 
   const currentRole = roleConfig[selectedRole];
-
-  const heroGradient = selectedRole === 'entreprise'
-    ? 'linear-gradient(135deg, rgba(30, 58, 138, 0.85), rgba(17, 24, 39, 0.75))'
-    : selectedRole === 'artisan'
-      ? 'linear-gradient(135deg, rgba(120, 53, 15, 0.80), rgba(17, 24, 39, 0.75))'
-      : 'linear-gradient(135deg, rgba(168, 80, 47, 0.85), rgba(17, 24, 39, 0.75))';
+  const textInputClass = 'w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none transition-all duration-200 text-[15px] hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]';
+  const compactInputClass = 'w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 text-sm hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]';
 
   return (
-    <div className="min-h-screen bg-gray-100 font-sans text-black flex items-center justify-center p-4 md:p-8">
-      <div className="w-full max-w-6xl bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-2xl grid grid-cols-1 md:grid-cols-2 min-h-[720px]">
-
-        {/* LEFT PANEL (Hero) */}
-        <div
-          className="hidden md:flex relative"
-          style={{ backgroundImage: `${heroGradient}, url('/auth-hero.svg')`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-        >
-          <div className="absolute inset-0 p-10 lg:p-14 flex flex-col justify-between text-white">
-            <Link href={localizePath('/')}>
-              <Image src="/logo-white.svg" alt="Bolo237" width={160} height={42} priority className="h-10 w-auto" />
-            </Link>
-            <div>
-              {!isLogin && (
-                <div className="inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm px-4 py-1.5 rounded-full text-sm font-bold mb-6">
-                  <span>{currentRole.icon}</span>
-                  <span>{currentRole.subtitle}</span>
-                </div>
-              )}
-              <h1 className="text-3xl lg:text-4xl font-extrabold leading-tight mb-4">
-                {isLogin ? (isEn ? 'Welcome back to Bolo237.' : 'Bon retour sur Bolo237.') : currentRole.heroTitle}
-              </h1>
-              <p className="text-white/80 font-medium text-lg">
-                {isLogin
-                  ? (isEn ? 'Sign in to access your dashboard.' : 'Connectez-vous pour accéder à votre espace.')
-                  : currentRole.heroDesc}
-              </p>
-            </div>
-            <div className="flex items-center gap-3 text-white/40 text-xs font-medium">
-              <span className="w-8 h-[1px] bg-white/20"></span>
-              {isEn ? 'Secured platform' : 'Plateforme sécurisée'} <span>•</span> {isEn ? 'Anti-fraud protection' : 'Protection anti-fraude'}
-            </div>
-          </div>
-        </div>
-
-        {/* RIGHT PANEL (Form) */}
-        <div className="relative p-6 sm:p-8 lg:p-10 flex flex-col overflow-y-auto max-h-[90vh]">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#fef3ec,_#f3f4f6_35%,_#eef2ff_100%)] font-sans text-black">
+      <div className="mx-auto flex min-h-screen w-full max-w-[1500px] lg:overflow-hidden">
+        {/* LEFT PANEL (Form) */}
+        <div className="relative w-full lg:w-1/2 bg-white/90 backdrop-blur-sm p-5 sm:p-8 lg:p-10 overflow-y-auto max-h-screen">
+          <div className="pointer-events-none absolute -top-20 -left-20 h-64 w-64 rounded-full bg-[#FFDCC9]/40 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-24 right-10 h-72 w-72 rounded-full bg-[#CFE6FF]/35 blur-3xl" />
+          <div className="relative z-10 animate-in fade-in-0 slide-in-from-bottom-2 duration-300">
           {/* Mobile logo + close */}
           <div className="flex items-center justify-between mb-6">
             <div className="md:hidden">
@@ -295,16 +289,16 @@ function ConnexionContent() {
           </div>
 
           {/* Toggle */}
-          <div className="bg-gray-100 p-1 rounded-full inline-flex mb-6 self-start">
+          <div className="bg-gray-100 p-1 rounded-full inline-flex mb-6 self-start w-full sm:w-auto">
             <button
               onClick={() => { setIsLogin(true); setAuthError(''); }}
-              className={`px-6 py-2.5 rounded-full text-sm font-bold transition ${isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-200 ${isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-white/50'}`}
             >
               {isEn ? 'Sign in' : 'Se connecter'}
             </button>
             <button
               onClick={() => { setIsLogin(false); setAuthError(''); }}
-              className={`px-6 py-2.5 rounded-full text-sm font-bold transition ${!isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black'}`}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-200 ${!isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-white/50'}`}
             >
               {isEn ? 'Sign up' : 'S\'inscrire'}
             </button>
@@ -322,7 +316,7 @@ function ConnexionContent() {
                   <label className="text-sm font-bold text-gray-700 mb-1 block">{isEn ? 'Email or phone' : 'Email ou telephone'}</label>
                   <input type="text" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
                     placeholder={isEn ? 'name@example.com or +2376...' : 'nom@example.com ou +2376...'}
-                    className="w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none transition text-[15px]" />
+                    className={textInputClass} />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -332,7 +326,7 @@ function ConnexionContent() {
                   <div className="relative">
                     <input type={showLoginPassword ? 'text' : 'password'} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none transition text-[15px] pr-12" />
+                      className={`${textInputClass} pr-12`} />
                     <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm font-bold">
                       {showLoginPassword ? '🙈' : '👁️'}
                     </button>
@@ -340,7 +334,7 @@ function ConnexionContent() {
                 </div>
               </div>
               <button onClick={handleLogin} disabled={isSubmitting}
-                className="w-full bg-[#DA7756] text-white font-bold py-3.5 rounded-xl hover:bg-[#C4623F] transition shadow-md disabled:opacity-60 text-[15px]">
+                className="w-full bg-[#DA7756] text-white font-bold py-3.5 rounded-xl hover:bg-[#C4623F] transition-all duration-200 hover:-translate-y-0.5 shadow-md hover:shadow-lg disabled:opacity-60 disabled:hover:translate-y-0 text-[15px]">
                 {isSubmitting ? (isEn ? 'Signing in...' : 'Connexion...') : (isEn ? 'Sign in' : 'Se connecter')}
               </button>
 
@@ -354,7 +348,7 @@ function ConnexionContent() {
               {/* Google Sign-In */}
               <button
                 onClick={() => window.alert('Google Sign-In coming soon')}
-                className="flex items-center justify-center gap-3 w-full h-12 rounded-xl border border-zinc-300 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition"
+                className="flex items-center justify-center gap-3 w-full h-12 rounded-xl border border-zinc-300 bg-white text-sm font-medium text-zinc-700 hover:bg-zinc-50 transition-all duration-200 hover:-translate-y-0.5"
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
@@ -368,7 +362,7 @@ function ConnexionContent() {
               {/* Apple Sign-In */}
               <button
                 onClick={() => window.alert('Apple Sign-In coming soon')}
-                className="flex items-center justify-center gap-3 w-full h-12 rounded-xl bg-black text-sm font-medium text-white hover:bg-zinc-800 transition"
+                className="flex items-center justify-center gap-3 w-full h-12 rounded-xl bg-black text-sm font-medium text-white hover:bg-zinc-800 transition-all duration-200 hover:-translate-y-0.5"
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
@@ -399,7 +393,7 @@ function ConnexionContent() {
                           </select>
                           <input type="tel" value={resetPhone} onChange={(e) => setResetPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
                             placeholder={COUNTRY_PHONE_OPTIONS.find(c => c.code === resetCountryCode)?.placeholder || '6XX XX XX XX'}
-                            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-sm" />
+                            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none transition-all duration-200 text-sm hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]" />
                         </div>
 
                         {/* Send reset code button */}
@@ -417,7 +411,7 @@ function ConnexionContent() {
                                 setResetMessage(err instanceof Error ? err.message : 'Error');
                               }
                             }}
-                            className="w-full bg-[#DA7756] text-white font-bold py-3 rounded-xl hover:bg-[#C4623F] transition text-sm"
+                            className="w-full bg-[#DA7756] text-white font-bold py-3 rounded-xl hover:bg-[#C4623F] transition-all duration-200 hover:-translate-y-0.5 text-sm"
                           >
                             {isEn ? 'Send verification code' : 'Envoyer le code de verification'}
                           </button>
@@ -429,12 +423,12 @@ function ConnexionContent() {
                             <div>
                               <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Verification code' : 'Code de verification'}</label>
                               <input type="text" value={resetCode} onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                placeholder="123456" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-sm" />
+                                placeholder="123456" className={compactInputClass} />
                             </div>
                             <div>
                               <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'New password' : 'Nouveau mot de passe'}</label>
                               <input type="password" value={resetNewPassword} onChange={(e) => setResetNewPassword(e.target.value)}
-                                placeholder="••••••••" className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-sm" />
+                                placeholder="••••••••" className={compactInputClass} />
                             </div>
                             <button
                               onClick={async () => {
@@ -449,7 +443,7 @@ function ConnexionContent() {
                                   setResetMessage(err instanceof Error ? err.message : 'Error');
                                 }
                               }}
-                              className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-black transition text-sm"
+                              className="w-full bg-gray-900 text-white font-bold py-3 rounded-xl hover:bg-black transition-all duration-200 hover:-translate-y-0.5 text-sm"
                             >
                               {isEn ? 'Reset password' : 'Reinitialiser le mot de passe'}
                             </button>
@@ -511,14 +505,14 @@ function ConnexionContent() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Last name' : 'Nom'} *</label>
                   <input
                     type="text"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
+                    className={compactInputClass}
                   />
                 </div>
                 <div>
@@ -527,7 +521,7 @@ function ConnexionContent() {
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
+                    className={compactInputClass}
                   />
                 </div>
               </div>
@@ -540,7 +534,7 @@ function ConnexionContent() {
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     placeholder={isEn ? 'Your company name' : 'Nom de votre entreprise'}
-                    className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-[15px] bg-blue-50/30"
+                    className="w-full px-4 py-3 border border-blue-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all duration-200 text-[15px] bg-blue-50/30 hover:border-blue-400 focus:shadow-[0_0_0_4px_rgba(59,130,246,0.16)]"
                   />
                 </div>
               )}
@@ -551,7 +545,7 @@ function ConnexionContent() {
                   <select
                     value={selectedCountryCode}
                     onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
-                    className="w-[170px] px-3 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-[#DA7756] outline-none"
+                    className="w-[170px] px-3 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 hover:border-gray-400"
                   >
                     {COUNTRY_PHONE_OPTIONS.map((country) => (
                       <option key={country.code} value={country.code}>
@@ -564,7 +558,7 @@ function ConnexionContent() {
                     value={phone}
                     onChange={(e) => setPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
                     placeholder={selectedCountry.placeholder}
-                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
+                    className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 text-[15px] hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]"
                   />
                 </div>
                 <p className="text-[10px] text-gray-400 mt-1">
@@ -579,7 +573,7 @@ function ConnexionContent() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="nom@email.com"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
+                  className={compactInputClass}
                 />
               </div>
 
@@ -604,7 +598,7 @@ function ConnexionContent() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={isEn ? '6 characters minimum' : '6 caracteres minimum'}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px] pr-12"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 text-[15px] pr-12 hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]"
                   />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
                     {showPassword ? '🙈' : '👁️'}
@@ -619,14 +613,14 @@ function ConnexionContent() {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder={isEn ? 'Repeat your password' : 'Repetez votre mot de passe'}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none text-[15px]"
+                  className={compactInputClass}
                 />
               </div>
 
               <button
                 onClick={handleSignup}
                 disabled={isSubmitting}
-                className={`w-full text-white font-bold py-3.5 rounded-xl transition shadow-md text-[15px] disabled:opacity-60 ${
+                className={`w-full text-white font-bold py-3.5 rounded-xl transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg shadow-md text-[15px] disabled:opacity-60 disabled:hover:translate-y-0 ${
                   selectedRole === 'entreprise' ? 'bg-blue-600 hover:bg-blue-700' :
                   selectedRole === 'artisan' ? 'bg-amber-500 hover:bg-amber-600' :
                   'bg-[#DA7756] hover:bg-[#C4623F]'
@@ -656,7 +650,41 @@ function ConnexionContent() {
               </button>
             </p>
           </div>
+          </div>
         </div>
+
+        {/* RIGHT PANEL (Illustration) */}
+        <aside className="relative hidden lg:block lg:w-1/2">
+          <Image
+            src={hero.image}
+            alt={hero.title}
+            fill
+            priority
+            className="object-cover"
+          />
+          <div className="absolute inset-0 bg-black/20" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(255,255,255,0.22),transparent_35%),radial-gradient(circle_at_80%_70%,rgba(255,255,255,0.14),transparent_40%)]" />
+          <div className="absolute inset-0 flex flex-col justify-between p-10 text-white xl:p-14">
+            <Link href={localizePath('/')}>
+              <Image src="/logo-white.svg" alt="Bolo237" width={160} height={42} priority className="h-10 w-auto" />
+            </Link>
+
+            <div>
+              <p className="mb-3 inline-flex rounded-full bg-white/15 px-4 py-1.5 text-xs font-bold uppercase tracking-wide backdrop-blur-sm">
+                {heroRole === 'artisan' ? 'Artisan' : heroRole === 'entreprise' ? 'Entreprise' : 'Candidat'}
+              </p>
+              <h1 className="text-4xl font-extrabold leading-tight xl:text-5xl">{hero.title}</h1>
+              <p className="mt-4 max-w-xl text-base text-white/90 xl:text-lg">{hero.subtitle}</p>
+            </div>
+
+            <div className="flex items-center gap-3 text-xs font-medium text-white/70">
+              <span className="h-px w-10 bg-white/30" />
+              Plateforme securisee
+              <span>•</span>
+              Connexion rapide
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
   );

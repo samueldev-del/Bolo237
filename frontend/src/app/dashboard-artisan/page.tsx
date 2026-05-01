@@ -133,6 +133,7 @@ function createEmptyUserProfileDraft(initial: Partial<Omit<UserProfile, 'userId'
     phone: '',
     email: '',
     profile: '',
+    defaultCvUrl: '',
     experience: '',
     education: '',
     skillsText: '',

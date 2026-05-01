@@ -40,6 +40,7 @@ const bcrypt = require('bcryptjs');
 const twilio = require('twilio');
 const nodemailer = require('nodemailer');
 const multer = require('multer');
+const { z } = require('zod');
 const cloudinary = require('cloudinary').v2;
 const {
   archiveAdminInboxTicket,
@@ -955,6 +956,24 @@ try { platformSettings = normalizePlatformSettings(JSON.parse(fs.readFileSync(SE
 
 // candidateProfiles, userProfiles, savedJobs are now in the database (Prisma)
 
+const userProfilePayloadSchema = z.object({
+  fullName: z.string().max(160).optional(),
+  title: z.string().max(200).optional(),
+  location: z.string().max(200).optional(),
+  availability: z.string().max(120).optional(),
+  profileVisible: z.boolean().optional(),
+  jobAlertRole: z.string().max(140).optional(),
+  jobAlertCity: z.string().max(140).optional(),
+  phone: z.string().max(60).optional(),
+  email: z.string().max(190).optional(),
+  profile: z.string().max(6000).optional(),
+  defaultCvUrl: z.string().max(1000).optional(),
+  experience: z.string().max(5000).optional(),
+  education: z.string().max(5000).optional(),
+  skillsText: z.string().max(2000).optional(),
+  languagesText: z.string().max(1200).optional(),
+});
+
 function profileFromBody(userId, body) {
   return {
     userId,
@@ -968,6 +987,7 @@ function profileFromBody(userId, body) {
     phone: String(body.phone || ''),
     email: String(body.email || ''),
     profile: String(body.profile || ''),
+    defaultCvUrl: String(body.defaultCvUrl || ''),
     experience: String(body.experience || ''),
     education: String(body.education || ''),
     skillsText: String(body.skillsText || ''),
@@ -1453,6 +1473,7 @@ app.get('/api/candidates/:id', async (req, res) => {
             phone: userProfile.phone,
             email: userProfile.email,
             profile: userProfile.profile,
+            defaultCvUrl: userProfile.defaultCvUrl,
             experience: userProfile.experience,
             education: userProfile.education,
             skillsText: userProfile.skillsText,
@@ -1490,7 +1511,9 @@ app.put('/api/profiles/:userId', async (req, res) => {
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
 
-    const data = profileFromBody(userId, req.body || {});
+    const parsedPayload = userProfilePayloadSchema.parse(req.body || {});
+
+    const data = profileFromBody(userId, parsedPayload);
     delete data.userId;
     delete data.updatedAt;
 
@@ -1501,8 +1524,44 @@ app.put('/api/profiles/:userId', async (req, res) => {
     });
     res.json(profile);
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Payload de profil invalide.', issues: error.issues });
+    }
     console.error('PUT /api/profiles/:userId error:', error);
     res.status(500).json({ error: 'Erreur lors de la mise a jour du profil.' });
+  }
+});
+
+app.patch('/api/users/:id/photo', requireUserSession, async (req, res) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
+
+    const sessionUser = req.sessionUser;
+    const role = String(sessionUser?.role || '').toUpperCase();
+    const canEdit = Number(sessionUser?.id) === id || role === 'ADMIN' || role === 'SUPER_ADMIN';
+
+    if (!canEdit) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    const rawPhotoUrl = req.body?.photoUrl;
+    const photoUrl = rawPhotoUrl ? String(rawPhotoUrl).trim() : null;
+
+    if (photoUrl && photoUrl.length > 1000) {
+      return res.status(400).json({ error: 'URL photo trop longue.' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { photoUrl },
+      select: { id: true, email: true, name: true, role: true, phone: true, photoUrl: true, isVerified: true, isBanned: true, createdAt: true },
+    });
+
+    return res.json(updatedUser);
+  } catch (error) {
+    console.error('PATCH /api/users/:id/photo error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la mise a jour de la photo.' });
   }
 });
 

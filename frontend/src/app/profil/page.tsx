@@ -93,6 +93,7 @@ export default function ProfilCV() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userId, setUserId] = useState<number | null>(null);
+  const [defaultCvUrl, setDefaultCvUrl] = useState('');
   const [isCertified, setIsCertified] = useState(false);
   const [accessStatus, setAccessStatus] = useState<'checking' | 'allowed' | 'unavailable'>('checking');
   const [accessError, setAccessError] = useState('');
@@ -215,6 +216,7 @@ export default function ProfilCV() {
         }
         if (data.email) setEmail(data.email);
         if (data.profile) setBio(data.profile);
+        if (data.defaultCvUrl) setDefaultCvUrl(data.defaultCvUrl);
         if (data.skillsText) setSkills(data.skillsText.split(',').map((s: string) => s.trim()).filter(Boolean));
         if (data.languagesText) setLanguages(data.languagesText.split(',').map((s: string) => s.trim()).filter(Boolean));
         if (data.experience) {
@@ -258,6 +260,7 @@ export default function ProfilCV() {
           phone: internationalPhone,
           email,
           profile: bio,
+          defaultCvUrl,
           experience: JSON.stringify(experiences.filter(e => e.poste)),
           education: JSON.stringify(formations.filter(f => f.diplome)),
           skillsText: skills.join(', '),

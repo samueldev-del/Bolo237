@@ -65,6 +65,7 @@ type UserProfile = {
   name: string;
   title: string;
   skills: string;
+  defaultCvUrl: string;
   cvUploaded: boolean;
   phoneVerified: boolean;
   profileComplete: boolean;
@@ -85,6 +86,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [message, setMessage] = useState('');
   const [cvFile, setCvFile] = useState<File | null>(null);
+  const [useDefaultCv, setUseDefaultCv] = useState(true);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Fetch le détail de l'offre depuis le backend
@@ -128,7 +130,8 @@ export default function OffreEmploiPage({ params }: JobParams) {
             name: fullName,
             title,
             skills,
-            cvUploaded: Boolean(profileComplete),
+            defaultCvUrl: String(profile?.defaultCvUrl || '').trim(),
+            cvUploaded: Boolean(profileComplete || profile?.defaultCvUrl),
             phoneVerified,
             profileComplete,
             isVerified: Boolean(user.isVerified),
@@ -315,6 +318,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
 
     setMessage('');
     setCvFile(null);
+    setUseDefaultCv(true);
     setFormErrors({});
     setApplyMessage('');
     setShowApplicationReview(true);
@@ -354,7 +358,9 @@ export default function OffreEmploiPage({ params }: JobParams) {
       return;
     }
 
-    if (!cvFile) {
+    const selectedDefaultCvUrl = useDefaultCv ? String(userProfile.defaultCvUrl || '').trim() : '';
+
+    if (!cvFile && !selectedDefaultCvUrl) {
       setFormErrors({ cv: isEn ? 'Please attach your CV.' : 'Veuillez joindre votre CV.' });
       return;
     }
@@ -363,11 +369,15 @@ export default function OffreEmploiPage({ params }: JobParams) {
     setApplyMessage('');
 
     try {
-      await submitJobApplication(apiJob.id, message, cvFile);
+      await submitJobApplication(apiJob.id, message, {
+        cvFile,
+        defaultCvUrl: selectedDefaultCvUrl || null,
+      });
 
       setShowApplicationReview(false);
       setMessage('');
       setCvFile(null);
+      setUseDefaultCv(true);
       setApplyMessage(
         isEn
           ? 'Your application has been sent successfully!'
@@ -858,10 +868,40 @@ export default function OffreEmploiPage({ params }: JobParams) {
                   <label className="mb-1 block text-sm font-bold text-gray-700">
                     {isEn ? 'Your CV (PDF, DOC, DOCX)' : 'Votre CV (PDF, DOC, DOCX)'}
                   </label>
+                  {userProfile?.defaultCvUrl ? (
+                    <label className="mb-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+                      <input
+                        type="checkbox"
+                        checked={useDefaultCv}
+                        onChange={(event) => {
+                          setUseDefaultCv(event.target.checked);
+                          if (event.target.checked) {
+                            setCvFile(null);
+                            setFormErrors((prev) => {
+                              const next = { ...prev };
+                              delete next.cv;
+                              return next;
+                            });
+                          }
+                        }}
+                        className="h-4 w-4"
+                      />
+                      {isEn ? 'Use my default CV for this application' : 'Utiliser mon CV principal pour cette candidature'}
+                      <a
+                        href={userProfile.defaultCvUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="ml-auto text-emerald-700 underline"
+                      >
+                        {isEn ? 'Preview' : 'Apercu'}
+                      </a>
+                    </label>
+                  ) : null}
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx"
                     onChange={handleFileChange}
+                    disabled={useDefaultCv && Boolean(userProfile?.defaultCvUrl)}
                     className={`w-full rounded-xl border p-2 text-sm ${formErrors.cv ? 'border-red-500 bg-red-50' : 'border-gray-200 bg-white'}`}
                   />
                   {formErrors.cv ? <p className="mt-1 text-xs font-bold text-red-500">{formErrors.cv}</p> : null}

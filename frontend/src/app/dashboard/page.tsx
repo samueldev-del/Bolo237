@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, ApiError, type ApiJob, type CandidateProfile, type UserApplication, type UserProfile } from '@/lib/api';
+import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, updateUserPhoto, uploadFile, upsertUserProfile, ApiError, type ApiJob, type CandidateProfile, type UserApplication, type UserProfile } from '@/lib/api';
 import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser, persistPhotoUrl } from '@/lib/session';
 import { useRequireRole } from '@/lib/useRequireRole';
 
@@ -58,6 +58,7 @@ export default function DashboardCandidat() {
   const docFileInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploadingCv, setIsUploadingCv] = useState(false);
   const [uploadedDocuments, setUploadedDocuments] = useState<{ name: string; url: string; type: string; uploadedAt: string }[]>([]);
+  const [defaultCvUrl, setDefaultCvUrl] = useState('');
   const [jobAlertRole, setJobAlertRole] = useState('');
   const [jobAlertCity, setJobAlertCity] = useState('');
   const [isSavingProfileSection, setIsSavingProfileSection] = useState(false);
@@ -189,6 +190,25 @@ export default function DashboardCandidat() {
         setProfileVisible(profile.profileVisible ?? true);
         setJobAlertRole(profile.jobAlertRole || '');
         setJobAlertCity(profile.jobAlertCity || '');
+        setDefaultCvUrl(profile.defaultCvUrl || '');
+
+        if (profile.defaultCvUrl) {
+          setUploadedDocuments((prev) => {
+            const hasSameCv = prev.some((document) => document.type === 'cv' && document.url === profile.defaultCvUrl);
+            if (hasSameCv) return prev;
+
+            const next = [
+              { name: 'CV principal', url: profile.defaultCvUrl, type: 'cv', uploadedAt: new Date().toISOString() },
+              ...prev.filter((document) => document.type !== 'cv'),
+            ];
+
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem('bolo237-documents', JSON.stringify(next));
+            }
+
+            return next;
+          });
+        }
       } catch {
         // ignore missing profile until first save
       }
@@ -499,6 +519,7 @@ export default function DashboardCandidat() {
       phone: cvData.phone,
       email: cvData.email,
       profile: cvData.profile,
+      defaultCvUrl,
       experience: cvData.experience,
       education: cvData.education,
       skillsText: cvData.skillsText,
@@ -543,7 +564,7 @@ export default function DashboardCandidat() {
       phone: cvData.phone,
       skills: cvData.skillsText,
       photoUrl: profilePhotoUrl,
-      cvUploaded: uploadedDocuments.some((document) => document.type === 'cv'),
+      cvUploaded: Boolean(defaultCvUrl || uploadedDocuments.some((document) => document.type === 'cv')),
       phoneVerified,
       profileComplete,
       profileVisible,
@@ -632,11 +653,18 @@ export default function DashboardCandidat() {
     setIsUploadingCv(true);
     setCvActionMessage('');
     try {
-      const uploaded = await uploadFile(file, 'candidate-cvs');
+      const uploaded = await uploadFile(file, 'cv');
       const doc = { name: file.name, url: uploaded.url, type: 'cv', uploadedAt: new Date().toISOString() };
       const next = [doc, ...uploadedDocuments.filter((d) => d.type !== 'cv')];
       setUploadedDocuments(next);
       localStorage.setItem('bolo237-documents', JSON.stringify(next));
+      setDefaultCvUrl(uploaded.url);
+
+      if (userId) {
+        const basePayload = buildUserProfilePayload();
+        await upsertUserProfile(userId, { ...basePayload, defaultCvUrl: uploaded.url });
+      }
+
       mergeStoredUser({ cvUploaded: true });
       setCvActionMessage(isEn ? 'CV uploaded successfully.' : 'CV telecharge avec succes.');
     } catch (error) {
@@ -664,9 +692,17 @@ export default function DashboardCandidat() {
   };
 
   const handleRemoveDocument = (index: number) => {
+    const removed = uploadedDocuments[index];
     const next = uploadedDocuments.filter((_, i) => i !== index);
     setUploadedDocuments(next);
     localStorage.setItem('bolo237-documents', JSON.stringify(next));
+
+    if (removed?.type === 'cv') {
+      setDefaultCvUrl('');
+      if (userId) {
+        void upsertUserProfile(userId, { ...buildUserProfilePayload(), defaultCvUrl: '' }).catch(() => undefined);
+      }
+    }
   };
 
   const handlePhotoUpload = async (file: File | null) => {
@@ -674,7 +710,12 @@ export default function DashboardCandidat() {
     setIsUploadingPhoto(true);
     setCvActionMessage('');
     try {
-      const uploaded = await uploadFile(file, 'candidate-photos');
+      const uploaded = await uploadFile(file, 'avatars');
+
+      if (userId) {
+        await updateUserPhoto(userId, uploaded.url);
+      }
+
       setProfilePhotoUrl(uploaded.url);
       mergeStoredUser({ photoUrl: uploaded.url });
       persistPhotoUrl('photoUrl', uploaded.url);
@@ -1042,6 +1083,17 @@ export default function DashboardCandidat() {
               {uploadedDocuments.find((d) => d.type === 'cv') && (
                 <p className="text-xs font-bold text-green-600 mt-1">&#10003; {isEn ? 'CV on file' : 'CV enregistre'}</p>
               )}
+              {defaultCvUrl ? (
+                <a
+                  href={defaultCvUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 inline-block text-[11px] font-bold text-green-700 underline"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {isEn ? 'Open default CV' : 'Ouvrir le CV principal'}
+                </a>
+              ) : null}
             </button>
             <button
               onClick={() => {

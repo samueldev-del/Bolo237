@@ -239,6 +239,7 @@ model UserProfile {
   phone          String   @default("")
   email          String   @default("")
   profile        String   @default("")
+  defaultCvUrl   String   @default("")
   experience     String   @default("")
   education      String   @default("")
   skillsText     String   @default("")

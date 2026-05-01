@@ -320,6 +320,7 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
 // 🛡️ 1. LE SCHÉMA ZOD POUR LA CANDIDATURE
 const applySchema = z.object({
   message: z.string().trim().min(20, "Votre message de motivation doit faire au moins 20 caractères.").max(2000),
+  cvUrl: z.string().trim().url().optional(),
 });
 
 // 🛑 2. MIDDLEWARE DE VALIDATION POUR LES FORMULAIRES MULTIPART (fichiers)
@@ -328,9 +329,9 @@ const validateApply = async (req, res, next) => {
   try {
     req.body = await applySchema.parseAsync(req.body);
 
-    // On vérifie manuellement que Multer a bien intercepté un fichier
-    if (!req.file) {
-      return res.status(400).json({ success: false, message: "Vous devez joindre un CV." });
+    // Accepter soit un fichier, soit une URL de CV principal deja stockee.
+    if (!req.file && !req.body?.cvUrl) {
+      return res.status(400).json({ success: false, message: "Vous devez joindre un CV ou utiliser votre CV principal." });
     }
 
     next();
@@ -353,10 +354,16 @@ router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply
   try {
     const jobId = parseInt(req.params.id, 10);
     const candidateId = req.sessionUser.id;
-    const { message } = req.body;
+    const { message, cvUrl: bodyCvUrl } = req.body;
 
-    // Selon ta configuration d'upload (Cloudinary, AWS S3, ou local), req.file contiendra l'URL ou le chemin.
-    const cvUrl = req.file.path || req.file.secure_url;
+    // Si un fichier est fourni ici, la route historique tente de lire son URL.
+    // Sinon, on reutilise l'URL d'un CV deja stocke (CV principal).
+    const uploadedCvUrl = req.file?.path || req.file?.secure_url || '';
+    const cvUrl = String(uploadedCvUrl || bodyCvUrl || '').trim();
+
+    if (!cvUrl) {
+      return res.status(400).json({ success: false, message: "Vous devez joindre un CV valide." });
+    }
 
     // 1. Vérifier que l'offre existe et est approuvée
     const job = await prisma.job.findUnique({

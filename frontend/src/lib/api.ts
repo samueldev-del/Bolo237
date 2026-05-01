@@ -148,6 +148,7 @@ export type UserProfile = {
   phone: string;
   email: string;
   profile: string;
+  defaultCvUrl: string;
   experience: string;
   education: string;
   skillsText: string;
@@ -477,13 +478,36 @@ export type ApiApplication = {
   };
 };
 
-export async function submitJobApplication(jobId: number, message: string, cvFile: File): Promise<{ application?: ApiApplication }> {
+export async function submitJobApplication(
+  jobId: number,
+  message: string,
+  options: { cvFile?: File | null; defaultCvUrl?: string | null }
+): Promise<{ application?: ApiApplication }> {
   const payload = new FormData();
   payload.append('message', message);
-  payload.append('cv', cvFile);
+
+  let cvUrl = String(options.defaultCvUrl || '').trim();
+  if (options.cvFile) {
+    const uploaded = await uploadFile(options.cvFile, 'cv');
+    cvUrl = String(uploaded.url || '').trim();
+  }
+
+  if (!cvUrl) {
+    throw new ApiError('CV requis pour envoyer la candidature.', 400);
+  }
+
+  payload.append('cvUrl', cvUrl);
+
   return apiFetch<{ application?: ApiApplication }>(`/api/jobs/${jobId}/apply`, {
     method: 'POST',
     body: payload,
+  });
+}
+
+export async function updateUserPhoto(userId: number, photoUrl: string | null): Promise<ApiUser> {
+  return apiFetch<ApiUser>(`/api/users/${userId}/photo`, {
+    method: 'PATCH',
+    body: JSON.stringify({ photoUrl }),
   });
 }
 

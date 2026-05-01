@@ -5,42 +5,32 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { fetchCandidateProfiles } from '@/lib/api';
+import { type CandidateProfile, fetchCandidateProfiles } from '@/lib/api';
 import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 
 const USER_KEY = 'bolo237-user';
 const ROLE_KEY = 'bolo237-account-role';
 
-type Candidate = {
-  id: number;
-  nom: string;
-  titre: string;
-  localisation: string;
-  experience: 'Junior' | 'Confirme' | 'Senior';
-  disponibilite: 'Immediatement' | 'Sous 1 mois' | 'A l ecoute du marche';
-  etudes: 'Bac' | 'Bac+2' | 'Bac+3' | 'Bac+5';
-  cvMajJours: number;
-  competences: string[];
-  disponibleNow: boolean;
-  photo?: string;
-};
-
-
 export default function CvthequePage() {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
-  const [apiCandidats, setApiCandidats] = useState<Candidate[]>([]);
+  const [apiCandidats, setApiCandidats] = useState<CandidateProfile[]>([]);
   const [keywords, setKeywords] = useState('');
   const [localisation, setLocalisation] = useState('');
   const [saved, setSaved] = useState<number[]>([]);
   const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'experience' | 'availability' | 'alpha'>('recent');
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 3;
+  const pageSize = 12;
+  const [totalProfiles, setTotalProfiles] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   const [expFilters, setExpFilters] = useState<string[]>([]);
   const [dispoFilters, setDispoFilters] = useState<string[]>([]);
   const [etudeFilters, setEtudeFilters] = useState<string[]>([]);
   const [actif30Jours, setActif30Jours] = useState(false);
+  const [onlyWithCv, setOnlyWithCv] = useState(true);
 
   // Access control: only entreprise and artisan can view CVthèque
   const userSnapshot = useSyncExternalStore(
@@ -63,37 +53,60 @@ export default function CvthequePage() {
 
   useEffect(() => {
     if (accessAllowed !== true) return;
+
+    setIsLoadingCandidates(true);
+    setErrorMessage('');
+
     const loadCandidates = async () => {
       try {
-        const rows = await fetchCandidateProfiles();
-        const mapped = rows
+        const response = await fetchCandidateProfiles({
+          search: keywords.trim() || undefined,
+          location: localisation.trim() || undefined,
+          sortBy,
+          experience: expFilters.length > 0 ? expFilters : undefined,
+          availability: dispoFilters.length > 0 ? dispoFilters : undefined,
+          education: etudeFilters.length > 0 ? etudeFilters : undefined,
+          activeDays: actif30Jours ? 30 : undefined,
+          onlyWithCv,
+          page: currentPage,
+          limit: pageSize,
+        });
+
+        const mapped = response.candidates
           .filter((cand) => cand.userId && cand.userId > 0)
-          .map((cand) => ({
-            id: cand.id,
-            nom: cand.nom,
-            titre: cand.titre,
-            localisation: cand.localisation,
-            experience: cand.experience,
-            disponibilite: cand.disponibilite,
-            etudes: cand.etudes,
-            cvMajJours: cand.cvMajJours,
-            competences: cand.competences,
-            disponibleNow: cand.disponibleNow,
-          })) as Candidate[];
+          .map((cand) => ({ ...cand }));
+
         setApiCandidats(mapped);
+        setTotalProfiles(response.pagination.total);
+        setTotalPages(Math.max(1, response.pagination.totalPages || 1));
       } catch {
         setApiCandidats([]);
+        setTotalProfiles(0);
+        setTotalPages(1);
+        setErrorMessage(isEn ? 'Unable to load candidate profiles right now.' : 'Impossible de charger les profils candidats pour le moment.');
+      } finally {
+        setIsLoadingCandidates(false);
       }
     };
 
-    loadCandidates();
-  }, [accessAllowed]);
+    void loadCandidates();
+  }, [
+    accessAllowed,
+    actif30Jours,
+    currentPage,
+    dispoFilters,
+    etudeFilters,
+    expFilters,
+    isEn,
+    keywords,
+    localisation,
+    onlyWithCv,
+    sortBy,
+  ]);
 
-  const allCandidates = useMemo(() => {
-    const merged = apiCandidats;
-
-    return merged;
-  }, [apiCandidats]);
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keywords, localisation, sortBy, expFilters, dispoFilters, etudeFilters, actif30Jours, onlyWithCv]);
 
   const toggleFilter = (value: string, state: string[], setState: (v: string[]) => void) => {
     if (state.includes(value)) {
@@ -102,64 +115,9 @@ export default function CvthequePage() {
     }
     setState([...state, value]);
   };
-
-  const candidats = useMemo(() => {
-    const key = keywords.trim().toLowerCase();
-    const loc = localisation.trim().toLowerCase();
-
-    return allCandidates.filter((cand) => {
-      const keywordPass =
-        !key ||
-        cand.titre.toLowerCase().includes(key) ||
-        cand.competences.some((skill) => skill.toLowerCase().includes(key));
-
-      const locPass = !loc || cand.localisation.toLowerCase().includes(loc);
-      const expPass = expFilters.length === 0 || expFilters.includes(cand.experience);
-      const dispoPass = dispoFilters.length === 0 || dispoFilters.includes(cand.disponibilite);
-      const etudePass = etudeFilters.length === 0 || etudeFilters.includes(cand.etudes);
-      const actifPass = !actif30Jours || cand.cvMajJours <= 30;
-
-      return keywordPass && locPass && expPass && dispoPass && etudePass && actifPass;
-    });
-  }, [keywords, localisation, expFilters, dispoFilters, etudeFilters, actif30Jours, allCandidates]);
-
-  const candidatsTries = useMemo(() => {
-    const copy = [...candidats];
-
-    if (sortBy === 'recent') {
-      copy.sort((a, b) => a.cvMajJours - b.cvMajJours);
-      return copy;
-    }
-
-    if (sortBy === 'oldest') {
-      copy.sort((a, b) => b.cvMajJours - a.cvMajJours);
-      return copy;
-    }
-
-    if (sortBy === 'availability') {
-      copy.sort((a, b) => Number(b.disponibleNow) - Number(a.disponibleNow) || a.cvMajJours - b.cvMajJours);
-      return copy;
-    }
-
-    if (sortBy === 'alpha') {
-      copy.sort((a, b) => a.nom.localeCompare(b.nom));
-      return copy;
-    }
-
-    const rank: Record<Candidate['experience'], number> = {
-      Junior: 1,
-      Confirme: 2,
-      Senior: 3,
-    };
-    copy.sort((a, b) => rank[b.experience] - rank[a.experience] || a.cvMajJours - b.cvMajJours);
-    return copy;
-  }, [candidats, sortBy]);
-
-  const totalPages = Math.max(1, Math.ceil(candidatsTries.length / pageSize));
-  const effectivePage = Math.min(currentPage, totalPages);
-  const start = (effectivePage - 1) * pageSize;
-  const end = start + pageSize;
-  const candidatsPage = candidatsTries.slice(start, end);
+  const start = totalProfiles === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const end = Math.min(currentPage * pageSize, totalProfiles);
+  const candidatsPage = apiCandidats;
 
   // Access denied screen
   if (accessAllowed === false) {
@@ -310,6 +268,15 @@ export default function CvthequePage() {
                 />
                 {isEn ? 'Active in the last 30 days' : 'Actif ces 30 derniers jours'}
               </label>
+              <label className="mt-2 flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={onlyWithCv}
+                  onChange={() => setOnlyWithCv(!onlyWithCv)}
+                  className="accent-green-600"
+                />
+                {isEn ? 'Show only profiles with a default CV' : 'Afficher uniquement les profils avec CV principal'}
+              </label>
             </div>
           </div>
         </aside>
@@ -317,7 +284,7 @@ export default function CvthequePage() {
         <section className="flex-1 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm md:text-base font-medium text-gray-700">
-              <span className="font-extrabold text-black">{candidatsTries.length}</span> {isEn ? 'profiles found' : 'profils trouves'}
+              <span className="font-extrabold text-black">{totalProfiles}</span> {isEn ? 'profiles found' : 'profils trouves'}
             </h2>
             <select
               value={sortBy}
@@ -335,13 +302,25 @@ export default function CvthequePage() {
             </select>
           </div>
 
+          {errorMessage && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm font-medium text-red-700">
+              {errorMessage}
+            </div>
+          )}
+
+          {isLoadingCandidates && (
+            <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-sm font-medium text-gray-500">
+              {isEn ? 'Loading candidate profiles...' : 'Chargement des profils candidats...'}
+            </div>
+          )}
+
           {candidatsPage.map((cand) => (
             <article key={cand.id} className="bg-white border border-gray-200 rounded-2xl p-5">
               <div className="flex flex-col md:flex-row md:items-start gap-4">
                 <div className="w-16 h-16 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center overflow-hidden text-xl font-extrabold text-gray-500">
-                  {cand.photo ? (
+                  {cand.photoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cand.photo} alt={cand.nom} className="w-full h-full object-cover" />
+                    <img src={cand.photoUrl} alt={cand.nom} className="w-full h-full object-cover" />
                   ) : (
                     cand.nom.charAt(0)
                   )}
@@ -381,29 +360,39 @@ export default function CvthequePage() {
                     <Link href={localizePath(`/candidat/${cand.id}`)} className="px-4 py-2 rounded-lg text-sm font-extrabold bg-black text-white hover:bg-gray-800 transition">
                       {isEn ? 'View CV' : 'Voir le CV'}
                     </Link>
+                    {cand.defaultCvUrl ? (
+                      <a
+                        href={cand.defaultCvUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-4 py-2 rounded-lg text-sm font-extrabold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition"
+                      >
+                        {isEn ? 'Open default CV' : 'Ouvrir le CV principal'}
+                      </a>
+                    ) : null}
                   </div>
                 </div>
               </div>
             </article>
           ))}
 
-          {candidatsTries.length === 0 && (
+          {!isLoadingCandidates && totalProfiles === 0 && (
             <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 font-medium">
               {isEn ? 'No profile matches your current filters.' : 'Aucun profil ne correspond a vos filtres actuels.'}
             </div>
           )}
 
-          {candidatsTries.length > 0 && (
+          {!isLoadingCandidates && totalProfiles > 0 && (
             <div className="bg-white border border-gray-200 rounded-2xl p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <p className="text-sm text-gray-600 font-medium">
                 {isEn
-                  ? `Showing ${start + 1}-${Math.min(end, candidatsTries.length)} of ${candidatsTries.length}`
-                  : `Affichage ${start + 1}-${Math.min(end, candidatsTries.length)} sur ${candidatsTries.length}`}
+                  ? `Showing ${start}-${end} of ${totalProfiles}`
+                  : `Affichage ${start}-${end} sur ${totalProfiles}`}
               </p>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setCurrentPage(Math.max(1, effectivePage - 1))}
-                  disabled={effectivePage === 1}
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
                   className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-bold disabled:opacity-40"
                 >
                   {isEn ? 'Previous' : 'Precedent'}
@@ -416,7 +405,7 @@ export default function CvthequePage() {
                       key={page}
                       onClick={() => setCurrentPage(page)}
                       className={`w-9 h-9 rounded-lg text-sm font-extrabold border ${
-                        page === effectivePage
+                        page === currentPage
                           ? 'bg-black text-white border-black'
                           : 'bg-white text-gray-700 border-gray-300'
                       }`}
@@ -427,8 +416,8 @@ export default function CvthequePage() {
                 })}
 
                 <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, effectivePage + 1))}
-                  disabled={effectivePage === totalPages}
+                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
                   className="px-3 py-2 rounded-lg border border-gray-300 text-sm font-bold disabled:opacity-40"
                 >
                   {isEn ? 'Next' : 'Suivant'}

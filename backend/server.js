@@ -1351,21 +1351,155 @@ app.patch('/api/verifications/:id/review', requireAdminSession, async (req, res)
 // ROUTES: Candidate Profiles / CVtheque
 // =============================================
 
-app.get('/api/candidates', async (_req, res) => {
+function isRecruiterRole(role) {
+  const normalizedRole = String(role || '').toUpperCase();
+  return normalizedRole === 'ENTREPRISE' || normalizedRole === 'ARTISAN' || normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN';
+}
+
+app.get('/api/candidates', requireUserSession, async (req, res) => {
   try {
-    const rows = await prisma.candidateProfile.findMany({
-      orderBy: { createdAt: 'desc' },
+    const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
+    if (!isRecruiterRole(sessionRole)) {
+      return res.status(403).json({ error: 'Acces CVtheque reserve aux recruteurs.' });
+    }
+
+    const page = parsePositiveInt(req.query.page) || 1;
+    const limit = Math.min(parsePositiveInt(req.query.limit) || 24, 100);
+    const skip = (page - 1) * limit;
+
+    const search = String(req.query.search || '').trim();
+    const location = String(req.query.location || '').trim();
+    const experienceList = String(req.query.experience || '').split(',').map((item) => item.trim()).filter(Boolean);
+    const availabilityList = String(req.query.availability || '').split(',').map((item) => item.trim()).filter(Boolean);
+    const educationList = String(req.query.education || '').split(',').map((item) => item.trim()).filter(Boolean);
+    const skillsList = String(req.query.skills || '').split(',').map((item) => item.trim()).filter(Boolean);
+    const sortBy = String(req.query.sortBy || 'recent').trim().toLowerCase();
+    const activeDays = parsePositiveInt(req.query.activeDays);
+    const onlyImmediate = String(req.query.onlyImmediate || '').toLowerCase() === 'true';
+    const onlyWithCv = String(req.query.onlyWithCv || '').toLowerCase() === 'true';
+
+    const where = { AND: [] };
+
+    if (search) {
+      where.AND.push({
+        OR: [
+          { nom: { contains: search, mode: 'insensitive' } },
+          { titre: { contains: search, mode: 'insensitive' } },
+          { localisation: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+    if (location) {
+      where.AND.push({ localisation: { contains: location, mode: 'insensitive' } });
+    }
+    if (experienceList.length > 0) {
+      where.AND.push({ experience: { in: experienceList } });
+    }
+    if (availabilityList.length > 0) {
+      where.AND.push({ disponibilite: { in: availabilityList } });
+    }
+    if (educationList.length > 0) {
+      where.AND.push({ etudes: { in: educationList } });
+    }
+    if (skillsList.length > 0) {
+      where.AND.push({ competences: { hasSome: skillsList } });
+    }
+    if (onlyImmediate) {
+      where.AND.push({ disponibleNow: true });
+    }
+    if (activeDays) {
+      const boundary = new Date();
+      boundary.setDate(boundary.getDate() - activeDays);
+      where.AND.push({
+        OR: [
+          { createdAt: { gte: boundary } },
+          { user: { is: { userProfile: { is: { updatedAt: { gte: boundary } } } } } },
+        ],
+      });
+    }
+    if (onlyWithCv) {
+      where.AND.push({
+        user: {
+          is: {
+            userProfile: {
+              is: {
+                defaultCvUrl: { not: '' },
+              },
+            },
+          },
+        },
+      });
+    }
+
+    let orderBy = { createdAt: 'desc' };
+    if (sortBy === 'oldest') {
+      orderBy = { createdAt: 'asc' };
+    } else if (sortBy === 'alpha') {
+      orderBy = { nom: 'asc' };
+    } else if (sortBy === 'availability') {
+      orderBy = [{ disponibleNow: 'desc' }, { createdAt: 'desc' }];
+    } else if (sortBy === 'experience') {
+      orderBy = [{ experience: 'desc' }, { createdAt: 'desc' }];
+    }
+
+    const [total, rows] = await Promise.all([
+      prisma.candidateProfile.count({ where: where.AND.length > 0 ? where : undefined }),
+      prisma.candidateProfile.findMany({
+        where: where.AND.length > 0 ? where : undefined,
+        orderBy,
+        skip,
+        take: limit,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              photoUrl: true,
+              isVerified: true,
+              userProfile: {
+                select: {
+                  defaultCvUrl: true,
+                  profileVisible: true,
+                  updatedAt: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(total / limit));
+    const candidates = rows.map((c) => ({
+      ...c,
+      cvMajJours: calcCvMajJours(c.createdAt),
+      photoUrl: c.user?.photoUrl || null,
+      defaultCvUrl: c.user?.userProfile?.defaultCvUrl || '',
+      profileVisible: c.user?.userProfile?.profileVisible ?? true,
+      lastProfileUpdateAt: c.user?.userProfile?.updatedAt || null,
+    }));
+
+    res.json({
+      candidates,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+      },
     });
-    const candidates = rows.map((c) => ({ ...c, cvMajJours: calcCvMajJours(c.createdAt) }));
-    res.json({ candidates });
   } catch (error) {
     console.error('GET /api/candidates error:', error);
     res.status(500).json({ error: 'Erreur lors de la lecture des candidats.' });
   }
 });
 
-app.post('/api/candidates', candidateProfileLimiter, async (req, res) => {
+app.post('/api/candidates', requireUserSession, candidateProfileLimiter, async (req, res) => {
   try {
+    const sessionUserId = Number(req.sessionUser?.id || 0);
+    const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
+    const isAdmin = sessionRole === 'ADMIN' || sessionRole === 'SUPER_ADMIN';
+
     const {
       userId,
       nom,
@@ -1382,7 +1516,15 @@ app.post('/api/candidates', candidateProfileLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Champs requis: nom, titre.' });
     }
 
-    const normalizedUserId = userId ? parseInt(String(userId), 10) : null;
+    const normalizedUserId = userId ? parseInt(String(userId), 10) : sessionUserId;
+    if (!normalizedUserId || Number.isNaN(normalizedUserId)) {
+      return res.status(400).json({ error: 'ID utilisateur invalide.' });
+    }
+
+    if (!isAdmin && normalizedUserId !== sessionUserId) {
+      return res.status(403).json({ error: 'Vous ne pouvez modifier que votre profil candidat.' });
+    }
+
     const data = {
       userId: normalizedUserId,
       nom: String(nom),
@@ -1422,13 +1564,22 @@ app.post('/api/candidates', candidateProfileLimiter, async (req, res) => {
   }
 });
 
-app.get('/api/candidates/:id', async (req, res) => {
+app.get('/api/candidates/:id', requireUserSession, async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID candidat invalide.' });
 
     const candidate = await prisma.candidateProfile.findUnique({ where: { id } });
     if (!candidate) return res.status(404).json({ error: 'Profil candidat non trouve.' });
+
+    const sessionUserId = Number(req.sessionUser?.id || 0);
+    const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
+    const isAdmin = sessionRole === 'ADMIN' || sessionRole === 'SUPER_ADMIN';
+    const isRecruiter = isRecruiterRole(sessionRole);
+
+    if (!isAdmin && !isRecruiter && Number(candidate.userId || 0) !== sessionUserId) {
+      return res.status(403).json({ error: 'Acces refuse a ce profil candidat.' });
+    }
 
     const [user, userProfile] = await Promise.all([
       candidate.userId

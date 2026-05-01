@@ -105,6 +105,30 @@ export type CandidateProfile = {
   disponibleNow: boolean;
   userId?: number;
   createdAt: string;
+  photoUrl?: string | null;
+  defaultCvUrl?: string;
+  profileVisible?: boolean;
+  lastProfileUpdateAt?: string | null;
+};
+
+export type CandidateProfilesFilters = {
+  search?: string;
+  location?: string;
+  sortBy?: 'recent' | 'oldest' | 'experience' | 'availability' | 'alpha';
+  experience?: string[];
+  availability?: string[];
+  education?: string[];
+  skills?: string[];
+  activeDays?: number;
+  onlyImmediate?: boolean;
+  onlyWithCv?: boolean;
+  page?: number;
+  limit?: number;
+};
+
+export type CandidateProfilesResponse = {
+  candidates: CandidateProfile[];
+  pagination: Pagination;
 };
 
 export type CandidateProfileDetail = CandidateProfile & {
@@ -780,9 +804,27 @@ export async function reviewVerificationSubmission(input: {
 
 // ── Candidate profiles / CVtheque ────────────────────────────────
 
-export async function fetchCandidateProfiles(): Promise<CandidateProfile[]> {
-  const res = await apiFetch<{ candidates: CandidateProfile[] }>('/api/candidates');
-  return res.candidates;
+export async function fetchCandidateProfiles(filters: CandidateProfilesFilters = {}): Promise<CandidateProfilesResponse> {
+  const params = new URLSearchParams();
+  if (filters.search) params.set('search', filters.search);
+  if (filters.location) params.set('location', filters.location);
+  if (filters.sortBy) params.set('sortBy', filters.sortBy);
+  if (filters.experience && filters.experience.length > 0) params.set('experience', filters.experience.join(','));
+  if (filters.availability && filters.availability.length > 0) params.set('availability', filters.availability.join(','));
+  if (filters.education && filters.education.length > 0) params.set('education', filters.education.join(','));
+  if (filters.skills && filters.skills.length > 0) params.set('skills', filters.skills.join(','));
+  if (filters.activeDays) params.set('activeDays', String(filters.activeDays));
+  if (filters.onlyImmediate) params.set('onlyImmediate', 'true');
+  if (filters.onlyWithCv) params.set('onlyWithCv', 'true');
+  if (filters.page) params.set('page', String(filters.page));
+  if (filters.limit) params.set('limit', String(filters.limit));
+
+  const query = params.toString();
+  const res = await apiFetch<CandidateProfilesResponse>(`/api/candidates${query ? `?${query}` : ''}`);
+  return {
+    candidates: Array.isArray(res.candidates) ? res.candidates : [],
+    pagination: res.pagination,
+  };
 }
 
 export async function fetchCandidateProfileDetail(id: number): Promise<CandidateProfileDetail> {

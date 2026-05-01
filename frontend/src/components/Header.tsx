@@ -318,7 +318,12 @@ export default function Header() {
 
       {/* OVERLAY */}
       {isMenuOpen && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 top-16 md:top-20" onClick={() => setIsMenuOpen(false)} />
+        <button
+          type="button"
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 top-16 md:top-20"
+          onClick={() => setIsMenuOpen(false)}
+          aria-label={isEn ? 'Close navigation menu' : 'Fermer le menu de navigation'}
+        />
       )}
 
       {/* PANNEAU DU MENU */}
@@ -357,13 +362,13 @@ export default function Header() {
               <div className="inline-flex rounded-full border border-gray-200 bg-gray-50 p-0.5 text-xs font-extrabold">
                 <button
                   onClick={() => setLocale('fr')}
-                  className={`px-4 py-1.5 rounded-full transition active:scale-[0.98] min-h-[36px] ${locale === 'fr' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-500'}`}
+                  className={`px-4 py-1.5 rounded-full transition active:scale-[0.98] min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 ${locale === 'fr' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-600'}`}
                   aria-label="Français"
                   aria-pressed={locale === 'fr'}
                 >FR</button>
                 <button
                   onClick={() => setLocale('en')}
-                  className={`px-4 py-1.5 rounded-full transition active:scale-[0.98] min-h-[36px] ${locale === 'en' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-500'}`}
+                  className={`px-4 py-1.5 rounded-full transition active:scale-[0.98] min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 ${locale === 'en' ? 'bg-[#DA7756] text-white shadow-sm' : 'text-gray-600'}`}
                   aria-label="English"
                   aria-pressed={locale === 'en'}
                 >EN</button>

@@ -34,14 +34,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
 const cookieParser = require('cookie-parser');
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const twilio = require('twilio');
 const nodemailer = require('nodemailer');
-const multer = require('multer');
 const { z } = require('zod');
-const cloudinary = require('cloudinary').v2;
 const {
   archiveAdminInboxTicket,
   downloadAdminInboxAttachment,
@@ -65,7 +62,46 @@ const createDashboardEntrepriseRouter = require('./routes/dashboard-entreprise')
 const adminRouter = require('./routes/admin');
 const jobsRouter = require('./routes/jobs');
 const usersRouter = require('./routes/users');
-const { sniffFileType, safeExtensionForMime } = require('./lib/fileSniff');
+const { corsOptions, isAllowedOrigin, allowedOrigins } = require('./lib/cors');
+const {
+  cloudinary,
+  upload,
+  ALLOWED_UPLOAD_MIME,
+  uploadsRoot,
+  sniffFileType,
+  safeExtensionForMime,
+} = require('./lib/uploads');
+const {
+  apiGlobalLimiter,
+  signupIpLimiter,
+  loginIpLimiter,
+  loginIdentifierLimiter,
+  forgotPasswordLimiter,
+  resetPasswordLimiter,
+  verificationSubmissionLimiter,
+  candidateProfileLimiter,
+  savedJobsLimiter,
+  jobApplicationLimiter,
+  jobCreationLimiter,
+  feedbackSubmissionLimiter,
+  reviewSubmissionLimiter,
+  uploadIpLimiter,
+  reportSubmissionLimiter,
+  privacyRequestLimiter,
+  otpIpLimiter,
+  otpPhoneLimiter,
+  otpVerifyLimiter,
+} = require('./lib/limiters');
+
+const {
+  SESSION_COOKIE_NAME,
+  clearSessionCookie,
+  createSessionToken,
+  getSessionCookieOptions,
+  readSessionToken,
+  requireUserSession,
+} = require('./lib/session');
+const { requireSelfOrAdmin } = require('./lib/security');
 
 function logFatalError(label, error) {
   if (error instanceof Error) {
@@ -200,14 +236,6 @@ const prisma = new PrismaClient({ adapter });
 
 const app = express();
 app.set('trust proxy', 1);
-const SESSION_COOKIE_NAME = 'bolo237_session';
-const SESSION_JWT_SECRET = process.env.SESSION_JWT_SECRET || 'change-me-in-production';
-const revokedSessionTokens = new Map(); // token -> expiresAtMs
-
-const uploadsRoot = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsRoot)) {
-  fs.mkdirSync(uploadsRoot, { recursive: true });
-}
 
 const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
   ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
@@ -399,32 +427,39 @@ async function sendOtpWithTwilio(phone, code) {
 }
 
 // --- Middleware ---
-const envOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
-  .split(',')
-  .map((entry) => entry.trim())
-  .filter(Boolean);
 
-const allowPreviewOrigins = String(process.env.ALLOW_VERCEL_PREVIEW_ORIGINS || '').trim().toLowerCase() === 'true';
-
-const allowedOrigins = new Set([
-  'https://www.bolo237.com',
-  'https://admin.bolo237.com',
-  ...envOrigins,
-  ...(!isProduction ? ['http://localhost:3000', 'http://localhost:3001'] : []),
+const TRUSTED_ORIGINS = new Set([
+  ...allowedOrigins,
+  ...parseCommaSeparatedValues(process.env.TRUSTED_ORIGINS),
 ]);
 
-function isAllowedOrigin(origin) {
-  if (allowedOrigins.has(origin)) return true;
+function extractOriginFromReferer(referer) {
+  try {
+    return new URL(String(referer || '')).origin;
+  } catch {
+    return '';
+  }
+}
 
-  if (!isProduction && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) {
-    return true;
+function csrfOriginGuard(req, res, next) {
+  const method = String(req.method || '').toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+    return next();
   }
 
-  if (allowPreviewOrigins && /^https:\/\/[a-z0-9-]*bolo237[a-z0-9-]*\.vercel\.app$/i.test(origin)) {
-    return true;
+  const origin = String(req.get('origin') || '').trim();
+  const refererOrigin = extractOriginFromReferer(req.get('referer'));
+  const requestOrigin = origin || refererOrigin;
+
+  if (!requestOrigin) {
+    return res.status(403).json({ error: 'Origine requise pour cette requete.' });
   }
 
-  return false;
+  if (TRUSTED_ORIGINS.has(requestOrigin) || isAllowedOrigin(requestOrigin)) {
+    return next();
+  }
+
+  return res.status(403).json({ error: 'Origine non autorisee.' });
 }
 
 app.use(helmet({
@@ -434,182 +469,13 @@ app.use(helmet({
   referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
 }));
 
-app.use(cors({
-  origin(origin, callback) {
-    if (!origin) return callback(null, true);
-    if (isAllowedOrigin(origin)) return callback(null, true);
-    return callback(null, false);
-  },
-  credentials: true,
-}));
-
-const apiGlobalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Trop de requetes depuis cette IP. Reessayez dans 15 minutes.' },
-});
-
-const signupIpLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('SIGNUP_IP_DAILY_LIMIT', 3),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => getRequestIpKey(req),
-  message: {
-    error: 'Trop de creations de compte depuis cette IP aujourd hui. Reessayez demain ou contactez le support.',
-  },
-});
-
-const loginIpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true,
-  keyGenerator: (req) => getRequestIpKey(req),
-  message: { error: 'Trop de tentatives de connexion depuis cette IP. Reessayez dans 15 minutes.' },
-});
-
-const loginIdentifierLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  skipSuccessfulRequests: true,
-  keyGenerator: (req) => {
-    const loginIdentifier = String(req.body?.identifier || req.body?.email || req.body?.phone || '')
-      .trim()
-      .toLowerCase();
-
-    return loginIdentifier || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de tentatives de connexion pour cet identifiant. Reessayez dans 15 minutes.' },
-});
-
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de demandes de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
-});
-
-const resetPasswordLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 8,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de tentatives de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
-});
-
-const verificationSubmissionLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('VERIFICATION_SUBMISSION_DAILY_LIMIT', 6),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const accountKey = String(req.body?.accountKey || '').trim().toLowerCase();
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return accountKey || phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de demandes de verification aujourd hui. Reessayez plus tard.' },
-});
-
-const candidateProfileLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('CANDIDATE_PROFILE_HOURLY_LIMIT', 20),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const userId = parseInt(String(req.body?.userId || ''), 10);
-    return Number.isFinite(userId) && userId > 0 ? `candidate-profile:${userId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop de mises a jour de profil candidat. Reessayez dans une heure.' },
-});
-
-const savedJobsLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: getPositiveIntegerEnv('SAVED_JOBS_15M_LIMIT', 120),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const userId = parseInt(String(req.params?.id || req.body?.userId || ''), 10);
-    return Number.isFinite(userId) && userId > 0 ? `saved-jobs:${userId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop de modifications sur vos favoris. Reessayez dans 15 minutes.' },
-});
-
-const jobApplicationLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('JOB_APPLICATION_HOURLY_LIMIT', 30),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const candidateId = parseInt(String(req.body?.candidateId || ''), 10);
-    return Number.isFinite(candidateId) && candidateId > 0 ? `job-apply:${candidateId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop de candidatures envoyees en une heure. Reessayez plus tard.' },
-});
-
-const jobCreationLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('JOB_CREATION_DAILY_LIMIT', 12),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const authorId = parseInt(String(req.body?.authorId || ''), 10);
-    return Number.isFinite(authorId) && authorId > 0 ? `job-create:${authorId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop d annonces creees aujourd hui. Reessayez demain ou contactez le support.' },
-});
-
-const feedbackSubmissionLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('APP_FEEDBACK_DAILY_LIMIT', 5),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const userId = parseInt(String(req.body?.userId || ''), 10);
-    return Number.isFinite(userId) && userId > 0 ? `app-feedback:${userId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop de retours envoyes aujourd hui. Merci de reessayer plus tard.' },
-});
-
-const reviewSubmissionLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: getPositiveIntegerEnv('USER_REVIEW_DAILY_LIMIT', 12),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const reviewerId = parseInt(String(req.body?.reviewerId || ''), 10);
-    return Number.isFinite(reviewerId) && reviewerId > 0 ? `user-review:${reviewerId}` : getRequestIpKey(req);
-  },
-  message: { error: 'Trop d avis envoyes aujourd hui. Reessayez demain.' },
-});
-
-const uploadIpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: getPositiveIntegerEnv('UPLOAD_IP_15M_LIMIT', 25),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => getRequestIpKey(req),
-  message: { error: 'Trop de televersements depuis cette IP. Reessayez dans 15 minutes.' },
-});
+app.use(cors(corsOptions));
 
 app.use('/api', apiGlobalLimiter);
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
+app.use('/api', csrfOriginGuard);
 app.use('/uploads', express.static(uploadsRoot, {
   setHeaders: (res) => {
     res.setHeader('Content-Disposition', 'attachment');
@@ -620,70 +486,9 @@ app.use('/uploads', express.static(uploadsRoot, {
 }));
 app.use('/api/admin', requireAdminSession);
 
-function getSessionCookieOptions() {
-  const isProd = process.env.NODE_ENV === 'production';
-  const configuredSameSite = String(process.env.SESSION_COOKIE_SAMESITE || '').trim().toLowerCase();
-  const sameSite = configuredSameSite === 'strict' || configuredSameSite === 'lax' || configuredSameSite === 'none'
-    ? configuredSameSite
-    : (isProd ? 'none' : 'lax');
-
-  // Browsers require `Secure` when SameSite=None.
-  const forceSecure = String(process.env.SESSION_COOKIE_SECURE || '').trim().toLowerCase() === 'true';
-  const secure = forceSecure || isProd || sameSite === 'none';
-
-  return {
-    httpOnly: true,
-    secure,
-    sameSite,
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  };
-}
-
-function getSessionCookieClearOptions() {
-  const { maxAge: _maxAge, ...cookieOptions } = getSessionCookieOptions();
-  return cookieOptions;
-}
-
-function clearSessionCookie(res) {
-  res.clearCookie(SESSION_COOKIE_NAME, getSessionCookieClearOptions());
-}
-
-function createSessionToken(user) {
-  const jti = crypto.randomUUID();
-  const token = jwt.sign(
-    { userId: user.id, email: user.email, role: user.role, jti },
-    SESSION_JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-
-  return token;
-}
-
-function readSessionToken(req) {
-  const raw = req.cookies?.[SESSION_COOKIE_NAME];
-  if (!raw) return null;
-
-  const revokedUntil = revokedSessionTokens.get(raw);
-  const now = Date.now();
-  if (revokedUntil && revokedUntil > now) {
-    return null;
-  }
-  if (revokedUntil && revokedUntil <= now) {
-    revokedSessionTokens.delete(raw);
-  }
-
-  try {
-    const payload = jwt.verify(raw, SESSION_JWT_SECRET);
-    return payload;
-  } catch {
-    return null;
-  }
-}
-
 async function requireAdminSession(req, res, next) {
   try {
-    const payload = readSessionToken(req);
+    const payload = await readSessionToken(req);
     if (!payload?.userId) {
       return res.status(401).json({ error: 'Session admin requise.' });
     }
@@ -707,44 +512,6 @@ async function requireAdminSession(req, res, next) {
   } catch (error) {
     console.error('requireAdminSession error:', error);
     return res.status(500).json({ error: 'Erreur de verification admin.' });
-  }
-}
-
-async function requireUserSession(req, res, next) {
-  try {
-    const payload = readSessionToken(req);
-    if (!payload?.userId) {
-      return res.status(401).json({ error: 'Session requise.' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: Number(payload.userId) },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        phone: true,
-        photoUrl: true,
-        isVerified: true,
-        isBanned: true,
-        createdAt: true,
-      },
-    });
-
-    if (!user) {
-      return res.status(401).json({ error: 'Session invalide.' });
-    }
-
-    if (user.isBanned) {
-      return res.status(403).json({ error: 'Compte banni.' });
-    }
-
-    req.sessionUser = user;
-    return next();
-  } catch (error) {
-    console.error('requireUserSession error:', error);
-    return res.status(500).json({ error: 'Erreur de verification utilisateur.' });
   }
 }
 
@@ -883,24 +650,6 @@ async function notifyPrivacyTeam({ subject, text, replyTo }) {
     return 'log';
   }
 }
-
-const reportSubmissionLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
-  message: { error: 'Trop de signalements depuis cette IP. Reessayez plus tard.' },
-});
-
-const privacyRequestLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000,
-  max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
-  message: { error: 'Trop de demandes de confidentialite pour le moment. Reessayez plus tard.' },
-});
 
 const contactTrackingLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -1643,7 +1392,7 @@ app.get('/api/candidates/:id', requireUserSession, async (req, res) => {
 // ROUTES: User Profiles
 // =============================================
 
-app.get('/api/profiles/:userId', async (req, res) => {
+app.get('/api/profiles/:userId', requireUserSession, requireSelfOrAdmin({ paramName: 'userId' }), async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -1657,7 +1406,7 @@ app.get('/api/profiles/:userId', async (req, res) => {
   }
 });
 
-app.put('/api/profiles/:userId', async (req, res) => {
+app.put('/api/profiles/:userId', requireUserSession, requireSelfOrAdmin({ paramName: 'userId' }), async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -1767,7 +1516,7 @@ app.post('/api/artisans/:userId/track-contact', contactTrackingLimiter, handleTr
 // ROUTES: Saved Jobs
 // =============================================
 
-app.get('/api/users/:id/saved-jobs', async (req, res) => {
+app.get('/api/users/:id/saved-jobs', requireUserSession, requireSelfOrAdmin({ paramName: 'id' }), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID invalide.' });
@@ -1789,7 +1538,7 @@ app.get('/api/users/:id/saved-jobs', async (req, res) => {
   }
 });
 
-app.post('/api/users/:id/saved-jobs', savedJobsLimiter, async (req, res) => {
+app.post('/api/users/:id/saved-jobs', requireUserSession, requireSelfOrAdmin({ paramName: 'id' }), savedJobsLimiter, async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const jobId = parseInt(String(req.body?.jobId), 10);
@@ -1811,7 +1560,7 @@ app.post('/api/users/:id/saved-jobs', savedJobsLimiter, async (req, res) => {
   }
 });
 
-app.delete('/api/users/:id/saved-jobs/:jobId', async (req, res) => {
+app.delete('/api/users/:id/saved-jobs/:jobId', requireUserSession, requireSelfOrAdmin({ paramName: 'id' }), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const jobId = parseInt(req.params.jobId, 10);
@@ -2058,7 +1807,24 @@ app.put('/api/jobs/:id', async (req, res) => {
 */
 
 // DELETE /api/jobs/:id — Supprimer une offre
-app.delete('/api/jobs/:id', async (req, res) => {
+app.delete(
+  '/api/jobs/:id',
+  requireUserSession,
+  requireSelfOrAdmin({
+    resolveOwnerId: async (req) => {
+      const jobId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(jobId) || jobId <= 0) return Number.NaN;
+
+      const job = await prisma.job.findUnique({
+        where: { id: jobId },
+        select: { authorId: true },
+      });
+
+      return job?.authorId ?? null;
+    },
+    notFoundMessage: 'Offre non trouvée.',
+  }),
+  async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
@@ -2319,7 +2085,7 @@ app.delete('/api/users/:id', requireAdminSession, async (req, res) => {
 // =============================================
 
 // GET /api/users/:id/notifications — Liste notifications + unreadCount
-app.get('/api/users/:id/notifications', async (req, res) => {
+app.get('/api/users/:id/notifications', requireUserSession, requireSelfOrAdmin({ paramName: 'id' }), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -2346,7 +2112,24 @@ app.get('/api/users/:id/notifications', async (req, res) => {
 });
 
 // PATCH /api/notifications/:id/read — Marquer comme lue
-app.patch('/api/notifications/:id/read', async (req, res) => {
+app.patch(
+  '/api/notifications/:id/read',
+  requireUserSession,
+  requireSelfOrAdmin({
+    resolveOwnerId: async (req) => {
+      const notificationId = parseInt(req.params.id, 10);
+      if (!Number.isInteger(notificationId) || notificationId <= 0) return Number.NaN;
+
+      const notification = await prisma.notification.findUnique({
+        where: { id: notificationId },
+        select: { userId: true },
+      });
+
+      return notification?.userId ?? null;
+    },
+    notFoundMessage: 'Notification non trouvee.',
+  }),
+  async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     if (isNaN(id)) return res.status(400).json({ error: 'ID notification invalide.' });
@@ -2365,7 +2148,7 @@ app.patch('/api/notifications/:id/read', async (req, res) => {
 });
 
 // PATCH /api/users/:id/notifications/read-all — Marquer tout comme lu
-app.patch('/api/users/:id/notifications/read-all', async (req, res) => {
+app.patch('/api/users/:id/notifications/read-all', requireUserSession, requireSelfOrAdmin({ paramName: 'id' }), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -2844,7 +2627,7 @@ app.post('/api/auth/login', loginIpLimiter, loginIdentifierLimiter, async (req, 
 // GET /api/auth/me — Retourner l'utilisateur de session
 app.get('/api/auth/me', async (req, res) => {
   try {
-    const payload = readSessionToken(req);
+    const payload = await readSessionToken(req);
     if (!payload?.userId) return res.status(401).json({ error: 'Session invalide.' });
 
     const user = await prisma.user.findUnique({
@@ -2871,16 +2654,6 @@ app.get('/api/auth/me', async (req, res) => {
 
 // POST /api/auth/logout — Fermer la session
 app.post('/api/auth/logout', (_req, res) => {
-  const raw = _req.cookies?.[SESSION_COOKIE_NAME];
-  if (raw) {
-    try {
-      const decoded = jwt.decode(raw);
-      const expMs = decoded?.exp ? Number(decoded.exp) * 1000 : Date.now() + (7 * 24 * 60 * 60 * 1000);
-      revokedSessionTokens.set(raw, expMs);
-    } catch {
-      // ignore decode errors during logout
-    }
-  }
   clearSessionCookie(res);
   res.json({ ok: true });
 });
@@ -3860,32 +3633,6 @@ app.get('/api/admin/activity-log', requireAdminSession, async (req, res) => {
 // ROUTES: File Upload (Cloudinary)
 // =============================================
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-const ALLOWED_UPLOAD_MIME = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 10 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    if (!ALLOWED_UPLOAD_MIME.has(String(file.mimetype || '').toLowerCase())) {
-      return cb(new Error('Invalid file type'));
-    }
-    cb(null, true);
-  },
-});
-
 app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
@@ -3952,38 +3699,6 @@ app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res)
 
 // Stockage en memoire des codes OTP (en prod : Redis ou DB)
 const otpStore = new Map(); // phone -> { code, expires }
-
-const otpIpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Trop de demandes OTP depuis cette IP. Reessayez dans 15 minutes.' },
-});
-
-const otpPhoneLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de demandes OTP pour ce numero. Reessayez dans 15 minutes.' },
-});
-
-const otpVerifyLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: getPositiveIntegerEnv('OTP_VERIFY_15M_LIMIT', 10),
-  standardHeaders: true,
-  legacyHeaders: false,
-  keyGenerator: (req) => {
-    const phone = String(req.body?.phone || '').replace(/\D/g, '');
-    return phone || getRequestIpKey(req);
-  },
-  message: { error: 'Trop de tentatives de verification OTP. Reessayez dans 15 minutes.' },
-});
 
 // Route pour ENVOYER le code SMS
 app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {

@@ -53,10 +53,64 @@ function validateSecurityConfiguration(databaseUrl) {
   }
 }
 
+function normalizePositiveInt(value) {
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function isAdminRole(role) {
+  const normalizedRole = String(role || '').toUpperCase();
+  return normalizedRole === 'ADMIN' || normalizedRole === 'SUPER_ADMIN';
+}
+
+function requireSelfOrAdmin(options = {}) {
+  const {
+    paramName = 'id',
+    resolveOwnerId,
+    notFoundMessage = 'Ressource introuvable.',
+  } = options;
+
+  return async function requireSelfOrAdminMiddleware(req, res, next) {
+    try {
+      const sessionUserId = normalizePositiveInt(req.sessionUser?.id);
+      if (!sessionUserId) {
+        return res.status(401).json({ error: 'Session requise.' });
+      }
+
+      if (isAdminRole(req.sessionUser?.role)) {
+        return next();
+      }
+
+      const ownerCandidate = typeof resolveOwnerId === 'function'
+        ? await resolveOwnerId(req)
+        : req.params?.[paramName];
+
+      if (ownerCandidate === null || ownerCandidate === undefined) {
+        return res.status(404).json({ error: notFoundMessage });
+      }
+
+      const ownerId = normalizePositiveInt(ownerCandidate);
+      if (!ownerId) {
+        return res.status(400).json({ error: 'ID invalide.' });
+      }
+
+      if (ownerId !== sessionUserId) {
+        return res.status(403).json({ error: 'Acces refuse.' });
+      }
+
+      return next();
+    } catch (error) {
+      console.error('requireSelfOrAdmin error:', error);
+      return res.status(500).json({ error: 'Erreur de verification des permissions.' });
+    }
+  };
+}
+
 module.exports = {
   hasRequiredSslMode,
   getDatabaseUsername,
   getRequestIpKey,
   getRequestSourceIp,
   validateSecurityConfiguration,
+  requireSelfOrAdmin,
 };

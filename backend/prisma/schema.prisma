@@ -75,6 +75,7 @@ model ArtisanService {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "ArtisanService_name_trgm_idx")
 }
 
 model ArtisanPortfolio {
@@ -224,6 +225,12 @@ model CandidateProfile {
 
   @@index([userId])
   @@index([createdAt])
+  @@index([localisation])
+  @@index([experience, createdAt])
+  @@index([disponibilite, createdAt])
+  @@index([etudes, createdAt])
+  @@index([disponibleNow, createdAt])
+  @@index([competences], type: Gin)
 }
 
 model UserProfile {
@@ -245,6 +252,10 @@ model UserProfile {
   skillsText     String   @default("")
   languagesText  String   @default("")
   updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([updatedAt])
+  @@index([defaultCvUrl])
+  @@index([profileVisible, updatedAt])
 }
 
 model ContactClickEvent {

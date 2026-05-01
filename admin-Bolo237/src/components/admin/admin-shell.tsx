@@ -494,13 +494,13 @@ export default function AdminShell({
                 {searchOpen ? (
                   <div className="absolute left-0 right-0 top-[calc(100%+0.75rem)] z-50 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.14)]">
                     {searchLoading ? (
-                      <div className="px-4 py-4 text-sm text-zinc-500">Recherche en cours...</div>
+                      <div className="px-4 py-4 text-sm text-zinc-600">Recherche en cours...</div>
                     ) : searchError ? (
                       <div className="px-4 py-4 text-sm text-red-600">{searchError}</div>
                     ) : deferredSearchQuery.length < 2 ? (
-                      <div className="px-4 py-4 text-sm text-zinc-500">Tapez au moins 2 caracteres pour lancer la recherche.</div>
+                      <div className="px-4 py-4 text-sm text-zinc-600">Tapez au moins 2 caracteres pour lancer la recherche.</div>
                     ) : totalSearchHits === 0 ? (
-                      <div className="px-4 py-4 text-sm text-zinc-500">Aucun resultat pour cette recherche.</div>
+                      <div className="rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-white to-gray-50 p-8 text-center shadow-sm m-3 text-sm text-zinc-600">Aucun resultat pour cette recherche.</div>
                     ) : (
                       <div className="max-h-[420px] overflow-y-auto py-2">
                         {searchResults.users.length > 0 ? (
@@ -519,7 +519,7 @@ export default function AdminShell({
                                   <span className="block truncate text-sm font-semibold text-zinc-900">
                                     {user.name || user.email}
                                   </span>
-                                  <span className="block truncate text-xs text-zinc-500">
+                                  <span className="block truncate text-xs text-zinc-600">
                                     #{user.id} • {user.role} • {user.phone || user.email}
                                   </span>
                                 </span>
@@ -545,7 +545,7 @@ export default function AdminShell({
                                   <span className="block truncate text-sm font-semibold text-zinc-900">
                                     {job.title}
                                   </span>
-                                  <span className="block truncate text-xs text-zinc-500">
+                                  <span className="block truncate text-xs text-zinc-600">
                                     #{job.id} • {job.company} • {job.status}
                                   </span>
                                 </span>

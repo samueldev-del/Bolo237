@@ -72,7 +72,7 @@ export default function LoginPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-zinc-900">Connexion</h2>
-              <p className="text-xs text-zinc-400">Entrez le mot de passe administrateur</p>
+              <p className="text-xs text-zinc-600">Entrez le mot de passe administrateur</p>
             </div>
           </div>
 
@@ -101,16 +101,17 @@ export default function LoginPage() {
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
+                  inputMode="text"
                   autoComplete="current-password"
                   required
                   autoFocus
                   placeholder="Entrez le mot de passe..."
-                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-4 pr-12 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#DA7756] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6]"
+                  className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 pl-4 pr-12 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#DA7756] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 rounded-md"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
@@ -121,7 +122,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isPending}
-              className="relative h-12 w-full rounded-xl bg-gradient-to-b from-[#DA7756] to-[#C4623F] text-sm font-semibold text-white shadow-sm transition hover:from-[#E8A87C] hover:to-[#DA7756] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="relative h-12 w-full rounded-xl bg-gradient-to-b from-[#DA7756] to-[#C4623F] text-sm font-semibold text-white shadow-sm transition hover:from-[#E8A87C] hover:to-[#DA7756] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
             >
               {isPending ? (
                 <span className="flex items-center justify-center gap-2">

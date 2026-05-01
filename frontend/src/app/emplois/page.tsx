@@ -360,7 +360,7 @@ export default function EmploisFormels() {
         <div className="mx-auto max-w-6xl px-4 pt-3">
           <Link
             href={localizePath('/')}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 transition hover:text-[#A8502F]"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-600 transition hover:text-[#A8502F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 rounded-lg"
           >
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -403,9 +403,9 @@ export default function EmploisFormels() {
               />
             </div>
 
-            <button
+              <button
               onClick={handleSearch}
-              className="rounded-xl bg-[#DA7756] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#C4623F]"
+                className="rounded-xl bg-[#DA7756] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#C4623F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
               type="button"
             >
               {isEn ? 'Find jobs' : 'Trouver un emploi'}
@@ -470,7 +470,7 @@ export default function EmploisFormels() {
               </div>
               <button
                 onClick={() => setMobileFiltersOpen(false)}
-                className="rounded-full p-2 text-gray-500 transition hover:bg-gray-100"
+                className="rounded-full p-2 text-gray-600 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
                 aria-label={isEn ? 'Close filters' : 'Fermer les filtres'}
                 type="button"
               >
@@ -552,7 +552,7 @@ export default function EmploisFormels() {
             </p>
 
             <div className="hidden items-center gap-2 lg:flex">
-              <span className="text-sm font-medium text-gray-500">{isEn ? 'Sort by:' : 'Trier par :'}</span>
+              <span className="text-sm font-medium text-gray-600">{isEn ? 'Sort by:' : 'Trier par :'}</span>
               <select
                 value={filters.sortBy}
                 onChange={(event) => setFilters((prev) => ({ ...prev, sortBy: event.target.value as JobFilters['sortBy'] }))}
@@ -597,14 +597,14 @@ export default function EmploisFormels() {
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-[#F2D8C8] bg-white px-8 py-20 text-center">
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-white to-gray-50 p-8 text-center shadow-sm">
               <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-[#FFF5EF] text-4xl">📋</div>
               <h3 className="text-xl font-extrabold text-black">
                 {hasPanelFiltersActive || hasActiveSearch
                   ? (isEn ? 'No offer matches these filters' : 'Aucune annonce ne correspond à ces filtres')
                   : (isEn ? 'No offers available yet' : 'Aucune offre disponible pour le moment')}
               </h3>
-              <p className="mt-3 max-w-md text-sm font-medium leading-6 text-gray-500">
+              <p className="mt-3 max-w-md text-sm font-medium leading-6 text-gray-600">
                 {hasPanelFiltersActive || hasActiveSearch
                   ? (isEn
                       ? 'Try broader filters or reset the current search to see more verified listings.'
@@ -620,14 +620,14 @@ export default function EmploisFormels() {
                     resetFilters();
                     resetSearch();
                   }}
-                  className="rounded-xl bg-[#DA7756] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#C4623F]"
+                  className="rounded-xl bg-[#DA7756] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#C4623F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
                   type="button"
                 >
                   {isEn ? 'Reset filters and search' : 'Réinitialiser filtres et recherche'}
                 </button>
                 <Link
                   href={localizePath('/connexion')}
-                  className="rounded-xl border border-gray-200 px-6 py-3 text-sm font-bold text-gray-700 transition hover:border-[#DA7756] hover:text-[#C4623F]"
+                  className="rounded-xl border border-gray-200 px-6 py-3 text-sm font-bold text-gray-700 transition hover:border-[#DA7756] hover:text-[#C4623F] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
                 >
                   {isEn ? 'Create an account' : 'Créer un compte'}
                 </Link>

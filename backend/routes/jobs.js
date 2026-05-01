@@ -2,8 +2,8 @@ const express = require('express');
 const router = express.Router();
 const { z } = require('zod');
 const { prisma } = require('../lib/db');
-const { upload } = require('../lib/uploads');
-const { requireUserSession } = require('../lib/session');
+const { upload, sniffFileType, ALLOWED_UPLOAD_MIME } = require('../lib/uploads');
+const { readSessionToken, requireUserSession } = require('../lib/session');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
 
@@ -53,15 +53,27 @@ router.get('/', async (req, res) => {
     // ── WHERE clause ─────────────────────────────────────────────
     const where = {};
 
-    // Si un authorId est fourni (dashboard entreprise), on ne force pas APPROVED
-    if (authorId) {
-      const parsedAuthorId = parseInt(authorId, 10);
-      if (!isNaN(parsedAuthorId)) where.authorId = parsedAuthorId;
-      // Status explicite optionnel pour le dashboard
-      const ALLOWED = ['PENDING', 'ACTIVE', 'APPROVED', 'REJECTED', 'CLOSED', 'ARCHIVED'];
-      if (status && ALLOWED.includes(status)) where.status = status;
+    // Filtrage status prive uniquement pour l'auteur connecte.
+    const ALLOWED = ['PENDING', 'ACTIVE', 'APPROVED', 'REJECTED', 'CLOSED', 'ARCHIVED'];
+    const parsedAuthorId = authorId ? parseInt(authorId, 10) : null;
+    const hasValidAuthorId = Number.isInteger(parsedAuthorId) && parsedAuthorId > 0;
+
+    if (hasValidAuthorId) {
+      where.authorId = parsedAuthorId;
+    }
+
+    let canUsePrivateStatusFilter = false;
+    if (hasValidAuthorId) {
+      const sessionPayload = await readSessionToken(req);
+      canUsePrivateStatusFilter = Number(sessionPayload?.userId) === parsedAuthorId;
+    }
+
+    if (canUsePrivateStatusFilter) {
+      if (status && ALLOWED.includes(status)) {
+        where.status = status;
+      }
     } else {
-      // Route publique : uniquement les offres APPROVED
+      // Route publique (ou auteur different): uniquement APPROVED.
       where.status = 'APPROVED';
     }
 
@@ -410,6 +422,18 @@ router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply
     const jobId = parseInt(req.params.id, 10);
     const candidateId = req.sessionUser.id;
     const { message, cvUrl: bodyCvUrl } = req.body;
+
+    if (req.file) {
+      const declaredMime = String(req.file.mimetype || '').toLowerCase();
+      if (!ALLOWED_UPLOAD_MIME.has(declaredMime)) {
+        return res.status(415).json({ success: false, message: 'Type de fichier CV non supporte.' });
+      }
+
+      const detectedType = await sniffFileType(req.file.buffer, declaredMime);
+      if (!detectedType || !ALLOWED_UPLOAD_MIME.has(detectedType)) {
+        return res.status(415).json({ success: false, message: 'Type de fichier reel invalide pour le CV.' });
+      }
+    }
 
     // Si un fichier est fourni ici, la route historique tente de lire son URL.
     // Sinon, on reutilise l'URL d'un CV deja stocke (CV principal).

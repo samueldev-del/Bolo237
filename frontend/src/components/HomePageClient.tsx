@@ -960,14 +960,14 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
           )}
 
           {searchMode === 'emploi' && visibleJobs.length === 0 && !showJobLoadingState && (
-            <div className="flex flex-col items-center justify-center py-20 px-8">
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-white to-gray-50 p-8 text-center shadow-sm flex flex-col items-center justify-center py-20 px-8">
               <div className="w-20 h-20 bg-[#FFF5EF] rounded-2xl flex items-center justify-center text-4xl mb-6">📋</div>
               <h4 className="font-bold text-black text-xl mb-2 text-center">
                 {hasPanelFiltersActive || hasActiveSearch
                   ? (isEn ? 'No verified offer matches these filters' : 'Aucune offre vérifiée ne correspond à ces filtres')
                   : (isEn ? 'No offers available yet' : 'Aucune offre disponible pour le moment')}
               </h4>
-              <p className="text-gray-500 font-medium text-center max-w-md">
+              <p className="text-gray-600 font-medium text-center max-w-md">
                 {hasPanelFiltersActive || hasActiveSearch
                   ? (isEn
                       ? 'Try broader filters or reset them to see the latest verified listings.'
@@ -1000,12 +1000,12 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
           )}
 
           {searchMode === 'artisan' && (
-            <div className="flex flex-col items-center justify-center py-20 px-8">
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-white to-gray-50 p-8 text-center shadow-sm flex flex-col items-center justify-center py-20 px-8">
               <div className="w-20 h-20 bg-amber-50 rounded-2xl flex items-center justify-center text-4xl mb-6">🛠️</div>
               <h4 className="font-bold text-black text-xl mb-2 text-center">
                 {isEn ? 'Browse artisans on the dedicated page' : 'Parcourez les artisans sur la page dédiée'}
               </h4>
-              <p className="text-gray-500 font-medium text-center max-w-md">
+              <p className="text-gray-600 font-medium text-center max-w-md">
                 {isEn
                   ? 'Use the services page to browse artisans and local gigs with the dedicated experience.'
                   : 'Utilisez la page services pour parcourir les artisans et les petits boulots avec l’expérience dédiée.'}

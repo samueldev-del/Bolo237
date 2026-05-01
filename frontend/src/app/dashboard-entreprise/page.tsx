@@ -1188,7 +1188,12 @@ function DashboardEntrepriseContent() {
 
         {/* ── Mobile overlay ── */}
         {mobileMenuOpen && (
-          <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
+          <button
+            type="button"
+            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+            aria-label={isEn ? 'Close sidebar menu' : 'Fermer le menu lateral'}
+          />
         )}
 
         {/* ── SIDEBAR ── */}

@@ -228,8 +228,8 @@ function ModerationJobsPageContent() {
               <Loader2 className="h-6 w-6 animate-spin text-green-600" />
             </div>
           ) : jobs.length === 0 ? (
-            <div className="py-20 text-center">
-              <p className="text-sm text-zinc-500">Aucune annonce trouvee pour ce filtre.</p>
+            <div className="p-8 py-20 text-center rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-white to-gray-50 shadow-sm m-6">
+              <p className="text-sm text-zinc-600">Aucune annonce trouvee pour ce filtre.</p>
             </div>
           ) : (
             <div className="divide-y divide-zinc-100">
@@ -250,7 +250,7 @@ function ModerationJobsPageContent() {
                         {STATUS_LABELS[job.status]?.label}
                       </span>
                     </div>
-                    <p className="text-xs text-zinc-500 mt-0.5 truncate">
+                    <p className="text-xs text-zinc-600 mt-0.5 truncate">
                       {job.company} &bull; {job.location} &bull; {formatDate(job.createdAt)}
                     </p>
                     {job.author && (

@@ -265,8 +265,8 @@ function ConnexionContent() {
   };
 
   const currentRole = roleConfig[selectedRole];
-  const textInputClass = 'w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none transition-all duration-200 text-[15px] hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]';
-  const compactInputClass = 'w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 text-sm hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]';
+  const textInputClass = 'w-full px-4 py-3.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 outline-none transition-all duration-200 text-[15px] hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]';
+  const compactInputClass = 'w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 outline-none transition-all duration-200 text-sm hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]';
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-black">
@@ -290,20 +290,20 @@ function ConnexionContent() {
 
           <div className="mb-6 sm:mb-8">
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-gray-900 mb-2 sm:mb-3">{hero.title}</h1>
-            <p className="text-sm sm:text-base font-medium text-gray-500 leading-relaxed">{hero.subtitle}</p>
+            <p className="text-sm sm:text-base font-medium text-gray-600 leading-relaxed">{hero.subtitle}</p>
           </div>
 
           {/* Toggle */}
           <div className="mb-6 inline-flex w-full self-start rounded-2xl bg-white/70 p-1.5 ring-1 ring-gray-200 sm:w-auto">
             <button
               onClick={() => { setIsLogin(true); setAuthError(''); }}
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-200 ${isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-white/50'}`}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 ${isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-black hover:bg-white/50'}`}
             >
               {isEn ? 'Sign in' : 'Se connecter'}
             </button>
             <button
               onClick={() => { setIsLogin(false); setAuthError(''); }}
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-200 ${!isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-black hover:bg-white/50'}`}
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-2.5 rounded-full text-sm font-bold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 ${!isLogin ? 'bg-white text-black shadow-sm' : 'text-gray-600 hover:text-black hover:bg-white/50'}`}
             >
               {isEn ? 'Sign up' : 'S\'inscrire'}
             </button>
@@ -314,12 +314,14 @@ function ConnexionContent() {
             <div className="space-y-5 flex-1">
               <div>
                 <h2 className="mb-2 text-3xl font-extrabold tracking-tight text-gray-900">{isEn ? 'Sign in' : 'Connexion'}</h2>
-                <p className="text-base text-gray-500">{isEn ? 'Access your dashboard.' : 'Accedez a votre espace candidat, entreprise ou artisan.'}</p>
+                <p className="text-base text-gray-600">{isEn ? 'Access your dashboard.' : 'Accedez a votre espace candidat, entreprise ou artisan.'}</p>
               </div>
               <div className="space-y-3">
                 <div>
                   <label className="text-sm font-bold text-gray-700 mb-1 block">{isEn ? 'Email or phone' : 'Email ou telephone'}</label>
                   <input type="text" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)}
+                    autoComplete="username"
+                    inputMode="email"
                     placeholder={isEn ? 'name@example.com or +2376...' : 'nom@example.com ou +2376...'}
                     className={textInputClass} />
                 </div>
@@ -330,6 +332,7 @@ function ConnexionContent() {
                   </div>
                   <div className="relative">
                     <input type={showLoginPassword ? 'text' : 'password'} value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)}
+                      autoComplete="current-password"
                       placeholder="••••••••"
                       className={`${textInputClass} pr-12`} />
                     <button type="button" onClick={() => setShowLoginPassword(!showLoginPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm font-bold">
@@ -383,20 +386,22 @@ function ConnexionContent() {
                     <h3 className="text-xl font-extrabold text-gray-900">
                       {isEn ? 'Reset your password' : 'Reinitialiser le mot de passe'}
                     </h3>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-600">
                       {isEn ? 'Enter the phone number linked to your account. We will send you a verification code.' : 'Entrez le numero de telephone lie a votre compte. Nous vous enverrons un code de verification.'}
                     </p>
 
                     {!resetSuccess ? (
                       <>
                         {/* Phone input */}
-                        <div className="flex gap-2">
-                          <select value={resetCountryCode} onChange={(e) => setResetCountryCode(e.target.value as CountryPhoneOption['code'])} className="border border-gray-300 rounded-xl px-2 py-3 text-sm bg-white">
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <select value={resetCountryCode} onChange={(e) => setResetCountryCode(e.target.value as CountryPhoneOption['code'])} className="w-full max-w-[170px] border border-gray-300 rounded-xl px-2 py-3 text-sm bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2">
                             {COUNTRY_PHONE_OPTIONS.map((c) => (
                               <option key={c.code} value={c.code}>{c.flag} {c.dialCode}</option>
                             ))}
                           </select>
                           <input type="tel" value={resetPhone} onChange={(e) => setResetPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
+                            autoComplete="tel"
+                            inputMode="tel"
                             placeholder={COUNTRY_PHONE_OPTIONS.find(c => c.code === resetCountryCode)?.placeholder || '6XX XX XX XX'}
                             className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] focus:border-[#DA7756] outline-none transition-all duration-200 text-sm hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]" />
                         </div>
@@ -428,11 +433,14 @@ function ConnexionContent() {
                             <div>
                               <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Verification code' : 'Code de verification'}</label>
                               <input type="text" value={resetCode} onChange={(e) => setResetCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                inputMode="numeric"
+                                autoComplete="one-time-code"
                                 placeholder="123456" className={compactInputClass} />
                             </div>
                             <div>
                               <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'New password' : 'Nouveau mot de passe'}</label>
                               <input type="password" value={resetNewPassword} onChange={(e) => setResetNewPassword(e.target.value)}
+                                autoComplete="new-password"
                                 placeholder="••••••••" className={compactInputClass} />
                             </div>
                             <button
@@ -481,13 +489,13 @@ function ConnexionContent() {
             <div className="space-y-5 flex-1">
               <div>
                 <h2 className="mb-2 text-3xl font-extrabold tracking-tight text-gray-900">{isEn ? 'Create your account' : 'Creer votre compte'}</h2>
-                <p className="text-base text-gray-500">
+                <p className="text-base text-gray-600">
                   {isEn ? 'One simple form, instant access to your dashboard.' : 'Un formulaire unique, acces instantane a votre dashboard.'}
                 </p>
               </div>
 
               <div className="space-y-3">
-                <p className="text-xs font-bold text-gray-500">{isEn ? 'Account type' : 'Type de compte'}</p>
+                <p className="text-xs font-bold text-gray-600">{isEn ? 'Account type' : 'Type de compte'}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {(Object.keys(roleConfig) as SignupRole[]).map((role) => {
                     const cfg = roleConfig[role];
@@ -517,6 +525,7 @@ function ConnexionContent() {
                     type="text"
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
+                    autoComplete="family-name"
                     className={compactInputClass}
                   />
                 </div>
@@ -526,6 +535,7 @@ function ConnexionContent() {
                     type="text"
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
+                    autoComplete="given-name"
                     className={compactInputClass}
                   />
                 </div>
@@ -546,11 +556,11 @@ function ConnexionContent() {
 
               <div>
                 <label className="text-xs font-bold text-gray-600 mb-1 block">{isEn ? 'Phone number' : 'Numero de telephone'} *</label>
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <select
                     value={selectedCountryCode}
                     onChange={(e) => setSelectedCountryCode(e.target.value as CountryPhoneOption['code'])}
-                    className="w-[120px] sm:w-[170px] px-2 sm:px-3 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 hover:border-gray-400 shrink-0"
+                    className="w-full max-w-[170px] px-2 sm:px-3 py-3 bg-gray-50 border border-gray-300 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-[#DA7756] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 outline-none transition-all duration-200 hover:border-gray-400 shrink-0"
                   >
                     {COUNTRY_PHONE_OPTIONS.map((country) => (
                       <option key={country.code} value={country.code}>
@@ -562,6 +572,8 @@ function ConnexionContent() {
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value.replace(/[^\d\s()-]/g, ''))}
+                    autoComplete="tel"
+                    inputMode="tel"
                     placeholder={selectedCountry.placeholder}
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 text-[15px] hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]"
                   />
@@ -577,6 +589,8 @@ function ConnexionContent() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  inputMode="email"
                   placeholder="nom@email.com"
                   className={compactInputClass}
                 />
@@ -602,6 +616,7 @@ function ConnexionContent() {
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="new-password"
                     placeholder={isEn ? '6 characters minimum' : '6 caracteres minimum'}
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#DA7756] outline-none transition-all duration-200 text-[15px] pr-12 hover:border-gray-400 focus:shadow-[0_0_0_4px_rgba(218,119,86,0.15)]"
                   />
@@ -623,6 +638,7 @@ function ConnexionContent() {
                   type={showPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
                   placeholder={isEn ? 'Repeat your password' : 'Repetez votre mot de passe'}
                   className={compactInputClass}
                 />
@@ -654,7 +670,7 @@ function ConnexionContent() {
 
           {/* Toggle bottom */}
           <div className="mt-6 pt-4 border-t border-gray-100 text-center">
-            <p className="text-sm text-gray-500 font-medium">
+            <p className="text-sm text-gray-600 font-medium">
               {isLogin ? (isEn ? 'No account yet? ' : 'Pas encore de compte ? ') : (isEn ? 'Already have an account? ' : 'Deja un compte ? ')}
               <button onClick={() => { setIsLogin(!isLogin); setAuthError(''); }} className="text-[#C4623F] font-bold hover:underline">
                 {isLogin ? (isEn ? 'Sign up' : 'S\'inscrire') : (isEn ? 'Sign in' : 'Se connecter')}

@@ -269,7 +269,7 @@ function RechercheContent() {
 
       {/* Back button */}
       <div className="max-w-7xl mx-auto px-4 pt-4">
-        <Link href={localizePath('/emplois')} className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-500 hover:text-[#C4623F] transition">
+        <Link href={localizePath('/emplois')} className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-600 hover:text-[#C4623F] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 rounded-lg">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
           {isEn ? 'Back to jobs' : 'Retour aux offres'}
         </Link>
@@ -289,7 +289,7 @@ function RechercheContent() {
                 placeholder={isEn ? 'Job, skill, or company' : 'Job, competence ou entreprise'}
                 defaultValue={urlState.search}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 shadow-sm"
+                className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#DA7756] focus:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 text-gray-900 shadow-sm"
               />
             </div>
             <div className="relative flex-1">
@@ -301,12 +301,12 @@ function RechercheContent() {
                 placeholder={isEn ? 'City or district (ex: Douala)' : 'Ville ou quartier (ex: Douala)'}
                 defaultValue={urlState.location}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 shadow-sm"
+                className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#DA7756] focus:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 text-gray-900 shadow-sm"
               />
             </div>
             <button
               onClick={handleSearch}
-              className="bg-blue-700 text-white px-8 py-3.5 rounded-full font-bold hover:bg-blue-800 transition shadow-md w-full md:w-auto"
+              className="bg-blue-700 text-white px-8 py-3.5 rounded-full font-bold hover:bg-blue-800 transition shadow-md w-full md:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
             >
               {isEn ? 'Search' : 'Rechercher'}
             </button>
@@ -319,7 +319,7 @@ function RechercheContent() {
       <main className="max-w-7xl mx-auto mt-8 px-4 flex flex-col md:flex-row gap-8">
         
         {/* 2. COLONNE DE GAUCHE : FILTRES */}
-        <aside className="w-full shrink-0 space-y-4 md:w-[290px] md:sticky md:top-6 md:self-start">
+        <aside className="w-full shrink-0 space-y-4 md:w-full md:max-w-[290px] md:sticky md:top-6 md:self-start">
           <div className="rounded-[28px] border border-[#CFE0EF] bg-[linear-gradient(180deg,#F3F8FD_0%,#FFFFFF_100%)] p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -442,7 +442,7 @@ function RechercheContent() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-medium text-gray-700">
               <span className="font-bold text-gray-900">{filteredAnnonces.length} {isEn ? 'jobs shown' : 'offres affichees'}</span>{' '}
-              <span className="text-gray-500">{isEn ? `out of ${totalOffers}` : `sur ${totalOffers}`}</span>
+              <span className="text-gray-600">{isEn ? `out of ${totalOffers}` : `sur ${totalOffers}`}</span>
             </h2>
             <div className="flex items-center gap-2 text-sm text-gray-600">
               <span>{isEn ? 'Sort by:' : 'Trier par :'}</span>
@@ -513,11 +513,11 @@ function RechercheContent() {
               ))}
             </div>
           ) : (
-            <div className="rounded-3xl border border-dashed border-blue-200 bg-white px-6 py-14 text-center">
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-white to-gray-50 p-8 text-center shadow-sm">
               <h3 className="text-lg font-extrabold text-gray-900">
                 {isEn ? 'No job matches these filters' : 'Aucune offre ne correspond a ces filtres'}
               </h3>
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-gray-600">
                 {isEn ? 'Try broader criteria or reset the sidebar filters to bring back more recent openings.' : 'Essayez des criteres plus larges ou reinitialisez les filtres pour faire revenir plus d offres recentes.'}
               </p>
             </div>

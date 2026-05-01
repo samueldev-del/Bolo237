@@ -27,15 +27,35 @@ body {
 
 /* Focus état sur les inputs de recherche */
 .search-input:focus {
-  border-color: #7C3AED !important;
-  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+  border-color: #DA7756 !important;
+  box-shadow: 0 0 0 3px rgba(218, 119, 86, 0.15);
 }
 
 /* Scrollbar subtle */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: #f1f1f1; }
-::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #7C3AED; }
+::-webkit-scrollbar-thumb { background: #E5B9A7; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #DA7756; }
+
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #DA7756, 0 0 0 4px #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* Cache la barre de defilement pour les zones swipeables sur mobile, tout en gardant le scroll */
 .custom-scrollbar-hide::-webkit-scrollbar {

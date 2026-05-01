@@ -385,8 +385,14 @@ export default function ArtisanVitrinePage({ params }: ArtisanParams) {
 
       {/* Login prompt modal */}
       {showLoginPrompt && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4" onClick={() => setShowLoginPrompt(false)}>
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowLoginPrompt(false)}
+            aria-label={isEn ? 'Close login prompt' : 'Fermer la fenetre de connexion'}
+          />
+          <div className="relative bg-white rounded-2xl p-6 max-w-sm w-full text-center">
             <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">🔒</div>
             <h3 className="text-lg font-extrabold text-gray-900 mb-2">
               {isEn ? 'Create an account to contact' : 'Créez un compte pour contacter'}

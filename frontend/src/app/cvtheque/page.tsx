@@ -178,7 +178,7 @@ export default function CvthequePage() {
         <div className="max-w-7xl mx-auto px-4 py-6">
           <Link
             href={localizePath('/dashboard-entreprise')}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-green-700 transition mb-3"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-600 hover:text-green-700 transition mb-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 rounded-lg"
           >
             <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
@@ -192,22 +192,24 @@ export default function CvthequePage() {
               onChange={(e) => setKeywords(e.target.value)}
               placeholder={isEn ? 'Keywords: skills, job title' : 'Mots-cles: competences, intitule de poste'}
               className="md:col-span-2 border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+              inputMode="text"
             />
             <input
               value={localisation}
               onChange={(e) => setLocalisation(e.target.value)}
               placeholder={isEn ? 'Location' : 'Localisation'}
               className="border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+              inputMode="text"
             />
           </div>
         </div>
       </div>
 
       <main className="max-w-7xl mx-auto px-4 py-6 flex flex-col lg:flex-row gap-6">
-        <aside className="w-full lg:w-80 shrink-0">
+        <aside className="w-full lg:w-full lg:max-w-80 shrink-0">
           <div className="bg-white border border-gray-200 rounded-2xl p-5 space-y-6 sticky top-6">
             <div>
-              <h2 className="text-sm font-extrabold uppercase text-gray-500 mb-3">{isEn ? 'Experience level' : 'Niveau d experience'}</h2>
+              <h2 className="text-sm font-extrabold uppercase text-gray-600 mb-3">{isEn ? 'Experience level' : 'Niveau d experience'}</h2>
               <div className="space-y-2 text-sm">
                 {['Junior', 'Confirme', 'Senior'].map((item) => (
                   <label key={item} className="flex items-center gap-2">
@@ -224,7 +226,7 @@ export default function CvthequePage() {
             </div>
 
             <div>
-              <h2 className="text-sm font-extrabold uppercase text-gray-500 mb-3">{isEn ? 'Availability' : 'Disponibilite'}</h2>
+              <h2 className="text-sm font-extrabold uppercase text-gray-600 mb-3">{isEn ? 'Availability' : 'Disponibilite'}</h2>
               <div className="space-y-2 text-sm">
                 {['Immediatement', 'Sous 1 mois', 'A l ecoute du marche'].map((item) => (
                   <label key={item} className="flex items-center gap-2">
@@ -241,7 +243,7 @@ export default function CvthequePage() {
             </div>
 
             <div>
-              <h2 className="text-sm font-extrabold uppercase text-gray-500 mb-3">{isEn ? 'Education level' : 'Niveau d etudes'}</h2>
+              <h2 className="text-sm font-extrabold uppercase text-gray-600 mb-3">{isEn ? 'Education level' : 'Niveau d etudes'}</h2>
               <div className="space-y-2 text-sm">
                 {['Bac', 'Bac+2', 'Bac+3', 'Bac+5'].map((item) => (
                   <label key={item} className="flex items-center gap-2">
@@ -258,7 +260,7 @@ export default function CvthequePage() {
             </div>
 
             <div>
-              <h2 className="text-sm font-extrabold uppercase text-gray-500 mb-3">{isEn ? 'Profile activity' : 'Activite du profil'}</h2>
+              <h2 className="text-sm font-extrabold uppercase text-gray-600 mb-3">{isEn ? 'Profile activity' : 'Activite du profil'}</h2>
               <label className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -309,7 +311,7 @@ export default function CvthequePage() {
           )}
 
           {isLoadingCandidates && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-sm font-medium text-gray-500">
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-white to-gray-50 p-8 text-center shadow-sm text-sm font-medium text-gray-600">
               {isEn ? 'Loading candidate profiles...' : 'Chargement des profils candidats...'}
             </div>
           )}
@@ -331,7 +333,7 @@ export default function CvthequePage() {
                     <div>
                       <h3 className="text-lg font-extrabold text-black">{cand.nom}</h3>
                       <p className="text-sm font-bold text-gray-700">{cand.titre}</p>
-                      <p className="text-sm text-gray-500">{cand.localisation}</p>
+                      <p className="text-sm text-gray-600">{cand.localisation}</p>
                     </div>
 
                     {cand.disponibleNow && (
@@ -377,7 +379,7 @@ export default function CvthequePage() {
           ))}
 
           {!isLoadingCandidates && totalProfiles === 0 && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-600 font-medium">
+            <div className="rounded-2xl border border-dashed border-gray-200 bg-gradient-to-b from-white to-gray-50 p-8 text-center text-gray-600 font-medium shadow-sm">
               {isEn ? 'No profile matches your current filters.' : 'Aucun profil ne correspond a vos filtres actuels.'}
             </div>
           )}

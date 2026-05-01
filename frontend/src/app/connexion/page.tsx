@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { createUser, loginUser, forgotPassword, resetPassword } from '@/lib/api';
+import { trackEvent } from '@/lib/analytics';
 import { markRecentAuthSuccess, storeAuthenticatedUser } from '@/lib/session';
 
 type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
@@ -195,6 +196,7 @@ function ConnexionContent() {
         const localRole = toLocalRole(loggedUser.role);
         storeAuthenticatedUser(loggedUser, { role: localRole, phoneVerified: true });
         markRecentAuthSuccess();
+        trackEvent('signup_success', { role: ROLE_MAP[selectedRole] });
         // Full page reload so the session cookie is properly sent on
         // the very first request the dashboard makes to /api/auth/me.
         // router.push (SPA nav) could trigger the dashboard's session

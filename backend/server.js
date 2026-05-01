@@ -4025,6 +4025,34 @@ app.get('/api/health', (_req, res) => {
 
 Sentry.setupExpressErrorHandler(app);
 
+// Global error handler — catches any error passed via next(err) or thrown
+// in an async route that uses a wrapper.  Must have 4 parameters so Express
+// recognises it as an error-handling middleware.
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  const statusCode = typeof err.status === 'number' ? err.status
+    : typeof err.statusCode === 'number' ? err.statusCode
+    : 500;
+
+  const message = err instanceof Error ? err.message : String(err || 'Internal server error');
+
+  // Always log the full stack trace so it appears in production logs.
+  console.error(
+    `[ERROR] ${req.method} ${req.path} → ${statusCode}: ${message}`,
+    err?.stack || '',
+  );
+
+  // Capture in Sentry if not already done by setupExpressErrorHandler.
+  if (statusCode >= 500) {
+    reportError(`${req.method} ${req.path}`, err, { statusCode });
+  }
+
+  if (res.headersSent) return;
+  res.status(statusCode).json({
+    error: statusCode >= 500 ? 'Internal server error' : message,
+  });
+});
+
 // Démarrage des tâches automatisées
 startJobArchiver(prisma);
 

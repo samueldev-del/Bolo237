@@ -295,8 +295,11 @@ function buildApiHeaders(headersInit?: HeadersInit, body?: BodyInit | null): Hea
   return headers;
 }
 
-async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> {
-  const { captureServerErrors = true, headers, body, ...requestOptions } = options ?? {};
+async function apiFetch<T>(
+  path: string,
+  options?: ApiFetchOptions & { validate?: (data: unknown) => T },
+): Promise<T> {
+  const { captureServerErrors = true, headers, body, validate, ...requestOptions } = options ?? {};
   const method = String(options?.method || 'GET').toUpperCase();
   let res: Response;
 
@@ -314,19 +317,52 @@ async function apiFetch<T>(path: string, options?: ApiFetchOptions): Promise<T> 
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
+    const errBody = await res.json().catch(() => ({}));
     if (captureServerErrors && res.status >= 500) {
-      captureApiException(new Error(body.error || `API error ${res.status}`), {
+      captureApiException(new Error(errBody.error || `API error ${res.status}`), {
         kind: 'response',
         method,
         path,
         status: res.status,
       });
     }
-    throw new ApiError(body.error || body.message || `API error ${res.status}`, res.status, body);
+    throw new ApiError(errBody.error || errBody.message || `API error ${res.status}`, res.status, errBody);
   }
 
-  return res.json();
+  const json = (await res.json()) as unknown;
+  if (validate) {
+    try {
+      return validate(json);
+    } catch (err) {
+      captureApiException(err, { kind: 'schema', method, path });
+      throw new ApiError('Réponse serveur invalide.', 0, json);
+    }
+  }
+  return json as T;
+}
+
+// Lightweight runtime guards (avoids adding zod to the frontend bundle).
+export function expectObject(data: unknown, where: string): Record<string, unknown> {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    throw new Error(`${where}: expected object`);
+  }
+  return data as Record<string, unknown>;
+}
+export function expectArray<T>(data: unknown, where: string, mapItem: (item: unknown, index: number) => T): T[] {
+  if (!Array.isArray(data)) {
+    throw new Error(`${where}: expected array`);
+  }
+  return data.map((item, idx) => mapItem(item, idx));
+}
+export function expectString(data: unknown, where: string): string {
+  if (typeof data !== 'string') throw new Error(`${where}: expected string`);
+  return data;
+}
+export function expectNumber(data: unknown, where: string): number {
+  if (typeof data !== 'number' || !Number.isFinite(data)) {
+    throw new Error(`${where}: expected number`);
+  }
+  return data;
 }
 
 export { ApiError };
@@ -441,6 +477,16 @@ export type ApiApplication = {
   };
 };
 
+export async function submitJobApplication(jobId: number, message: string, cvFile: File): Promise<{ application?: ApiApplication }> {
+  const payload = new FormData();
+  payload.append('message', message);
+  payload.append('cv', cvFile);
+  return apiFetch<{ application?: ApiApplication }>(`/api/jobs/${jobId}/apply`, {
+    method: 'POST',
+    body: payload,
+  });
+}
+
 export async function fetchJobApplications(jobId: number): Promise<ApiApplication[]> {
   const response = await fetch(`/api/backend/jobs/${jobId}/applications`, {
     method: 'GET',
@@ -458,7 +504,13 @@ export async function fetchJobApplications(jobId: number): Promise<ApiApplicatio
 }
 
 export async function fetchUserApplications(userId: number): Promise<UserApplication[]> {
-  const res = await apiFetch<{ applications: UserApplication[] }>(`/api/users/${userId}/applications`);
+  const res = await apiFetch<{ applications: UserApplication[] }>(`/api/users/${userId}/applications`, {
+    validate: (data) => {
+      const obj = expectObject(data, 'fetchUserApplications');
+      const apps = Array.isArray(obj.applications) ? obj.applications : [];
+      return { applications: apps as UserApplication[] };
+    },
+  });
   return res.applications;
 }
 

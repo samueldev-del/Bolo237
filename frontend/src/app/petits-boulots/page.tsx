@@ -478,6 +478,7 @@ export default function PetitsBoulots() {
                           alt={profileName}
                           width={44}
                           height={44}
+                          sizes="44px"
                           style={{ width: '44px', height: '44px', borderRadius: '999px', objectFit: 'cover', border: '1px solid #E2E8F0' }}
                         />
                       ) : (
@@ -533,6 +534,7 @@ export default function PetitsBoulots() {
                             alt={`Portfolio ${profileName} ${index + 1}`}
                             width={300}
                             height={200}
+                            sizes="(max-width: 640px) 33vw, 120px"
                             style={{ width: '100%', height: '78px', borderRadius: '8px', objectFit: 'cover', border: '1px solid #E2E8F0' }}
                           />
                         ))}

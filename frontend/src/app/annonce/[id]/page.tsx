@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
-import { fetchJob, fetchUserProfile } from '@/lib/api';
+import { fetchJob, fetchUserProfile, submitJobApplication, ApiError } from '@/lib/api';
 import {
   extractExternalApplyUrl,
   getContractLabel,
@@ -363,44 +363,36 @@ export default function OffreEmploiPage({ params }: JobParams) {
     setApplyMessage('');
 
     try {
-      const payload = new FormData();
-      payload.append('message', message);
-      payload.append('cv', cvFile);
+      await submitJobApplication(apiJob.id, message, cvFile);
 
-      const response = await fetch(`/api/backend/jobs/${apiJob.id}/apply`, {
-        method: 'POST',
-        credentials: 'include',
-        body: payload,
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
+      setShowApplicationReview(false);
+      setMessage('');
+      setCvFile(null);
+      setApplyMessage(
+        isEn
+          ? 'Your application has been sent successfully!'
+          : 'Votre candidature a été envoyée avec succès !'
+      );
+    } catch (error) {
+      if (error instanceof ApiError) {
+        const data = (error.details ?? {}) as { errors?: Array<{ champ?: string; message?: string } | string>; message?: string };
         const nextErrors: Record<string, string> = {};
 
-        if (Array.isArray(data?.errors)) {
-          data.errors.forEach((err: { champ?: string; message?: string } | string) => {
+        if (Array.isArray(data.errors)) {
+          data.errors.forEach((err) => {
             if (typeof err === 'string') {
               const normalized = err.toLowerCase();
-              if (normalized.includes('motivation')) {
-                nextErrors.message = err;
-              } else if (normalized.includes('cv') || normalized.includes('fichier')) {
-                nextErrors.cv = err;
-              } else {
-                nextErrors.global = err;
-              }
+              if (normalized.includes('motivation')) nextErrors.message = err;
+              else if (normalized.includes('cv') || normalized.includes('fichier')) nextErrors.cv = err;
+              else nextErrors.global = err;
               return;
             }
-
-            if (err?.champ && err?.message) {
-              nextErrors[err.champ] = err.message;
-            } else if (err?.message) {
-              nextErrors.global = err.message;
-            }
+            if (err?.champ && err?.message) nextErrors[err.champ] = err.message;
+            else if (err?.message) nextErrors.global = err.message;
           });
         }
 
-        if (!nextErrors.cv && typeof data?.message === 'string' && data.message.toLowerCase().includes('cv')) {
+        if (!nextErrors.cv && typeof data.message === 'string' && data.message.toLowerCase().includes('cv')) {
           nextErrors.cv = data.message;
         }
 
@@ -414,18 +406,9 @@ export default function OffreEmploiPage({ params }: JobParams) {
           return;
         }
 
-        throw new Error(data?.message || (isEn ? 'An error occurred.' : 'Une erreur est survenue.'));
+        setApplyMessage((isEn ? 'Application failed: ' : 'Echec candidature: ') + (data.message || error.message));
+        return;
       }
-
-      setShowApplicationReview(false);
-      setMessage('');
-      setCvFile(null);
-      setApplyMessage(
-        isEn
-          ? 'Your application has been sent successfully!'
-          : 'Votre candidature a été envoyée avec succès !'
-      );
-    } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setApplyMessage((isEn ? 'Application failed: ' : 'Echec candidature: ') + message);
     } finally {
@@ -480,7 +463,7 @@ export default function OffreEmploiPage({ params }: JobParams) {
       <nav className="border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
         <div className="max-w-6xl mx-auto flex items-center justify-between">
           <Link href={localizePath('/')}>
-            <Image src="/logo.svg" alt="Bolo237" width={120} height={32} className="h-8 w-auto" />
+            <Image src="/logo.svg" alt="Bolo237" width={120} height={32} priority className="h-8 w-auto" />
           </Link>
           <button onClick={() => window.history.back()} className="inline-flex items-center gap-1.5 text-sm font-bold text-slate-600 hover:text-[#0F4C81] transition">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>

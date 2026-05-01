@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/Header';
@@ -8,6 +8,7 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, uploadFile, upsertUserProfile, ApiError, type ApiJob, type CandidateProfile, type UserApplication, type UserProfile } from '@/lib/api';
 import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser, persistPhotoUrl } from '@/lib/session';
+import { useRequireRole } from '@/lib/useRequireRole';
 
 type CvFormData = {
   fullName: string;
@@ -26,6 +27,7 @@ export default function DashboardCandidat() {
   const { locale, localizePath } = useLocale();
   const router = useRouter();
   const isEn = locale === 'en';
+  useRequireRole('CANDIDAT');
   const availabilityOptions: CandidateProfile['disponibilite'][] = ['Immediatement', 'Sous 1 mois', 'A l ecoute du marche'];
   const [userName, setUserName] = useState('');
   const [userId, setUserId] = useState<number>(0);
@@ -87,6 +89,7 @@ export default function DashboardCandidat() {
   }, []);
 
   useEffect(() => {
+    // Redirection cross-rôle gérée par useRequireRole('CANDIDAT') ci-dessus.
     try {
       const raw = localStorage.getItem('bolo237-user');
       if (raw) {
@@ -95,22 +98,11 @@ export default function DashboardCandidat() {
         setUserId(Number(parsed?.id || 0));
         setProfilePhotoUrl(String(parsed?.photoUrl || ''));
         setIsVerified(Boolean(parsed?.isVerified));
-
-        // Redirect to role-specific dashboard
-        const role = String(parsed?.role || localStorage.getItem('bolo237-account-role') || '').toUpperCase();
-        if (role === 'ENTREPRISE') {
-          router.replace(localizePath('/dashboard-entreprise'));
-          return;
-        }
-        if (role === 'ARTISAN') {
-          router.replace(localizePath('/dashboard-artisan'));
-          return;
-        }
       }
     } catch {
       // ignore parse errors
     }
-  }, [router, localizePath]);
+  }, []);
 
   useEffect(() => {
     const loadSavedJobs = async () => {
@@ -129,6 +121,7 @@ export default function DashboardCandidat() {
   useEffect(() => {
     if (!userId) return;
     let active = true;
+    let timer: ReturnType<typeof setInterval> | null = null;
 
     const loadApplications = async () => {
       try {
@@ -141,13 +134,37 @@ export default function DashboardCandidat() {
       }
     };
 
-    loadApplications();
+    const start = () => {
+      if (timer) return;
+      loadApplications();
+      timer = setInterval(loadApplications, 20000);
+    };
 
-    const timer = setInterval(loadApplications, 20000);
+    const stop = () => {
+      if (!timer) return;
+      clearInterval(timer);
+      timer = null;
+    };
+
+    const onVisibility = () => {
+      if (typeof document === 'undefined') return;
+      if (document.visibilityState === 'visible') start();
+      else stop();
+    };
+
+    if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+      start();
+    }
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
 
     return () => {
       active = false;
-      clearInterval(timer);
+      stop();
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibility);
+      }
     };
   }, [userId]);
 
@@ -250,25 +267,27 @@ export default function DashboardCandidat() {
     ensureActiveUser();
   }, [userId, localizePath]);
 
-  // Vide — sera rempli par les vraies offres sauvegardees
-  const emploisSauvegardes: { id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[] = savedJobs.map((job) => {
-    const diff = Date.now() - new Date(job.createdAt).getTime();
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const temps = hours < 1
-      ? "A l instant"
-      : hours < 24
-        ? `Il y a ${hours}h`
-        : `Il y a ${Math.floor(hours / 24)} jour${Math.floor(hours / 24) > 1 ? 's' : ''}`;
+  const emploisSauvegardes = useMemo<{ id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[]>(
+    () => savedJobs.map((job) => {
+      const diff = Date.now() - new Date(job.createdAt).getTime();
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const temps = hours < 1
+        ? "A l instant"
+        : hours < 24
+          ? `Il y a ${hours}h`
+          : `Il y a ${Math.floor(hours / 24)} jour${Math.floor(hours / 24) > 1 ? 's' : ''}`;
 
-    return {
-      id: job.id,
-      titre: job.title,
-      entreprise: job.company,
-      lieu: job.location,
-      type: 'CDI',
-      temps,
-    };
-  });
+      return {
+        id: job.id,
+        titre: job.title,
+        entreprise: job.company,
+        lieu: job.location,
+        type: 'CDI',
+        temps,
+      };
+    }),
+    [savedJobs],
+  );
 
   const addSkill = () => {
     const value = skillInput.trim();

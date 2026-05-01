@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState, useTransition, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
+import { Suspense, memo, useCallback, useEffect, useMemo, useState, useTransition, useSyncExternalStore, type KeyboardEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
@@ -226,7 +226,7 @@ function LoadingJobCards() {
   );
 }
 
-function FilterGroup({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
+const FilterGroup = memo(function FilterGroup({ title, children, defaultOpen = false }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
   return (
     <details open={defaultOpen} className="group rounded-2xl border border-gray-200 bg-white">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-gray-900">
@@ -236,9 +236,9 @@ function FilterGroup({ title, children, defaultOpen = false }: { title: string; 
       <div className="border-t border-gray-100 px-3 py-3">{children}</div>
     </details>
   );
-}
+});
 
-function FilterChoice({
+const FilterChoice = memo(function FilterChoice({
   label,
   active,
   onClick,
@@ -267,7 +267,7 @@ function FilterChoice({
       ) : null}
     </button>
   );
-}
+});
 
 function resolveHomeQuery(searchParams: { get: (name: string) => string | null }): HomeQuery {
   const pageValue = Number.parseInt(searchParams.get('page') || '1', 10);
@@ -424,7 +424,10 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
     return value !== defaultValue;
   }).length;
 
-  const countMatches = (predicate: (job: LocalJob) => boolean) => emplois.filter(predicate).length;
+  const countMatches = useCallback(
+    (predicate: (job: LocalJob) => boolean) => emplois.filter(predicate).length,
+    [emplois],
+  );
   const uniqueRegions = Array.from(new Set(emplois.map((job) => job.region))).sort((left, right) => left.localeCompare(right));
   const uniqueCities = Array.from(new Set(emplois.map((job) => job.city))).sort((left, right) => left.localeCompare(right));
 

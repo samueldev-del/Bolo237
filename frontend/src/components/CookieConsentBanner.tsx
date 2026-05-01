@@ -16,6 +16,10 @@ const COOKIE_CONSENT_COOKIE_NAME = 'cookieConsent';
 const COOKIE_CONSENT_VERSION = '2026-04';
 const COOKIE_CONSENT_MAX_AGE_SECONDS = 60 * 60 * 24 * 395;
 const COOKIE_SETTINGS_EVENT = 'bolo237:open-cookie-settings';
+// Simple dismissal key — version-agnostic. Written whenever the user makes
+// any choice (accept / reject / save). Prevents the banner from reappearing
+// after a consent-version bump while preserving detailed per-category consent.
+const COOKIE_DISMISSED_KEY = 'bolo237_cookie_consent';
 
 function parseStoredConsent(raw: string | null): CookieConsent | null {
   if (!raw) {
@@ -91,9 +95,21 @@ export default function CookieConsentBanner() {
     () => false,
   );
   const [bannerOverride, setBannerOverride] = useState<boolean | null>(null);
+  // Persisted dismissal: true once the user has ever made a cookie choice.
+  // Checked via useEffect to avoid SSR/hydration mismatch.
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [functionalEnabled, setFunctionalEnabled] = useState(false);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+
+  // Check the simple dismissal key on mount (useEffect avoids SSR hydration
+  // mismatch — localStorage is only accessible in the browser).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (localStorage.getItem(COOKIE_DISMISSED_KEY)) {
+      setBannerDismissed(true);
+    }
+  }, []);
 
   const activeConsent = isMounted
     ? (() => {
@@ -102,7 +118,11 @@ export default function CookieConsentBanner() {
       })()
     : null;
 
-  const showBanner = bannerOverride ?? !activeConsent;
+  // showBanner:
+  // - bannerOverride = true  → always show (user opened settings manually)
+  // - bannerOverride = false → always hide (just after saving choices)
+  // - bannerOverride = null  → show only if user never dismissed + no fresh consent
+  const showBanner = bannerOverride ?? (!bannerDismissed && !activeConsent);
 
   const openSettings = () => {
     setFunctionalEnabled(activeConsent?.functional ?? false);
@@ -165,8 +185,14 @@ export default function CookieConsentBanner() {
     };
 
     persistConsent(consent);
+    // Mark as dismissed with the simple key so future version bumps don't
+    // re-show the banner for users who have already made a choice.
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(COOKIE_DISMISSED_KEY, 'true');
+    }
     setFunctionalEnabled(functional);
     setAnalyticsEnabled(analytics);
+    setBannerDismissed(true);
     setBannerOverride(false);
     setShowSettings(false);
   };

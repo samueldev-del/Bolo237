@@ -1970,6 +1970,17 @@ app.post('/api/users', signupIpLimiter, async (req, res) => {
       moderationStatus: 'PENDING',
     });
   } catch (error) {
+    // Prisma P2002 = unique constraint violated (race condition between pre-check and INSERT).
+    if (error?.code === 'P2002') {
+      const targets = Array.isArray(error?.meta?.target) ? error.meta.target : [];
+      if (targets.includes('phone')) {
+        return res.status(409).json({ error: 'Ce numéro de téléphone est déjà associé à un compte.' });
+      }
+      if (targets.includes('email')) {
+        return res.status(409).json({ error: 'Cet email est déjà utilisé.' });
+      }
+      return res.status(409).json({ error: 'Cet email ou ce numéro de téléphone est déjà utilisé.' });
+    }
     reportError('POST /api/users error', error, { route: '/api/users' });
     res.status(500).json({ error: "Erreur lors de la création de l'utilisateur." });
   }

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
-import { createUser, loginUser, forgotPassword, resetPassword } from '@/lib/api';
+import { createUser, loginUser, forgotPassword, resetPassword, ApiError } from '@/lib/api';
 import { trackEvent } from '@/lib/analytics';
 import { markRecentAuthSuccess, storeAuthenticatedUser } from '@/lib/session';
 
@@ -204,8 +204,16 @@ function ConnexionContent() {
         window.location.href = getDashboardRoute(localRole);
       }
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : (isEn ? 'Account creation failed.' : 'Echec de la creation du compte.');
-      setAuthError(message);
+      if (err instanceof ApiError && err.status === 409) {
+        setAuthError(
+          isEn
+            ? 'This email or phone number is already linked to an account. Please log in instead.'
+            : 'Cet email ou numéro de téléphone est déjà associé à un compte. Veuillez vous connecter.'
+        );
+      } else {
+        const message = err instanceof Error ? err.message : (isEn ? 'Account creation failed.' : 'Echec de la creation du compte.');
+        setAuthError(message);
+      }
     } finally {
       setIsSubmitting(false);
     }

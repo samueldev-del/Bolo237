@@ -204,24 +204,19 @@ function RechercheContent() {
 
   const { data: jobsData, loading: jobsLoading } = useApi(
     () => fetchJobs({
-      limit: 20,
+      limit: 50,
       status: 'APPROVED',
+      sort: urlState.sortBy,
       ...(urlState.search ? { search: urlState.search } : {}),
       ...(urlState.location ? { location: urlState.location } : {}),
     }),
     null,
-    [urlState.search, urlState.location]
+    [urlState.search, urlState.location, urlState.sortBy]
   );
 
   const annonces: JobListing[] = useMemo(() => {
-    const mapped = jobsData ? jobsData.jobs.map((job: ApiJob, index: number) => mapApiJobToListing(job, index, isEn)) : [];
-    return mapped.sort((left, right) => {
-      if (urlState.sortBy === 'oldest') {
-        return left.publishedHours - right.publishedHours;
-      }
-      return right.publishedHours - left.publishedHours;
-    });
-  }, [jobsData, isEn, urlState.sortBy]);
+    return jobsData ? jobsData.jobs.map((job: ApiJob, index: number) => mapApiJobToListing(job, index, isEn)) : [];
+  }, [jobsData, isEn]);
 
   const filteredAnnonces = useMemo(() => {
     return annonces.filter((annonce) => {

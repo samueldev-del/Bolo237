@@ -399,6 +399,7 @@ export type JobsResponse = { jobs: ApiJob[]; pagination: Pagination };
 export type JobFilters = {
   search?: string;
   location?: string;
+  sort?: 'recent' | 'oldest';
   status?: string;
   authorId?: number;
   page?: number;
@@ -422,12 +423,13 @@ export type EnterpriseDashboardOverview = {
 
 export async function fetchJobs(filters: JobFilters = {}): Promise<JobsResponse> {
   const params = new URLSearchParams();
-  if (filters.search) params.set('search', filters.search);
+  if (filters.search)   params.set('search',   filters.search);
   if (filters.location) params.set('location', filters.location);
-  if (filters.status) params.set('status', filters.status);
+  if (filters.sort && filters.sort !== 'recent') params.set('sort', filters.sort);
+  if (filters.status)   params.set('status',   filters.status);
   if (filters.authorId) params.set('authorId', String(filters.authorId));
-  if (filters.page) params.set('page', String(filters.page));
-  if (filters.limit) params.set('limit', String(filters.limit));
+  if (filters.page)     params.set('page',     String(filters.page));
+  if (filters.limit)    params.set('limit',    String(filters.limit));
 
   const qs = params.toString();
   return apiFetch<JobsResponse>(`/api/jobs${qs ? `?${qs}` : ''}`);

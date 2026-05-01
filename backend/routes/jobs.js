@@ -40,16 +40,71 @@ const validateRequest = (schema) => async (req, res, next) => {
 // 🚀 LES ROUTES
 // ==========================================
 
-// GET /jobs (Liste)
+// GET /jobs (Liste + Recherche)
 router.get('/', async (req, res) => {
   try {
-    const jobs = await prisma.job.findMany({
-      where: { status: 'APPROVED' },
-      orderBy: { createdAt: 'desc' }
+    const { search, location, status, authorId, sort, page, limit } = req.query;
+
+    // ── Pagination ───────────────────────────────────────────────
+    const pageNum  = Math.max(1, parseInt(page,  10) || 1);
+    const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const skip     = (pageNum - 1) * limitNum;
+
+    // ── WHERE clause ─────────────────────────────────────────────
+    const where = {};
+
+    // Si un authorId est fourni (dashboard entreprise), on ne force pas APPROVED
+    if (authorId) {
+      const parsedAuthorId = parseInt(authorId, 10);
+      if (!isNaN(parsedAuthorId)) where.authorId = parsedAuthorId;
+      // Status explicite optionnel pour le dashboard
+      const ALLOWED = ['PENDING', 'ACTIVE', 'APPROVED', 'REJECTED', 'CLOSED', 'ARCHIVED'];
+      if (status && ALLOWED.includes(status)) where.status = status;
+    } else {
+      // Route publique : uniquement les offres APPROVED
+      where.status = 'APPROVED';
+    }
+
+    // Recherche plein-texte (insensible à la casse) sur titre, description, entreprise
+    const term = typeof search === 'string' ? search.trim() : '';
+    if (term) {
+      where.OR = [
+        { title:       { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+        { company:     { contains: term, mode: 'insensitive' } },
+      ];
+    }
+
+    // Filtre lieu (insensible à la casse)
+    const loc = typeof location === 'string' ? location.trim() : '';
+    if (loc) {
+      where.location = { contains: loc, mode: 'insensitive' };
+    }
+
+    // ── Tri ───────────────────────────────────────────────────────
+    const orderBy = sort === 'oldest'
+      ? { createdAt: 'asc' }
+      : { createdAt: 'desc' };
+
+    // ── Requête ───────────────────────────────────────────────────
+    const [jobs, total] = await Promise.all([
+      prisma.job.findMany({ where, orderBy, skip, take: limitNum }),
+      prisma.job.count({ where }),
+    ]);
+
+    res.json({
+      success: true,
+      jobs,
+      pagination: {
+        page:  pageNum,
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
     });
-    res.json({ success: true, jobs });
   } catch (error) {
-    res.status(500).json({ success: false, message: "Erreur serveur" });
+    console.error('Erreur liste jobs:', error);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 });
 

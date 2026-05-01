@@ -12,8 +12,8 @@ export default async function Home() {
     fetchVerifiedArtisans({ take: 6 }),
   ]);
 
-  const initialArtisans = initialArtisansData?.artisans || [];
-  const initialJobs = initialJobsData?.jobs || [];
+  const initialArtisans = Array.isArray(initialArtisansData?.artisans) ? initialArtisansData.artisans : [];
+  const initialJobs = Array.isArray(initialJobsData?.jobs) ? initialJobsData.jobs : [];
 
   return (
     <>
@@ -33,7 +33,12 @@ export default async function Home() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {initialArtisans.map((artisan, index) => {
               const profileName = String(artisan.fullName || artisan.name || 'Artisan').trim();
-              const serviceLabel = artisan.services.slice(0, 2).map((service) => service.name).join(' • ');
+              const artisanServices = Array.isArray(artisan.services) ? artisan.services : [];
+              const serviceLabel = artisanServices
+                .slice(0, 2)
+                .map((service) => String(service?.name || '').trim())
+                .filter(Boolean)
+                .join(' • ');
 
               return (
                 <Link

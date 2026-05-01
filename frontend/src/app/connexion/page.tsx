@@ -112,10 +112,10 @@ function ConnexionContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const roleFromQuery = searchParams.get('role');
-  const heroRole: HeroRole =
-    roleFromQuery === 'artisan' || roleFromQuery === 'entreprise' || roleFromQuery === 'candidat'
-      ? roleFromQuery
-      : 'candidat';
+  // In signup mode, mirror the selected role card. In login mode, use the URL param.
+  const heroRole: HeroRole = !isLogin
+    ? (selectedRole === 'artisan' ? 'artisan' : selectedRole === 'entreprise' ? 'entreprise' : 'candidat')
+    : (roleFromQuery === 'artisan' || roleFromQuery === 'entreprise' || roleFromQuery === 'candidat' ? roleFromQuery : 'candidat');
   const hero = AUTH_HERO_BY_ROLE[heroRole];
 
   const selectedCountry = COUNTRY_PHONE_OPTIONS.find((country) => country.code === selectedCountryCode) || COUNTRY_PHONE_OPTIONS[0];

@@ -10,8 +10,14 @@ type CachedBackendSession = {
   expiresAt: number;
 };
 
+type BackendLoginBackoff = {
+  until: number;
+  message: string;
+};
+
 let cachedBackendSession: CachedBackendSession | null = null;
 let pendingBackendLogin: Promise<string> | null = null;
+let backendLoginBackoff: BackendLoginBackoff | null = null;
 
 function normalizeBase(value: string) {
   return String(value || "").trim().replace(/\/$/, "");
@@ -79,6 +85,25 @@ function getCachedSessionCookie() {
   return cachedBackendSession?.cookie || null;
 }
 
+function getActiveBackendLoginBackoff() {
+  if (!backendLoginBackoff) return null;
+  if (backendLoginBackoff.until <= Date.now()) {
+    backendLoginBackoff = null;
+    return null;
+  }
+  return backendLoginBackoff;
+}
+
+function setBackendLoginBackoff(waitSeconds: number, baseMessage: string) {
+  const safeWaitSeconds = Number.isFinite(waitSeconds) && waitSeconds > 0 ? waitSeconds : 900;
+  const minutes = Math.max(1, Math.ceil(safeWaitSeconds / 60));
+  const suffix = `Reessayez dans ${minutes} minute${minutes > 1 ? "s" : ""}.`;
+  backendLoginBackoff = {
+    until: Date.now() + safeWaitSeconds * 1000,
+    message: `${baseMessage} ${suffix}`.trim(),
+  };
+}
+
 function cacheSession(cookie: string, maxAgeSeconds: number | null) {
   const ttlSeconds = maxAgeSeconds && maxAgeSeconds > 120 ? maxAgeSeconds - 60 : 300;
   cachedBackendSession = {
@@ -96,6 +121,11 @@ function isAdminRole(role: unknown) {
 }
 
 async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
+  const activeBackoff = getActiveBackendLoginBackoff();
+  if (activeBackoff) {
+    throw new Error(activeBackoff.message);
+  }
+
   if (!forceRefresh) {
     const cachedCookie = getCachedSessionCookie();
     if (cachedCookie) {
@@ -123,6 +153,12 @@ async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
 
     if (!response.ok) {
       const backendError = String(payload.error || "").trim();
+      if (response.status === 429) {
+        const retryAfterHeader = Number.parseInt(String(response.headers.get("retry-after") || "0"), 10);
+        setBackendLoginBackoff(retryAfterHeader, backendError || "Connexion admin temporairement bloquee.");
+        const blocked = getActiveBackendLoginBackoff();
+        throw new Error(blocked?.message || backendError || "Connexion admin temporairement bloquee.");
+      }
       if (response.status === 401) {
         throw new Error("Les identifiants backend admin sont invalides.");
       }
@@ -138,6 +174,7 @@ async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
       throw new Error("Le backend n'a pas retourne de cookie de session admin.");
     }
 
+    backendLoginBackoff = null;
     cacheSession(sessionCookie, parseSessionMaxAge(response.headers));
     return sessionCookie;
   })().finally(() => {

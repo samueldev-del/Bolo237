@@ -221,7 +221,9 @@ export default function AnnonceDetailClient({ params }: JobParams) {
   }
 
   const canonicalJobUrl = `https://www.bolo237.com/${locale}/annonce/${id}`;
-  const externalApplyUrl = apiJob ? extractExternalApplyUrl(apiJob.description) : null;
+  const externalApplyUrl = apiJob
+    ? (String(apiJob.externalApplyUrl || '').trim() || extractExternalApplyUrl(apiJob.description))
+    : null;
   const isExternalOnlyApplication = Boolean(externalApplyUrl);
   const jobPostingSchema = apiJob
     ? {
@@ -585,9 +587,13 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                       href={externalApplyUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-slate-800"
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-slate-800"
                     >
-                      {isEn ? 'Apply on company site' : "Postuler sur le site de l'entreprise"}
+                      <span>{isEn ? 'Apply' : 'Postuler'}</span>
+                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h8v8" />
+                      </svg>
                     </a>
                   ) : null}
 
@@ -716,9 +722,13 @@ export default function AnnonceDetailClient({ params }: JobParams) {
               href={externalApplyUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full text-center bg-black hover:bg-zinc-800 text-white font-extrabold py-3 rounded-xl transition"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black py-3 text-center font-extrabold text-white transition hover:bg-zinc-800"
             >
-              {isEn ? 'Apply on company site' : "Postuler sur le site de l'entreprise"}
+              <span>{isEn ? 'Apply' : 'Postuler'}</span>
+              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h8v8" />
+              </svg>
             </a>
           )}
           {!isExternalOnlyApplication && (

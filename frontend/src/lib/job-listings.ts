@@ -162,6 +162,7 @@ export function getWorkTimeLabel(workTime: JobListing['workTime'], isEn: boolean
 export function mapApiJobToListing(job: ApiJob, index: number, isEn: boolean): JobListing {
   const publishedHours = Math.max(0, Math.floor((Date.now() - new Date(job.createdAt).getTime()) / (1000 * 60 * 60)));
   const description = sanitizeJobDescription(job.description || '');
+  const externalApplyUrl = String(job.externalApplyUrl || '').trim() || extractExternalApplyUrl(description);
 
   return {
     id: job.id,
@@ -179,7 +180,7 @@ export function mapApiJobToListing(job: ApiJob, index: number, isEn: boolean): J
     postedLabel: formatTimeAgo(job.createdAt, isEn),
     publishedHours,
     workMode: inferWorkMode(job.location, description),
-    applicationType: extractExternalApplyUrl(description) ? 'external' : 'bolo237',
+    applicationType: externalApplyUrl ? 'external' : 'bolo237',
     contractType: inferContractType(job.title, description),
     experienceLevel: inferExperienceLevel(job.title, description),
     workTime: inferWorkTime(job.title, description),

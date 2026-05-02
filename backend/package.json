@@ -8,6 +8,7 @@
     "build": "npx prisma generate",
     "start": "node server.js",
     "seed": "node prisma/seed.js",
+    "seed:flex-living": "node scripts/seed-flex-living.js",
     "seed:trusted": "node scripts/seedTrustedCompaniesJobs.js",
     "db:clean": "node prisma/clean.js",
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -50,6 +51,7 @@
     "picomatch": "2.3.2"
   },
   "devDependencies": {
+    "@express-rate-limit/tsconfig": "^1.0.2",
     "@faker-js/faker": "^10.4.0",
     "nodemon": "^3.1.14"
   }

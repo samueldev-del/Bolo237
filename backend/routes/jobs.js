@@ -24,6 +24,7 @@ const jobSchema = z.object({
   location: z.string().trim().min(2, "La localisation est requise"),
   company: z.string().trim().min(2, "Le nom de l'entreprise est requis").max(120).optional(),
   salary: z.string().optional().nullable(),
+  externalApplyUrl: z.string().trim().url("URL de candidature externe invalide").optional().nullable(),
 });
 
 // 🛑 2. LE MIDDLEWARE : Le "Videur" qui bloque ou laisse passer
@@ -135,7 +136,7 @@ router.get('/', async (req, res) => {
 router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res) => {
   try {
     // Si on arrive ici, req.body est 100% garanti valide grâce à Zod !
-    const { title, description, location, salary, company } = req.body;
+    const { title, description, location, salary, company, externalApplyUrl } = req.body;
     const authorId = req.sessionUser.id;
     const companyLabel = String(company || req.sessionUser.name || '').trim();
 
@@ -157,6 +158,7 @@ router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res
               description,
               location,
               salary,
+              externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
               authorId,
               reference: generateJobReference(),
               status: 'PENDING', // Toujours en attente pour modération admin
@@ -204,7 +206,7 @@ router.put('/:id', requireUserSession, validateRequest(jobSchema), async (req, r
     }
 
     // 2. Si on arrive ici, req.body est validé par Zod ET l'utilisateur est le bon
-    const { title, description, location, salary, company } = req.body;
+    const { title, description, location, salary, company, externalApplyUrl } = req.body;
     const companyLabel = String(company || existingJob.company || req.sessionUser.name || '').trim();
 
     if (!companyLabel) {
@@ -223,6 +225,7 @@ router.put('/:id', requireUserSession, validateRequest(jobSchema), async (req, r
         description,
         location,
         salary,
+        externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
         // Tu peux choisir de repasser le statut en 'PENDING' si tu veux remodérer les offres modifiées
         // status: 'PENDING'
       }

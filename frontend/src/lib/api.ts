@@ -21,6 +21,7 @@ function buildApiUrl(path: string): string {
 export type ApiJob = {
   id: number;
   reference?: string | null;
+  externalApplyUrl?: string | null;
   title: string;
   company: string;
   location: string;
@@ -454,6 +455,7 @@ export async function createJob(data: {
   location: string;
   description: string;
   salary?: string;
+  externalApplyUrl?: string | null;
   authorId: number;
 }): Promise<ApiJob> {
   return apiFetch<ApiJob>('/api/jobs', {

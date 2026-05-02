@@ -314,6 +314,7 @@ function captureApiException(error: unknown, context: Record<string, unknown>) {
 
 type ApiFetchOptions = RequestInit & {
   captureServerErrors?: boolean;
+  captureNetworkErrors?: boolean;
 };
 
 function buildApiHeaders(headersInit?: HeadersInit, body?: BodyInit | null): Headers {
@@ -330,7 +331,14 @@ async function apiFetch<T>(
   path: string,
   options?: ApiFetchOptions & { validate?: (data: unknown) => T },
 ): Promise<T> {
-  const { captureServerErrors = true, headers, body, validate, ...requestOptions } = options ?? {};
+  const {
+    captureServerErrors = true,
+    captureNetworkErrors = true,
+    headers,
+    body,
+    validate,
+    ...requestOptions
+  } = options ?? {};
   const method = String(options?.method || 'GET').toUpperCase();
   let res: Response;
 
@@ -343,7 +351,9 @@ async function apiFetch<T>(
       body,
     });
   } catch (error) {
-    captureApiException(error, { kind: 'network', method, path });
+    if (captureNetworkErrors) {
+      captureApiException(error, { kind: 'network', method, path });
+    }
     throw error;
   }
 
@@ -652,7 +662,11 @@ export async function fetchSessionUser(options?: { captureServerErrors?: boolean
 }
 
 export async function logoutUser(): Promise<void> {
-  await apiFetch('/api/auth/logout', { method: 'POST' });
+  await apiFetch('/api/auth/logout', {
+    method: 'POST',
+    captureNetworkErrors: false,
+    captureServerErrors: false,
+  });
 }
 
 // ── Reports ──────────────────────────────────────────────────────

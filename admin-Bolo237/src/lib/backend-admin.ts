@@ -104,6 +104,15 @@ function setBackendLoginBackoff(waitSeconds: number, baseMessage: string) {
   };
 }
 
+function setBackendInvalidCredentialsBackoff() {
+  // Avoid hammering backend login with invalid credentials from env.
+  backendLoginBackoff = {
+    until: Date.now() + 5 * 60 * 1000,
+    message:
+      "Les identifiants backend admin sont invalides. Verifiez ADMIN_BACKEND_EMAIL et ADMIN_BACKEND_PASSWORD puis redeployez admin.",
+  };
+}
+
 function cacheSession(cookie: string, maxAgeSeconds: number | null) {
   const ttlSeconds = maxAgeSeconds && maxAgeSeconds > 120 ? maxAgeSeconds - 60 : 300;
   cachedBackendSession = {
@@ -160,7 +169,9 @@ async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
         throw new Error(blocked?.message || backendError || "Connexion admin temporairement bloquee.");
       }
       if (response.status === 401) {
-        throw new Error("Les identifiants backend admin sont invalides.");
+        setBackendInvalidCredentialsBackoff();
+        const blocked = getActiveBackendLoginBackoff();
+        throw new Error(blocked?.message || "Les identifiants backend admin sont invalides.");
       }
       throw new Error(backendError || "Connexion au backend admin impossible.");
     }

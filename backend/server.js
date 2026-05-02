@@ -1952,7 +1952,7 @@ app.post('/api/users', signupIpLimiter, async (req, res) => {
 
     console.log(`✅ Nouveau user créé: ID=${user.id} Role=${user.role} Email=${user.email}`);
 
-    await Promise.allSettled([
+    void Promise.allSettled([
       sendWhatsAppModerationAlert(
         [
           '🆕 Nouveau profil en attente de vérification',

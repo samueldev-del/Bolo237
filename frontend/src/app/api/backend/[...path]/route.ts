@@ -17,7 +17,6 @@ function buildForwardHeaders(request: Request) {
   headers.delete('connection');
   headers.delete('content-length');
   headers.delete('host');
-  headers.delete('origin');
   return headers;
 }
 

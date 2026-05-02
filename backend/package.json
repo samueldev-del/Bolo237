@@ -5,7 +5,9 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "build": "npx prisma generate",
+    "build": "npx prisma generate && npx prisma db push",
+    "postinstall": "npx prisma generate",
+    "prestart": "npx prisma db push",
     "start": "node server.js",
     "seed": "node prisma/seed.js",
     "seed:flex-living": "node scripts/seed-flex-living.js",

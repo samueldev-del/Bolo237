@@ -41,7 +41,7 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
     ? (isEn ? 'Quick apply' : 'Candidature rapide')
     : (isEn ? 'External apply' : 'Candidature externe');
   const companyStatusLabel = offer.isVerified
-    ? (isEn ? 'Verified employer' : 'Employeur verifie')
+    ? (isEn ? 'Verified employer' : 'Employeur vérifié')
     : (isEn ? 'Company profile' : 'Profil entreprise');
 
   return (
@@ -71,7 +71,7 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
             {offer.isVerified ? (
               <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
                 <ShieldIcon />
-                {isEn ? 'Verified' : 'Verifiee'}
+                {isEn ? 'Verified' : 'Vérifiée'}
               </span>
             ) : null}
             <span className="inline-flex items-center gap-1.5">
@@ -84,7 +84,7 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
             <DetailItem
               icon={<LocationIcon />}
               label={isEn ? 'Location' : 'Lieu'}
-              value={offer.location || (isEn ? 'Location not specified' : 'Lieu non precise')}
+              value={offer.location || (isEn ? 'Location not specified' : 'Lieu non précisé')}
             />
             <DetailItem
               icon={<BriefcaseIcon />}
@@ -94,7 +94,7 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
             <DetailItem
               icon={<MoneyIcon />}
               label={isEn ? 'Salary' : 'Salaire'}
-              value={offer.salary || (isEn ? 'Not disclosed' : 'Non communique')}
+              value={offer.salary || (isEn ? 'Not disclosed' : 'Non communiqué')}
               emphasize={Boolean(offer.salary)}
             />
           </div>
@@ -110,7 +110,7 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
             <div className="inline-flex items-center gap-2 text-sm font-medium text-slate-500">
               <ClockIcon />
-              <span>{isEn ? 'Published' : 'Publiee'} {offer.postedLabel}</span>
+              <span>{isEn ? 'Published' : 'Publiée'} {offer.postedLabel}</span>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -122,7 +122,7 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
                   type="button"
                 >
                   <HeartIcon filled={isSaved} />
-                  {isSaved ? (isEn ? 'Saved' : 'Sauvegardee') : (isEn ? 'Save' : 'Sauvegarder')}
+                  {isSaved ? (isEn ? 'Saved' : 'Sauvegardée') : (isEn ? 'Save' : 'Sauvegarder')}
                 </button>
               ) : null}
 
@@ -137,20 +137,25 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
         <div className="flex w-[90px] shrink-0 flex-col items-end gap-3 text-right sm:w-[104px]">
           <div className="relative">
             {offer.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={offer.logoUrl}
-                alt={offer.company}
-                className="h-[72px] w-[72px] rounded-[22px] border border-slate-200 bg-white p-2.5 object-contain shadow-sm sm:h-[84px] sm:w-[84px]"
-                onError={(event) => {
-                  const image = event.target as HTMLImageElement;
-                  image.style.display = 'none';
-                  const fallback = image.nextElementSibling;
-                  if (fallback instanceof HTMLElement) {
-                    fallback.style.removeProperty('display');
-                  }
-                }}
-              />
+              <div className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-[22px] border border-slate-200 bg-white p-2 shadow-sm sm:h-[84px] sm:w-[84px]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={offer.logoUrl}
+                  alt={offer.company}
+                  className="h-full w-full object-contain"
+                  loading="lazy"
+                  decoding="async"
+                  onError={(event) => {
+                    const image = event.target as HTMLImageElement;
+                    const wrapper = image.parentElement;
+                    if (wrapper) wrapper.style.display = 'none';
+                    const fallback = wrapper?.nextElementSibling;
+                    if (fallback instanceof HTMLElement) {
+                      fallback.style.removeProperty('display');
+                    }
+                  }}
+                />
+              </div>
             ) : null}
             <div
               style={{

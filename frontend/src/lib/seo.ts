@@ -47,11 +47,11 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/emplois',
     title: {
-      fr: 'Offres d emploi au Cameroun | Bolo237',
+      fr: 'Offres d’emploi au Cameroun | Bolo237',
       en: 'Jobs in Cameroon | Bolo237',
     },
     description: {
-      fr: 'Consultez les offres d emploi disponibles au Cameroun et postulez rapidement sur Bolo237.',
+      fr: 'Consultez les offres d’emploi disponibles au Cameroun et postulez rapidement sur Bolo237.',
       en: 'Browse available jobs in Cameroon and apply quickly on Bolo237.',
     },
     priority: 0.95,
@@ -98,11 +98,11 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/questions-frequentes',
     title: {
-      fr: 'FAQ Bolo237 | Questions frequentes',
+      fr: 'FAQ Bolo237 | Questions fréquentes',
       en: 'Bolo237 FAQ | Frequently asked questions',
     },
     description: {
-      fr: 'Retrouvez les reponses essentielles sur les comptes, la verification et l utilisation de Bolo237.',
+      fr: 'Retrouvez les réponses essentielles sur les comptes, la vérification et l’utilisation de Bolo237.',
       en: 'Find clear answers about accounts, verification, and how Bolo237 works.',
     },
     priority: 0.8,
@@ -132,11 +132,11 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/comment-decrocher-premier-contrat',
     title: {
-      fr: 'Comment decrocher son premier contrat sur Bolo237',
+      fr: 'Comment décrocher son premier contrat sur Bolo237',
       en: 'How to get your first contract on Bolo237',
     },
     description: {
-      fr: 'Guide pratique pour creer son profil, activer la verification et obtenir ses premiers contrats.',
+      fr: 'Guide pratique pour créer son profil, activer la vérification et obtenir ses premiers contrats.',
       en: 'Practical guide to set up your profile, get verified, and win your first contracts.',
     },
     priority: 0.7,
@@ -150,7 +150,7 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
       en: 'Salary insights | Bolo237',
     },
     description: {
-      fr: 'Reperez les bons reflexes pour comparer une offre, evaluer un package et mieux negocier votre salaire.',
+      fr: 'Repérez les bons réflexes pour comparer une offre, évaluer un package et mieux négocier votre salaire.',
       en: 'Learn how to compare an offer, evaluate a package, and negotiate salary with more clarity.',
     },
     priority: 0.62,
@@ -160,7 +160,7 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/conseils-carriere',
     title: {
-      fr: 'Conseils de carriere | Bolo237',
+      fr: 'Conseils de carrière | Bolo237',
       en: 'Career advice | Bolo237',
     },
     description: {
@@ -202,11 +202,11 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/categories-metiers',
     title: {
-      fr: 'Categories de metiers | Bolo237',
+      fr: 'Catégories de métiers | Bolo237',
       en: 'Trade categories | Bolo237',
     },
     description: {
-      fr: 'Explorez les grandes categories de services et metiers artisanaux disponibles sur Bolo237.',
+      fr: 'Explorez les grandes catégories de services et métiers artisanaux disponibles sur Bolo237.',
       en: 'Explore the main service and artisan trade categories available on Bolo237.',
     },
     priority: 0.58,
@@ -216,11 +216,11 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/recherche',
     title: {
-      fr: 'Recherche avancee d offres | Bolo237',
+      fr: 'Recherche avancée d’offres | Bolo237',
       en: 'Advanced job search | Bolo237',
     },
     description: {
-      fr: 'Affinez votre recherche d emploi par mot-cle, ville et type de mission sur Bolo237.',
+      fr: 'Affinez votre recherche d’emploi par mot-clé, ville et type de mission sur Bolo237.',
       en: 'Refine your search by keyword, city, and opportunity type on Bolo237.',
     },
     priority: 0.65,
@@ -229,11 +229,11 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/conditions',
     title: {
-      fr: 'Conditions d utilisation | Bolo237',
+      fr: 'Conditions d’utilisation | Bolo237',
       en: 'Terms of use | Bolo237',
     },
     description: {
-      fr: 'Consultez les conditions d utilisation, les regles de publication et les engagements de Bolo237.',
+      fr: 'Consultez les conditions d’utilisation, les règles de publication et les engagements de Bolo237.',
       en: 'Read the terms of use, publishing rules, and commitments of Bolo237.',
     },
     priority: 0.55,
@@ -246,7 +246,7 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
       en: 'Press room and media kit | Bolo237',
     },
     description: {
-      fr: 'Accedez au kit media, au pitch produit et aux ressources presse officielles de Bolo237.',
+      fr: 'Accédez au kit média, au pitch produit et aux ressources presse officielles de Bolo237.',
       en: 'Access the media kit, product pitch, and official Bolo237 press resources.',
     },
     priority: 0.5,
@@ -259,7 +259,7 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
       en: 'Login | Bolo237',
     },
     description: {
-      fr: 'Connectez-vous a votre compte Bolo237 pour gerer vos candidatures, annonces et profils.',
+      fr: 'Connectez-vous à votre compte Bolo237 pour gérer vos candidatures, annonces et profils.',
       en: 'Log in to manage your applications, listings, and Bolo237 profile.',
     },
     priority: 0.3,
@@ -269,11 +269,11 @@ export const SITE_SECTIONS: readonly SiteSection[] = [
   {
     path: '/cvtheque',
     title: {
-      fr: 'CVtheque candidats | Bolo237',
+      fr: 'CVthèque candidats | Bolo237',
       en: 'Candidate CV library | Bolo237',
     },
     description: {
-      fr: 'Consultez des profils candidats verifies depuis la CVtheque Bolo237.',
+      fr: 'Consultez des profils candidats vérifiés depuis la CVthèque Bolo237.',
       en: 'Browse verified candidate profiles in the Bolo237 CV library.',
     },
     priority: 0.35,

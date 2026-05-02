@@ -882,9 +882,16 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                 <Link key={job.id} href={localizePath(`/annonce/${job.id}`)} className="block group">
                   <article className="bg-white p-5 rounded-2xl border border-gray-200 hover:border-[#DA7756] hover:shadow-lg hover:shadow-[#FFF5EF] transition-all duration-200">
                     <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl border border-gray-100 overflow-hidden flex-shrink-0 bg-gray-50 flex items-center justify-center shadow-sm">
+                      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg border border-gray-100 overflow-hidden flex-shrink-0 bg-white p-1.5 flex items-center justify-center shadow-sm">
                         {job.authorPhoto ? (
-                          <Image src={job.authorPhoto} alt={job.entreprise} width={56} height={56} className="w-full h-full object-cover" />
+                          <Image
+                            src={job.authorPhoto}
+                            alt={job.entreprise}
+                            width={56}
+                            height={56}
+                            sizes="(max-width: 640px) 48px, 56px"
+                            className="w-full h-full object-contain"
+                          />
                         ) : (
                           <span className="text-xl font-bold text-gray-300">{(job.entreprise || 'B').charAt(0)}</span>
                         )}

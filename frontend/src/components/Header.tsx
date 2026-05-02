@@ -350,7 +350,7 @@ export default function Header() {
                     <p className="font-bold text-sm truncate">{displayName}</p>
                     <p className="text-white/70 text-xs flex items-center gap-1.5">
                       <span>{getRoleLabel(localRoleNormalized, isEn)}</span>
-                      {user.isVerified && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-extrabold">✓ {isEn ? 'Certified' : 'Certifie'}</span>}
+                      {user.isVerified && <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] font-extrabold">✓ {isEn ? 'Certified' : 'Certifié'}</span>}
                     </p>
                   </div>
                 </div>
@@ -385,15 +385,15 @@ export default function Header() {
               </p>
               {localRoleNormalized === 'entreprise' && (
                 <>
-                  <MenuLink href={localizePath('/publier')} icon="📝" label={isEn ? 'Post a job' : 'Publier'} desc={isEn ? 'Publish and manage your openings' : 'Publier et gerer vos offres'} />
-                  <MenuLink href={localizePath('/dashboard-entreprise')} icon="📋" label={isEn ? 'My listings' : 'Mes annonces'} desc={isEn ? 'Review your published jobs' : 'Voir vos annonces publiees'} />
+                  <MenuLink href={localizePath('/publier')} icon="📝" label={isEn ? 'Post a job' : 'Publier'} desc={isEn ? 'Publish and manage your openings' : 'Publier et gérer vos offres'} />
+                  <MenuLink href={localizePath('/dashboard-entreprise')} icon="📋" label={isEn ? 'My listings' : 'Mes annonces'} desc={isEn ? 'Review your published jobs' : 'Voir vos annonces publiées'} />
                 </>
               )}
 
               {localRoleNormalized === 'artisan' && (
                 <>
-                  <MenuLink href={localizePath('/dashboard-artisan')} icon="🛠️" label={isEn ? 'My jobs' : 'Mes chantiers'} desc={isEn ? 'Track your active opportunities' : 'Suivre vos opportunites en cours'} />
-                  <MenuLink href={localizePath('/dashboard-artisan')} icon="👤" label={isEn ? 'My profile' : 'Mon profil'} desc={isEn ? 'Manage your artisan profile' : 'Mettre a jour votre profil artisan'} />
+                  <MenuLink href={localizePath('/dashboard-artisan')} icon="🛠️" label={isEn ? 'My jobs' : 'Mes chantiers'} desc={isEn ? 'Track your active opportunities' : 'Suivre vos opportunités en cours'} />
+                  <MenuLink href={localizePath('/dashboard-artisan')} icon="👤" label={isEn ? 'My profile' : 'Mon profil'} desc={isEn ? 'Manage your artisan profile' : 'Mettre à jour votre profil artisan'} />
                 </>
               )}
 

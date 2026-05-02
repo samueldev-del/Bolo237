@@ -125,7 +125,7 @@ export function formatTimeAgo(createdAt: string, isEn: boolean): string {
   const diff = Date.now() - new Date(createdAt).getTime();
   const hours = Math.max(0, Math.floor(diff / (1000 * 60 * 60)));
 
-  if (hours < 1) return isEn ? 'just now' : "A l'instant";
+  if (hours < 1) return isEn ? 'just now' : "À l'instant";
   if (hours < 24) return isEn ? `${hours}h ago` : `Il y a ${hours}h`;
   if (hours < 168) {
     const days = Math.floor(hours / 24);
@@ -144,7 +144,7 @@ export function getContractLabel(contract: JobListing['contractType'], isEn: boo
 }
 
 export function getWorkModeLabel(mode: JobListing['workMode'], isEn: boolean): string {
-  if (mode === 'remote') return isEn ? 'Remote' : 'Teletravail';
+  if (mode === 'remote') return isEn ? 'Remote' : 'Télétravail';
   if (mode === 'partial') return isEn ? 'Hybrid' : 'Hybride';
   return isEn ? 'On-site' : 'Sur site';
 }
@@ -152,21 +152,45 @@ export function getWorkModeLabel(mode: JobListing['workMode'], isEn: boolean): s
 export function getExperienceLabel(level: JobListing['experienceLevel'], isEn: boolean): string {
   if (level === 'junior') return isEn ? 'Junior' : 'Junior';
   if (level === 'senior') return isEn ? 'Senior' : 'Senior';
-  return isEn ? 'Confirmed' : 'Confirme';
+  return isEn ? 'Confirmed' : 'Confirmé';
 }
 
 export function getWorkTimeLabel(workTime: JobListing['workTime'], isEn: boolean): string {
   return workTime === 'full' ? (isEn ? 'Full-time' : 'Temps plein') : (isEn ? 'Part-time' : 'Temps partiel');
 }
 
+function pickLocalizedText(primary?: string | null, secondary?: string | null, legacy?: string | null): string {
+  const primaryValue = String(primary || '').trim();
+  if (primaryValue) return primaryValue;
+
+  const secondaryValue = String(secondary || '').trim();
+  if (secondaryValue) return secondaryValue;
+
+  return String(legacy || '').trim();
+}
+
+export function getLocalizedJobTitle(job: ApiJob, isEn: boolean): string {
+  return isEn
+    ? pickLocalizedText(job.titleEn, job.titleFr, job.title)
+    : pickLocalizedText(job.titleFr, job.titleEn, job.title);
+}
+
+export function getLocalizedJobDescription(job: ApiJob, isEn: boolean): string {
+  return isEn
+    ? pickLocalizedText(job.descriptionEn, job.descriptionFr, job.description)
+    : pickLocalizedText(job.descriptionFr, job.descriptionEn, job.description);
+}
+
 export function mapApiJobToListing(job: ApiJob, index: number, isEn: boolean): JobListing {
   const publishedHours = Math.max(0, Math.floor((Date.now() - new Date(job.createdAt).getTime()) / (1000 * 60 * 60)));
-  const description = sanitizeJobDescription(job.description || '');
+  const localizedTitle = getLocalizedJobTitle(job, isEn);
+  const localizedDescription = getLocalizedJobDescription(job, isEn);
+  const description = sanitizeJobDescription(localizedDescription || job.description || '');
   const externalApplyUrl = String(job.externalApplyUrl || '').trim() || extractExternalApplyUrl(description);
 
   return {
     id: job.id,
-    title: job.title,
+    title: localizedTitle || job.title,
     company: job.company,
     logoInitials: (job.company || '??').slice(0, 2).toUpperCase(),
     logoColor: LOGO_COLORS[index % LOGO_COLORS.length],
@@ -181,9 +205,9 @@ export function mapApiJobToListing(job: ApiJob, index: number, isEn: boolean): J
     publishedHours,
     workMode: inferWorkMode(job.location, description),
     applicationType: externalApplyUrl ? 'external' : 'bolo237',
-    contractType: inferContractType(job.title, description),
-    experienceLevel: inferExperienceLevel(job.title, description),
-    workTime: inferWorkTime(job.title, description),
+    contractType: inferContractType(localizedTitle || job.title, description),
+    experienceLevel: inferExperienceLevel(localizedTitle || job.title, description),
+    workTime: inferWorkTime(localizedTitle || job.title, description),
     isNew: publishedHours < 72,
   };
 }

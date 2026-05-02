@@ -68,7 +68,7 @@ export default async function Home() {
                     </div>
                   </div>
                   <p className="mt-4 text-sm text-gray-600 line-clamp-2">{artisan.profile || 'Profil disponible sur Bolo237.'}</p>
-                  <p className="mt-3 text-xs font-semibold text-gray-500 truncate">{serviceLabel || 'Services a decouvrir'}</p>
+                  <p className="mt-3 text-xs font-semibold text-gray-500 truncate">{serviceLabel || 'Services à découvrir'}</p>
                 </Link>
               );
             })}
@@ -94,22 +94,24 @@ export default async function Home() {
               >
                 <div className="flex items-start gap-3">
                   {job.author?.photoUrl ? (
-                    <Image
-                      src={job.author.photoUrl}
-                      alt={job.company}
-                      width={52}
-                      height={52}
-                      priority={index === 0}
-                      sizes="52px"
-                      className="h-[52px] w-[52px] rounded-xl object-cover border border-gray-200"
-                    />
+                    <div className="h-[52px] w-[52px] shrink-0 rounded-lg border border-gray-100 bg-white p-1.5 shadow-sm">
+                      <Image
+                        src={job.author.photoUrl}
+                        alt={job.company}
+                        width={52}
+                        height={52}
+                        priority={index === 0}
+                        sizes="52px"
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
                   ) : (
-                    <div className="h-[52px] w-[52px] rounded-xl border border-gray-200 bg-gray-50 text-gray-500 font-extrabold flex items-center justify-center">
+                    <div className="h-[52px] w-[52px] shrink-0 rounded-lg border border-gray-100 bg-white text-gray-500 font-extrabold flex items-center justify-center shadow-sm">
                       {String(job.company || 'B').slice(0, 1)}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-base font-bold text-black group-hover:text-[#C4623F] transition">{job.title}</h3>
+                    <h3 className="truncate text-base font-bold text-black group-hover:text-[#C4623F] transition">{job.titleFr || job.title || job.titleEn}</h3>
                     <p className="mt-0.5 text-sm text-gray-600">{job.company}</p>
                     <p className="mt-2 text-xs text-gray-500 truncate">{job.location}</p>
                   </div>

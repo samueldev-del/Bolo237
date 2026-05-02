@@ -229,7 +229,7 @@ function DashboardEntrepriseContent() {
           setAccessError(
             isEn
               ? 'We cannot confirm your employer session right now. Please try again in a moment.'
-              : 'Nous ne pouvons pas verifier votre session entreprise pour le moment. Reessayez dans un instant.'
+              : 'Nous ne pouvons pas vérifier votre session entreprise pour le moment. Réessayez dans un instant.'
           );
           setAccessStatus('unavailable');
           return;
@@ -425,7 +425,7 @@ function DashboardEntrepriseContent() {
 
   const submitProfileReview = async () => {
     if (!companyLogoFile) {
-      setPublishMessage(isEn ? 'Upload your company logo before sending your profile.' : 'Telechargez le logo de votre entreprise avant envoi.');
+      setPublishMessage(isEn ? 'Upload your company logo before sending your profile.' : 'Téléchargez le logo de votre entreprise avant envoi.');
       setPublishMessageType('error');
       return;
     }
@@ -564,7 +564,7 @@ function DashboardEntrepriseContent() {
         setPublishMessage(
           isEn
             ? 'Your company verification was rejected. Update your RCCM or registration documents before publishing again.'
-            : 'La verification de votre entreprise a ete refusee. Mettez a jour votre RCCM ou registre de commerce avant de republier.'
+            : 'La vérification de votre entreprise a été refusée. Mettez à jour votre RCCM ou registre de commerce avant de republier.'
         );
         setPublishMessageType('error');
         return;
@@ -808,7 +808,7 @@ function DashboardEntrepriseContent() {
 
   const matchCandidatesWithAi = async () => {
     if (!selectedMatchJobId) {
-      setMatchError(isEn ? 'Select a job listing first.' : 'Selectionnez d abord une annonce.');
+      setMatchError(isEn ? 'Select a job listing first.' : 'Sélectionnez d\'abord une annonce.');
       return;
     }
 
@@ -1006,8 +1006,8 @@ function DashboardEntrepriseContent() {
     { value: 'ALL', label: isEn ? 'All statuses' : 'Tous les statuts' },
     { value: 'PENDING', label: isEn ? 'Pending' : 'En attente' },
     { value: 'REVIEWED', label: isEn ? 'Reviewed' : 'Vue' },
-    { value: 'ACCEPTED', label: isEn ? 'Accepted' : 'Acceptee' },
-    { value: 'REJECTED', label: isEn ? 'Rejected' : 'Refusee' },
+    { value: 'ACCEPTED', label: isEn ? 'Accepted' : 'Acceptée' },
+    { value: 'REJECTED', label: isEn ? 'Rejected' : 'Refusée' },
   ];
 
   /* ── Status badge helper ── */
@@ -1019,7 +1019,7 @@ function DashboardEntrepriseContent() {
         dot: 'bg-amber-500',
       },
       approved: {
-        label: isEn ? 'Approved' : 'Approuvee',
+        label: isEn ? 'Approved' : 'Approuvée',
         bg: 'bg-emerald-100 text-emerald-800 border-emerald-200',
         dot: 'bg-emerald-500',
       },
@@ -1077,7 +1077,7 @@ function DashboardEntrepriseContent() {
             {isEn ? 'Session service temporarily unavailable' : 'Service de session temporairement indisponible'}
           </h1>
           <p className="mt-2 text-sm leading-6 text-gray-600">
-            {accessError || (isEn ? 'Please retry in a few moments.' : 'Reessayez dans quelques instants.')}
+            {accessError || (isEn ? 'Please retry in a few moments.' : 'Réessayez dans quelques instants.')}
           </p>
           <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <button
@@ -1089,13 +1089,13 @@ function DashboardEntrepriseContent() {
               }}
               className="inline-flex items-center justify-center rounded-2xl bg-blue-600 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-blue-700"
             >
-              {isEn ? 'Retry access check' : 'Relancer la verification'}
+              {isEn ? 'Retry access check' : 'Relancer la vérification'}
             </button>
             <Link
               href={`${localizePath('/connexion')}?role=entreprise`}
               className="inline-flex items-center justify-center rounded-2xl border border-gray-200 px-5 py-3 text-sm font-extrabold text-gray-700 transition hover:border-gray-300 hover:text-gray-900"
             >
-              {isEn ? 'Go to employer sign in' : 'Aller a la connexion entreprise'}
+              {isEn ? 'Go to employer sign in' : 'Aller à la connexion entreprise'}
             </Link>
           </div>
         </div>
@@ -1109,7 +1109,7 @@ function DashboardEntrepriseContent() {
         <div className="flex flex-col items-center gap-3 text-center">
           <div className="h-10 w-10 rounded-full border-4 border-gray-200 border-t-blue-600 animate-spin" />
           <p className="text-sm font-semibold text-gray-600">
-            {isEn ? 'Checking your employer access...' : 'Verification de votre acces entreprise...'}
+            {isEn ? 'Checking your employer access...' : 'Vérification de votre accès entreprise...'}
           </p>
         </div>
       </div>
@@ -1151,7 +1151,7 @@ function DashboardEntrepriseContent() {
             <button
               onClick={openApplications}
               className="relative w-10 h-10 flex items-center justify-center rounded-xl hover:bg-gray-100 transition"
-              title={isEn ? 'Open applications inbox' : 'Ouvrir la boite de candidatures'}
+              title={isEn ? 'Open applications inbox' : 'Ouvrir la boîte de candidatures'}
             >
               <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
@@ -1230,8 +1230,8 @@ function DashboardEntrepriseContent() {
                 }`}>
                   <span className={`w-1.5 h-1.5 rounded-full ${isEnterpriseCertified ? 'bg-blue-200' : 'bg-amber-700'}`} />
                   {isEnterpriseCertified
-                    ? (isEn ? 'CERTIFIED ACCOUNT' : 'COMPTE CERTIFIE')
-                    : (isEn ? 'UNVERIFIED' : 'NON VERIFIE')}
+                    ? (isEn ? 'CERTIFIED ACCOUNT' : 'COMPTE CERTIFIÉ')
+                    : (isEn ? 'UNVERIFIED' : 'NON VÉRIFIÉ')}
                 </div>
               </div>
             </div>
@@ -1291,7 +1291,7 @@ function DashboardEntrepriseContent() {
               className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition"
             >
               <span className="text-base w-6 text-center">{'\u{1F6AA}'}</span>
-              <span>{isEn ? 'Logout' : 'Deconnexion'}</span>
+              <span>{isEn ? 'Logout' : 'Déconnexion'}</span>
             </button>
           </nav>
         </aside>
@@ -1307,7 +1307,7 @@ function DashboardEntrepriseContent() {
                   {isEn ? 'Welcome back' : 'Bienvenue'} {companyName ? `— ${companyName}` : ''} {'\u{1F44B}'}
                 </h1>
                 <p className="text-sm text-gray-500 font-medium mt-1">
-                  {isEn ? 'Manage your job listings and find the best candidates.' : 'Gerez vos offres d\'emploi et trouvez les meilleurs candidats.'}
+                  {isEn ? 'Manage your job listings and find the best candidates.' : 'Gérez vos offres d\'emploi et trouvez les meilleurs candidats.'}
                 </p>
               </div>
             )}
@@ -1335,8 +1335,8 @@ function DashboardEntrepriseContent() {
                         <div className="flex-1 min-w-0">
                           <p className={`font-bold text-sm ${allReady ? 'text-green-800' : 'text-amber-800'}`}>
                             {allReady
-                              ? (isEn ? 'Your account is verified — you can publish jobs!' : 'Votre compte est verifie — vous pouvez publier des offres !')
-                              : (isEn ? 'Complete your profile to publish jobs' : 'Completez votre profil pour publier des offres')}
+                              ? (isEn ? 'Your account is verified — you can publish jobs!' : 'Votre compte est vérifié — vous pouvez publier des offres !')
+                              : (isEn ? 'Complete your profile to publish jobs' : 'Complétez votre profil pour publier des offres')}
                           </p>
                           <p className={`text-xs font-medium mt-1 ${allReady ? 'text-green-600' : 'text-amber-700'}`}>
                             {allReady
@@ -1349,7 +1349,7 @@ function DashboardEntrepriseContent() {
                               {hasLogo ? '\u2713' : '\u25CB'} {isEn ? 'Company logo' : 'Logo entreprise'}
                             </span>
                             <span className={`text-xs font-semibold flex items-center gap-1 ${isApproved ? 'text-green-700' : 'text-gray-400'}`}>
-                              {isApproved ? '\u2713' : '\u25CB'} {isEn ? 'Admin approved profile' : 'Profil approuve par admin'}
+                              {isApproved ? '\u2713' : '\u25CB'} {isEn ? 'Admin approved profile' : 'Profil approuvé par admin'}
                             </span>
                           </div>
                           {!allReady && (
@@ -1357,7 +1357,7 @@ function DashboardEntrepriseContent() {
                               onClick={() => navigateTo('post')}
                               className="mt-3 inline-flex items-center gap-1.5 bg-amber-600 text-white text-xs font-bold px-4 py-2 rounded-lg hover:bg-amber-700 transition-all active:scale-[0.98]"
                             >
-                              {isEn ? 'Complete verification' : 'Completer la verification'} &rarr;
+                              {isEn ? 'Complete verification' : 'Compléter la vérification'} &rarr;
                             </button>
                           )}
                         </div>
@@ -1373,7 +1373,7 @@ function DashboardEntrepriseContent() {
                     <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10" />
                     <p className="text-blue-100 text-[11px] sm:text-xs font-bold uppercase tracking-wide">{isEn ? 'Active Jobs' : 'Offres actives'}</p>
                     <p className="text-2xl sm:text-3xl font-extrabold mt-2">{String(publishedJobs.filter(j => j.status === 'approved').length).padStart(2, '0')}</p>
-                    <p className="text-blue-200 text-[11px] font-medium mt-1">{isEn ? 'Published' : 'Publiees'}</p>
+                    <p className="text-blue-200 text-[11px] font-medium mt-1">{isEn ? 'Published' : 'Publiées'}</p>
                   </div>
 
                   {/* Pending */}
@@ -1381,7 +1381,7 @@ function DashboardEntrepriseContent() {
                     <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10" />
                     <p className="text-amber-100 text-[11px] sm:text-xs font-bold uppercase tracking-wide">{isEn ? 'Pending' : 'En attente'}</p>
                     <p className="text-2xl sm:text-3xl font-extrabold mt-2">{String(publishedJobs.filter(j => j.status === 'pending').length).padStart(2, '0')}</p>
-                    <p className="text-amber-200 text-[11px] font-medium mt-1">{isEn ? 'Under review' : 'En moderation'}</p>
+                    <p className="text-amber-200 text-[11px] font-medium mt-1">{isEn ? 'Under review' : 'En modération'}</p>
                   </div>
 
                   {/* Applications */}
@@ -1389,7 +1389,7 @@ function DashboardEntrepriseContent() {
                     <div className="absolute -top-4 -right-4 w-16 h-16 rounded-full bg-white/10" />
                     <p className="text-emerald-100 text-[11px] sm:text-xs font-bold uppercase tracking-wide">{isEn ? 'Applications' : 'Candidatures'}</p>
                     <p className="text-2xl sm:text-3xl font-extrabold mt-2">{String(unreadNotifications).padStart(2, '0')}</p>
-                    <p className="text-emerald-200 text-[11px] font-medium mt-1">{isEn ? 'To review' : 'A examiner'}</p>
+                    <p className="text-emerald-200 text-[11px] font-medium mt-1">{isEn ? 'To review' : 'À examiner'}</p>
                   </div>
 
                   {/* Views */}
@@ -1425,7 +1425,7 @@ function DashboardEntrepriseContent() {
                     <p className="text-xs text-gray-500 font-medium mt-1">
                       {isEnterprisePublishingReady
                         ? (isEn ? 'Free during launch' : 'Gratuit pendant le lancement')
-                        : (isEn ? 'Add your logo photo first' : 'Ajoutez d abord votre photo/logo')}
+                        : (isEn ? 'Add your logo photo first' : 'Ajoutez d\'abord votre photo/logo')}
                     </p>
                   </button>
 
@@ -1437,7 +1437,7 @@ function DashboardEntrepriseContent() {
                       {'\u{1F4CB}'}
                     </div>
                     <p className="font-bold text-gray-900 text-[15px]">{isEn ? 'View My Listings' : 'Voir mes annonces'}</p>
-                    <p className="text-xs text-gray-500 font-medium mt-1">{jobsPublishedCount} {isEn ? 'total posted' : 'publiees au total'}</p>
+                    <p className="text-xs text-gray-500 font-medium mt-1">{jobsPublishedCount} {isEn ? 'total posted' : 'publiées au total'}</p>
                   </button>
                 </div>
 
@@ -1445,8 +1445,8 @@ function DashboardEntrepriseContent() {
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mt-6">
                   <div className="px-5 sm:px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                     <div>
-                      <h3 className="font-bold text-gray-900 text-[16px]">{isEn ? 'Recent Listings' : 'Annonces recentes'}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{isEn ? 'Manage your latest job posts.' : 'Gerez vos dernieres publications.'}</p>
+                      <h3 className="font-bold text-gray-900 text-[16px]">{isEn ? 'Recent Listings' : 'Annonces récentes'}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{isEn ? 'Manage your latest job posts.' : 'Gérez vos dernières publications.'}</p>
                     </div>
                     {publishedJobs.length > 0 && (
                       <button onClick={() => navigateTo('listings')} className="text-blue-600 font-bold text-sm hover:underline flex items-center gap-1">
@@ -1464,13 +1464,13 @@ function DashboardEntrepriseContent() {
                       <p className="text-sm text-gray-500 font-medium max-w-sm mx-auto">
                         {isEn
                           ? 'Post your first job to start receiving applications from qualified candidates.'
-                          : 'Publiez votre premiere offre pour commencer a recevoir des candidatures.'}
+                          : 'Publiez votre première offre pour commencer à recevoir des candidatures.'}
                       </p>
                       <button
                         onClick={() => navigateTo('post')}
                         className="mt-5 bg-green-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-green-700 transition-all hover:shadow-lg active:scale-[0.98]"
                       >
-                        {isEn ? 'Post your first job' : 'Publier ma premiere offre'}
+                        {isEn ? 'Post your first job' : 'Publier ma première offre'}
                       </button>
                     </div>
                   ) : (
@@ -1488,7 +1488,7 @@ function DashboardEntrepriseContent() {
                               <div className="flex items-center gap-2 text-xs text-gray-500 font-medium mt-1 flex-wrap">
                                 <span className="bg-gray-100 px-2 py-0.5 rounded-md text-gray-600">{job.contract}</span>
                                 <span>•</span>
-                                <span>{isEn ? 'Posted on' : 'Publie le'} {job.date}</span>
+                                <span>{isEn ? 'Posted on' : 'Publié le'} {job.date}</span>
                               </div>
                             </div>
                           </div>
@@ -1541,7 +1541,7 @@ function DashboardEntrepriseContent() {
                   <div className="flex items-center justify-between mb-6">
                     <h2 className="text-lg font-extrabold text-gray-900">{isEn ? 'Post a Job' : 'Publier une offre'}</h2>
                     <span className="text-xs font-bold text-gray-400">
-                      {isEn ? 'Step' : 'Etape'} {wizardStep}/3
+                      {isEn ? 'Step' : 'Étape'} {wizardStep}/3
                     </span>
                   </div>
 
@@ -1571,7 +1571,7 @@ function DashboardEntrepriseContent() {
                       {isEn ? 'Profile Setup' : 'Profil'}
                     </p>
                     <p className={`text-[11px] sm:text-xs font-bold text-center ${wizardStep >= 2 ? 'text-green-700' : 'text-gray-400'}`}>
-                      {isEn ? 'Job Details' : 'Details offre'}
+                      {isEn ? 'Job Details' : 'Détails offre'}
                     </p>
                     <p className={`text-[11px] sm:text-xs font-bold text-center ${wizardStep >= 3 ? 'text-green-700' : 'text-gray-400'}`}>
                       {isEn ? 'Review & Post' : 'Relecture'}
@@ -1595,13 +1595,13 @@ function DashboardEntrepriseContent() {
                           <div>
                             <p className={`font-bold text-sm ${hasCompanyPhoto ? 'text-green-800' : 'text-amber-800'}`}>
                               {hasCompanyPhoto
-                                ? (isEn ? 'Company profile ready!' : 'Profil entreprise pret!')
+                                ? (isEn ? 'Company profile ready!' : 'Profil entreprise prêt !')
                                 : (isEn ? 'Company logo required' : 'Logo entreprise requis')}
                             </p>
                             <p className={`text-xs font-medium mt-0.5 ${hasCompanyPhoto ? 'text-green-600' : 'text-amber-700'}`}>
                               {isEn
                                 ? 'Upload your company logo to unlock posting.'
-                                : 'Telechargez votre logo entreprise pour debloquer la publication.'}
+                                : 'Téléchargez votre logo entreprise pour débloquer la publication.'}
                             </p>
                           </div>
                         </div>
@@ -1668,15 +1668,15 @@ function DashboardEntrepriseContent() {
                           <div>
                             <p className={`font-bold text-sm ${profileReviewStatus === 'approved' ? 'text-green-800' : profileReviewStatus === 'pending' ? 'text-blue-800' : 'text-amber-800'}`}>
                               {profileReviewStatus === 'approved'
-                                ? (isEn ? 'Approved by Super Admin' : 'Approuve par le Super Admin')
+                                ? (isEn ? 'Approved by Super Admin' : 'Approuvé par le Super Admin')
                                 : profileReviewStatus === 'pending'
                                   ? (isEn ? 'Pending Super Admin review' : 'En attente de validation Super Admin')
-                                  : (isEn ? 'Submit your profile for admin review' : 'Soumettez votre profil a la validation admin')}
+                                  : (isEn ? 'Submit your profile for admin review' : 'Soumettez votre profil à la validation admin')}
                             </p>
                             <p className={`text-xs font-medium mt-0.5 ${profileReviewStatus === 'approved' ? 'text-green-600' : profileReviewStatus === 'pending' ? 'text-blue-700' : 'text-amber-700'}`}>
                               {isEn
                                 ? 'Admin review is optional for publication, but recommended to build trust.'
-                                : 'La validation admin est optionnelle pour publier, mais recommandee pour la confiance.'}
+                                : 'La validation admin est optionnelle pour publier, mais recommandée pour la confiance.'}
                             </p>
                           </div>
                         </div>
@@ -1907,7 +1907,7 @@ function DashboardEntrepriseContent() {
                           <p>
                             {isEn
                               ? 'Posts containing "frais de dossier", "transfert mobile money", or "investissement" will be automatically blocked. The first 3 publications go through admin review (quarantine).'
-                              : 'Les offres contenant "frais de dossier", "transfert mobile money", ou "investissement" sont automatiquement bloquees. Les 3 premieres publications passent en moderation admin (quarantaine).'}
+                              : 'Les offres contenant "frais de dossier", "transfert mobile money", ou "investissement" sont automatiquement bloquées. Les 3 premières publications passent en modération admin (quarantaine).'}
                           </p>
                         </div>
                       </div>
@@ -1937,7 +1937,7 @@ function DashboardEntrepriseContent() {
                             }
                             const blocked = containsBlockedKeyword(`${jobTitle} ${jobDescription}`);
                             if (blocked) {
-                              setPublishMessage(`${isEn ? 'Blocked by anti-fraud filter:' : 'Bloque par le filtre anti-fraude:'} "${blocked}"`);
+                              setPublishMessage(`${isEn ? 'Blocked by anti-fraud filter:' : 'Bloqué par le filtre anti-fraude :'} "${blocked}"`);
                               setPublishMessageType('error');
                               return;
                             }
@@ -1972,11 +1972,11 @@ function DashboardEntrepriseContent() {
                             </div>
                             <div>
                               <p className="text-[10px] font-bold uppercase text-gray-400 tracking-wider mb-1">{isEn ? 'Location' : 'Lieu'}</p>
-                              <p className="font-bold text-gray-900 text-sm">{jobLocation || (isEn ? 'Not specified' : 'Non specifie')}</p>
+                              <p className="font-bold text-gray-900 text-sm">{jobLocation || (isEn ? 'Not specified' : 'Non spécifié')}</p>
                             </div>
                             <div>
                               <p className="text-[10px] font-bold uppercase text-gray-400 tracking-wider mb-1">{isEn ? 'Salary' : 'Salaire'}</p>
-                              <p className="font-bold text-gray-900 text-sm">{jobSalary || (isEn ? 'Not specified' : 'Non specifie')}</p>
+                              <p className="font-bold text-gray-900 text-sm">{jobSalary || (isEn ? 'Not specified' : 'Non spécifié')}</p>
                             </div>
                           </div>
                           <div>
@@ -1997,11 +1997,11 @@ function DashboardEntrepriseContent() {
                         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3">
                           <span className="text-xl shrink-0">{'\u{23F3}'}</span>
                           <div className="text-xs text-amber-800 font-medium">
-                            <p className="font-bold mb-0.5">{isEn ? 'Moderation Notice' : 'Avis de moderation'}</p>
+                            <p className="font-bold mb-0.5">{isEn ? 'Moderation Notice' : 'Avis de modération'}</p>
                             <p>
                               {isEn
                                 ? `This is publication ${jobsPublishedCount + 1}/3. Your first 3 posts are reviewed by an admin before going live.`
-                                : `Ceci est la publication ${jobsPublishedCount + 1}/3. Vos 3 premieres offres sont validees par un admin avant mise en ligne.`}
+                                : `Ceci est la publication ${jobsPublishedCount + 1}/3. Vos 3 premières offres sont validées par un admin avant mise en ligne.`}
                             </p>
                           </div>
                         </div>
@@ -2046,7 +2046,7 @@ function DashboardEntrepriseContent() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                   <div>
                     <h2 className="text-lg font-extrabold text-gray-900">{isEn ? 'My Job Listings' : 'Mes annonces'}</h2>
-                    <p className="text-sm text-gray-500">{isEn ? 'Manage all your published and pending jobs.' : 'Gerez toutes vos offres publiees et en attente.'}</p>
+                    <p className="text-sm text-gray-500">{isEn ? 'Manage all your published and pending jobs.' : 'Gérez toutes vos offres publiées et en attente.'}</p>
                   </div>
                   <button
                     onClick={() => navigateTo('post')}
@@ -2061,7 +2061,7 @@ function DashboardEntrepriseContent() {
                     <div className="text-5xl mb-4">{'\u{1F4CB}'}</div>
                     <h4 className="font-bold text-gray-900 mb-2">{isEn ? 'No listings yet' : 'Aucune annonce'}</h4>
                     <p className="text-sm text-gray-500 font-medium max-w-sm mx-auto">
-                      {isEn ? 'Your job listings will appear here.' : 'Vos annonces apparaitront ici.'}
+                      {isEn ? 'Your job listings will appear here.' : 'Vos annonces apparaîtront ici.'}
                     </p>
                   </div>
                 ) : (
@@ -2079,7 +2079,7 @@ function DashboardEntrepriseContent() {
                             <div className="flex items-center gap-2 text-xs text-gray-500 font-medium mt-1 flex-wrap">
                               <span className="bg-gray-100 px-2 py-0.5 rounded-md text-gray-600">{job.contract}</span>
                               <span>•</span>
-                              <span>{isEn ? 'Posted on' : 'Publie le'} {job.date}</span>
+                              <span>{isEn ? 'Posted on' : 'Publié le'} {job.date}</span>
                             </div>
                           </div>
                         </div>
@@ -2263,7 +2263,7 @@ function DashboardEntrepriseContent() {
                     <span className="text-xl">{'\u{1F6E1}'}</span>
                     <div>
                       <p className="font-bold text-gray-900 text-sm">{isEn ? 'Trust Profile' : 'Profil de confiance'}</p>
-                      <p className="text-xs text-gray-500">{isEn ? 'A serious profile improves conversion and credibility.' : 'Un profil serieux ameliore la conversion et la credibilite.'}</p>
+                      <p className="text-xs text-gray-500">{isEn ? 'A serious profile improves conversion and credibility.' : 'Un profil sérieux améliore la conversion et la crédibilité.'}</p>
                     </div>
                   </div>
                   <div className="p-5 sm:p-6 space-y-4">
@@ -2272,14 +2272,14 @@ function DashboardEntrepriseContent() {
                         <span className={`w-2.5 h-2.5 rounded-full ${isEnterpriseCertified ? 'bg-green-500' : 'bg-amber-500'}`} />
                         <p className={`text-sm font-bold ${isEnterpriseCertified ? 'text-green-800' : 'text-amber-800'}`}>
                           {isEnterpriseCertified
-                            ? (isEn ? 'Verified badge active' : 'Badge verifie actif')
+                            ? (isEn ? 'Verified badge active' : 'Badge vérifié actif')
                             : (isEn ? 'Awaiting admin validation' : 'En attente de validation admin')}
                         </p>
                       </div>
                       <p className="text-xs text-gray-600 font-medium">
                         {isEn
                           ? 'Admins can validate serious accounts directly from the admin panel.'
-                          : 'Les admins peuvent valider les comptes serieux directement depuis le panel admin.'}
+                          : 'Les admins peuvent valider les comptes sérieux directement depuis le panel admin.'}
                       </p>
                     </div>
 
@@ -2288,7 +2288,7 @@ function DashboardEntrepriseContent() {
                         <span className={`w-2.5 h-2.5 rounded-full ${hasCompanyPhoto ? 'bg-green-500' : 'bg-amber-500'}`} />
                         <p className={`text-sm font-bold ${hasCompanyPhoto ? 'text-green-800' : 'text-amber-800'}`}>
                           {hasCompanyPhoto
-                            ? (isEn ? 'Photo/logo uploaded' : 'Photo/logo telecharge')
+                            ? (isEn ? 'Photo/logo uploaded' : 'Photo/logo téléchargé')
                             : (isEn ? 'Photo/logo missing' : 'Photo/logo manquant')}
                         </p>
                       </div>
@@ -2360,8 +2360,8 @@ function DashboardEntrepriseContent() {
                 <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                   <div className="px-5 sm:px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
                     <div>
-                      <h3 className="font-bold text-gray-900 text-[16px]">{isEn ? 'Applications Inbox' : 'Boite de candidatures'}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">{isEn ? 'Manage incoming applications and CVs' : 'Gerez les candidatures entrantes et les CV'}</p>
+                      <h3 className="font-bold text-gray-900 text-[16px]">{isEn ? 'Applications Inbox' : 'Boîte de candidatures'}</h3>
+                      <p className="text-xs text-gray-500 mt-0.5">{isEn ? 'Manage incoming applications and CVs' : 'Gérez les candidatures entrantes et les CV'}</p>
                     </div>
                   </div>
 
@@ -2371,7 +2371,7 @@ function DashboardEntrepriseContent() {
                       onChange={(e) => setSelectedMatchJobId(Number(e.target.value || 0))}
                       className="w-full p-3.5 border border-gray-200 rounded-xl bg-white text-sm font-medium outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                     >
-                      <option value="">{isEn ? 'Select a job listing...' : 'Selectionnez une annonce...'}</option>
+                      <option value="">{isEn ? 'Select a job listing...' : 'Sélectionnez une annonce...'}</option>
                       {authoredJobs.map((job) => (
                         <option key={job.id} value={job.id}>
                           #{job.id} - {job.title}
@@ -2390,7 +2390,7 @@ function DashboardEntrepriseContent() {
                       <div className="text-center py-10">
                         <div className="text-4xl mb-3">{'\u{1F4C2}'}</div>
                         <p className="text-sm font-medium text-gray-500">
-                          {isEn ? 'Please select a job listing above to view its applications.' : 'Veuillez selectionner une annonce ci-dessus pour voir ses candidatures.'}
+                          {isEn ? 'Please select a job listing above to view its applications.' : 'Veuillez sélectionner une annonce ci-dessus pour voir ses candidatures.'}
                         </p>
                       </div>
                     ) : isLoadingApplications ? (
@@ -2400,7 +2400,7 @@ function DashboardEntrepriseContent() {
                     ) : jobApplications.length === 0 ? (
                       <div className="text-center py-10 rounded-xl border border-dashed border-gray-200 bg-gray-50">
                         <p className="text-sm font-medium text-gray-500">
-                          {isEn ? 'No applications received for this job yet.' : 'Aucune candidature recue pour cette annonce pour le moment.'}
+                          {isEn ? 'No applications received for this job yet.' : 'Aucune candidature reçue pour cette annonce pour le moment.'}
                         </p>
                       </div>
                     ) : (
@@ -2520,7 +2520,7 @@ function DashboardEntrepriseContent() {
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-600 hover:text-white transition shrink-0 self-start border border-blue-100 hover:border-blue-600"
                                     >
-                                      {'\u{1F4C4}'} {isEn ? 'Download CV' : 'Telecharger le CV'}
+                                      {'\u{1F4C4}'} {isEn ? 'Download CV' : 'Télécharger le CV'}
                                     </a>
                                   </div>
                                 </div>
@@ -2548,7 +2548,7 @@ function DashboardEntrepriseContent() {
                         <p className="mt-1 text-sm text-gray-600">
                           {isEn
                             ? 'This action will mark the application as rejected and notify the candidate.'
-                            : 'Cette action marquera la candidature comme refusee et notifiera le candidat.'}
+                            : 'Cette action marquera la candidature comme refusée et notifiera le candidat.'}
                         </p>
                       </div>
                       <div className="flex flex-col-reverse gap-2 px-5 py-4 sm:flex-row sm:justify-end">
@@ -2578,10 +2578,10 @@ function DashboardEntrepriseContent() {
 
                 {candidateMatches.length > 0 && (
                   <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden p-5 sm:p-6 mt-6">
-                    <h3 className="font-bold text-gray-900 text-[15px] mb-4">{'\u2728'} {isEn ? 'AI Shortlist' : "Shortlist generee par l'IA"}</h3>
+                    <h3 className="font-bold text-gray-900 text-[15px] mb-4">{'\u2728'} {isEn ? 'AI Shortlist' : "Shortlist générée par l'IA"}</h3>
                     {matchSource === 'gemini' && (
                       <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-                        {isEn ? 'Scoring generated by Gemini.' : 'Scoring genere par Gemini.'}
+                        {isEn ? 'Scoring generated by Gemini.' : 'Scoring généré par Gemini.'}
                       </p>
                     )}
                     {matchSource === 'heuristic' && (
@@ -2613,7 +2613,7 @@ function DashboardEntrepriseContent() {
                           )}
                           {match.gaps.length > 0 && (
                             <p className="text-[11px] text-amber-700 mt-1">
-                              {isEn ? 'Gaps:' : 'Ecarts :'} {match.gaps.join(' | ')}
+                              {isEn ? 'Gaps:' : 'Écarts :'} {match.gaps.join(' | ')}
                             </p>
                           )}
                         </div>
@@ -2629,21 +2629,21 @@ function DashboardEntrepriseContent() {
                 <div className="grid gap-4 md:grid-cols-3">
                   <div className="rounded-2xl border border-blue-200 bg-blue-50 p-5">
                     <p className="text-xs font-bold uppercase tracking-wider text-blue-700">
-                      {isEn ? 'Applications to review' : 'Candidatures a traiter'}
+                      {isEn ? 'Applications to review' : 'Candidatures à traiter'}
                     </p>
                     <p className="mt-2 text-3xl font-extrabold text-blue-900">{String(unreadNotifications).padStart(2, '0')}</p>
                     <p className="mt-2 text-xs font-medium text-blue-700">
-                      {isEn ? 'Unread notifications in your employer inbox.' : 'Notifications non lues dans votre boite entreprise.'}
+                      {isEn ? 'Unread notifications in your employer inbox.' : 'Notifications non lues dans votre boîte entreprise.'}
                     </p>
                   </div>
 
                   <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
                     <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
-                      {isEn ? 'Qualified candidates detected' : 'Candidats detectes'}
+                      {isEn ? 'Qualified candidates detected' : 'Candidats détectés'}
                     </p>
                     <p className="mt-2 text-3xl font-extrabold text-emerald-900">{String(detectedCandidateCount).padStart(2, '0')}</p>
                     <p className="mt-2 text-xs font-medium text-emerald-700">
-                      {isEn ? 'Profiles extracted from incoming application activity.' : 'Profils detectes depuis les activites de candidature.'}
+                      {isEn ? 'Profiles extracted from incoming application activity.' : 'Profils détectés depuis les activités de candidature.'}
                     </p>
                   </div>
 
@@ -2655,7 +2655,7 @@ function DashboardEntrepriseContent() {
                     <p className="mt-2 text-xs font-medium text-amber-700">
                       {isEn
                         ? `${approvedJobsCount} live, ${pendingJobsCount} pending moderation.`
-                        : `${approvedJobsCount} en ligne, ${pendingJobsCount} en moderation.`}
+                        : `${approvedJobsCount} en ligne, ${pendingJobsCount} en modération.`}
                     </p>
                   </div>
                 </div>
@@ -2668,21 +2668,21 @@ function DashboardEntrepriseContent() {
                           {isEn ? 'Recruitment follow-up' : 'Suivi de recrutement'}
                         </h3>
                         <p className="mt-1 text-xs font-medium text-gray-500">
-                          {isEn ? 'Track the latest candidate actions tied to your listings.' : 'Suivez les dernieres actions candidates liees a vos annonces.'}
+                          {isEn ? 'Track the latest candidate actions tied to your listings.' : 'Suivez les dernières actions candidates liées à vos annonces.'}
                         </p>
                       </div>
                       <button
                         onClick={openApplications}
                         className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
                       >
-                        {isEn ? 'Open inbox' : 'Ouvrir la boite'}
+                        {isEn ? 'Open inbox' : 'Ouvrir la boîte'}
                       </button>
                     </div>
 
                     {recentApplicationNotifications.length === 0 ? (
                       <div className="p-8 text-center">
                         <p className="text-sm font-medium text-gray-500">
-                          {isEn ? 'No candidate interactions recorded yet.' : 'Aucune interaction candidat enregistree pour le moment.'}
+                          {isEn ? 'No candidate interactions recorded yet.' : 'Aucune interaction candidat enregistrée pour le moment.'}
                         </p>
                         <button
                           onClick={() => navigateTo('post')}
@@ -2759,7 +2759,7 @@ function DashboardEntrepriseContent() {
                         <p className="text-sm font-medium text-gray-600">
                           {isEn
                             ? 'No shortlist generated yet. Use your live applications to produce ranked candidates.'
-                            : 'Aucune shortlist n a encore ete generee. Utilisez vos candidatures pour produire un classement exploitable.'}
+                            : 'Aucune shortlist n’a encore été générée. Utilisez vos candidatures pour produire un classement exploitable.'}
                         </p>
                       </div>
                     )}
@@ -2777,7 +2777,7 @@ function DashboardEntrepriseContent() {
                       <p className="mt-1 text-sm font-medium text-gray-500">
                         {isEn
                           ? 'Search candidate profiles, then compare them with your open positions.'
-                          : 'Explorez les profils candidats, puis comparez-les a vos postes ouverts.'}
+                          : 'Explorez les profils candidats, puis comparez-les à vos postes ouverts.'}
                       </p>
                     </div>
 
@@ -2786,7 +2786,7 @@ function DashboardEntrepriseContent() {
                         href={localizePath('/cvtheque')}
                         className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
                       >
-                        {isEn ? 'Open CVtheque' : 'Ouvrir la CVtheque'}
+                        {isEn ? 'Open CVtheque' : 'Ouvrir la CVthèque'}
                       </Link>
                       <button
                         onClick={() => navigateTo('listings')}
@@ -2803,7 +2803,7 @@ function DashboardEntrepriseContent() {
                       onChange={(e) => setSelectedMatchJobId(Number(e.target.value || 0))}
                       className="flex-1 rounded-xl border border-gray-200 bg-white p-3 text-sm"
                     >
-                      <option value="">{isEn ? 'Select a listing to benchmark candidates' : 'Selectionnez une annonce pour benchmarker les candidats'}</option>
+                      <option value="">{isEn ? 'Select a listing to benchmark candidates' : 'Sélectionnez une annonce pour benchmarker les candidats'}</option>
                       {authoredJobs.map((job) => (
                         <option key={job.id} value={job.id}>
                           #{job.id} - {job.title}
@@ -2817,7 +2817,7 @@ function DashboardEntrepriseContent() {
                       className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-indigo-700 disabled:opacity-60"
                     >
                       {isMatchingCandidates
-                        ? (isEn ? 'Generating ranking...' : 'Generation du classement...')
+                        ? (isEn ? 'Generating ranking...' : 'Génération du classement...')
                         : (isEn ? 'Rank matching candidates' : 'Classer les candidats compatibles')}
                     </button>
                   </div>
@@ -2839,7 +2839,7 @@ function DashboardEntrepriseContent() {
                           </p>
                           <p className="mt-1 text-xs font-medium text-gray-500">
                             {selectedMatchJob
-                              ? (isEn ? `Compared with ${selectedMatchJob.title}` : `Compare avec ${selectedMatchJob.title}`)
+                              ? (isEn ? `Compared with ${selectedMatchJob.title}` : `Comparé avec ${selectedMatchJob.title}`)
                               : (isEn ? 'Scored from your live applications' : 'Score depuis vos candidatures actives')}
                           </p>
                         </div>
@@ -2857,7 +2857,7 @@ function DashboardEntrepriseContent() {
                       )}
                       {match.gaps.length > 0 && (
                         <p className="mt-2 text-xs font-medium text-amber-700">
-                          {isEn ? 'Gaps:' : 'Ecarts :'} {match.gaps.join(' | ')}
+                          {isEn ? 'Gaps:' : 'Écarts :'} {match.gaps.join(' | ')}
                         </p>
                       )}
 
@@ -2872,7 +2872,7 @@ function DashboardEntrepriseContent() {
                     <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-sm font-medium text-gray-500 lg:col-span-2 xl:col-span-3">
                       {isEn
                         ? 'No ranked candidate yet. Publish a job, collect applications, then generate a shortlist here.'
-                        : 'Aucun candidat classe pour le moment. Publiez une offre, recuperez des candidatures, puis generez une shortlist ici.'}
+                        : 'Aucun candidat classé pour le moment. Publiez une offre, récupérez des candidatures, puis générez une shortlist ici.'}
                     </div>
                   )}
                 </div>
@@ -2891,13 +2891,13 @@ function DashboardEntrepriseContent() {
                   <p className="mt-2 text-sm font-medium text-gray-500">
                     {isEn
                       ? 'You can publish, manage applications, and prepare your company profile without waiting for billing activation.'
-                      : 'Vous pouvez publier, gerer les candidatures et preparer votre profil entreprise sans attendre l activation de la facturation.'}
+                      : 'Vous pouvez publier, gérer les candidatures et préparer votre profil entreprise sans attendre l’activation de la facturation.'}
                   </p>
 
                   <div className="mt-5 grid gap-4 sm:grid-cols-3">
                     <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
                       <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">
-                        {isEn ? 'Published listings' : 'Annonces publiees'}
+                        {isEn ? 'Published listings' : 'Annonces publiées'}
                       </p>
                       <p className="mt-2 text-3xl font-extrabold text-emerald-900">{String(publishedJobs.length).padStart(2, '0')}</p>
                     </div>
@@ -2912,7 +2912,7 @@ function DashboardEntrepriseContent() {
                         {isEn ? 'Account status' : 'Statut du compte'}
                       </p>
                       <p className="mt-2 text-lg font-extrabold text-amber-900">
-                        {isEnterpriseCertified ? (isEn ? 'Certified' : 'Certifie') : (isEn ? 'Pending setup' : 'Parametrage en cours')}
+                        {isEnterpriseCertified ? (isEn ? 'Certified' : 'Certifié') : (isEn ? 'Pending setup' : 'Paramétrage en cours')}
                       </p>
                     </div>
                   </div>
@@ -2928,7 +2928,7 @@ function DashboardEntrepriseContent() {
                       onClick={() => navigateTo('profile')}
                       className="rounded-xl border border-gray-200 bg-white px-5 py-3 text-sm font-bold text-gray-700 transition hover:bg-gray-50"
                     >
-                      {isEn ? 'Complete company profile' : 'Completer le profil entreprise'}
+                      {isEn ? 'Complete company profile' : 'Compléter le profil entreprise'}
                     </button>
                   </div>
                 </div>
@@ -2941,7 +2941,7 @@ function DashboardEntrepriseContent() {
                     <div className={`rounded-2xl border p-4 ${isEnterpriseCertified ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
                       <p className={`text-sm font-bold ${isEnterpriseCertified ? 'text-emerald-800' : 'text-amber-800'}`}>
                         {isEnterpriseCertified
-                          ? (isEn ? 'Identity and trust checks passed.' : 'Verification identite et confiance validee.')
+                          ? (isEn ? 'Identity and trust checks passed.' : 'Vérification identité et confiance validée.')
                           : (isEn ? 'Finish profile setup to strengthen account trust.' : 'Terminez le profil pour renforcer la confiance du compte.')}
                       </p>
                     </div>
@@ -2949,7 +2949,7 @@ function DashboardEntrepriseContent() {
                     <div className={`rounded-2xl border p-4 ${hasCompanyPhoto ? 'border-blue-200 bg-blue-50' : 'border-red-200 bg-red-50'}`}>
                       <p className={`text-sm font-bold ${hasCompanyPhoto ? 'text-blue-800' : 'text-red-800'}`}>
                         {hasCompanyPhoto
-                          ? (isEn ? 'Logo uploaded and visible on profile.' : 'Logo telecharge et visible sur le profil.')
+                          ? (isEn ? 'Logo uploaded and visible on profile.' : 'Logo téléchargé et visible sur le profil.')
                           : (isEn ? 'Logo still missing for public trust pages.' : 'Logo encore manquant pour les pages publiques de confiance.')}
                       </p>
                     </div>
@@ -2961,10 +2961,10 @@ function DashboardEntrepriseContent() {
                       <span>
                         <span className="block text-sm font-bold text-gray-900">contact@bolo237.com</span>
                         <span className="mt-1 block text-xs font-medium text-gray-500">
-                          {isEn ? 'Reach support for onboarding, verification, or account questions.' : 'Contactez le support pour onboarding, verification ou questions de compte.'}
+                          {isEn ? 'Reach support for onboarding, verification, or account questions.' : 'Contactez le support pour onboarding, vérification ou questions de compte.'}
                         </span>
                       </span>
-                      <span className="text-sm font-bold text-indigo-700">{isEn ? 'Write' : 'Ecrire'}</span>
+                      <span className="text-sm font-bold text-indigo-700">{isEn ? 'Write' : 'Écrire'}</span>
                     </a>
                   </div>
                 </div>
@@ -2984,7 +2984,7 @@ function DashboardEntrepriseContent() {
             { key: 'dashboard' as SidebarSection, icon: '\u{1F3E0}', label: isEn ? 'Home' : 'Accueil' },
             { key: 'post' as SidebarSection, icon: '\u{2795}', label: isEn ? 'Post' : 'Publier' },
             { key: 'listings' as SidebarSection, icon: '\u{1F4CB}', label: isEn ? 'Jobs' : 'Offres' },
-            { key: 'applications' as SidebarSection, icon: '\u{1F465}', label: isEn ? 'Inbox' : 'Boite' },
+            { key: 'applications' as SidebarSection, icon: '\u{1F465}', label: isEn ? 'Inbox' : 'Boîte' },
             { key: 'profile' as SidebarSection, icon: '\u{1F3E2}', label: isEn ? 'Profile' : 'Profil' },
           ].map(item => (
             <button

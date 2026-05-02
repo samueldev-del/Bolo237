@@ -449,7 +449,7 @@ export default function EmploisFormels() {
               <span className="flex h-5 w-5 items-center justify-center rounded bg-[#FEEBD6] text-[#C4623F]">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
               </span>
-              {isEn ? 'Filter listings' : 'Filtrer annonces'}
+              {isEn ? 'Filter listings' : 'Filtrer les annonces'}
             </div>
 
             {filterPanelBody}
@@ -463,7 +463,7 @@ export default function EmploisFormels() {
                 <span className="flex h-6 w-6 items-center justify-center rounded bg-[#FEEBD6] text-[#C4623F]">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
                 </span>
-                {isEn ? 'Filter listings' : 'Filtrer annonces'}
+                {isEn ? 'Filter listings' : 'Filtrer les annonces'}
                 {activeFilterCount > 0 ? (
                   <span className="ml-1 rounded-full bg-[#DA7756] px-2 py-0.5 text-[11px] font-extrabold text-white">{activeFilterCount}</span>
                 ) : null}

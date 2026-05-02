@@ -96,9 +96,13 @@ model Job {
   reference    String?       @unique
   externalApplyUrl String?
   title        String
+  titleFr      String?
+  titleEn      String?
   company      String
   location     String
   description  String
+  descriptionFr String?
+  descriptionEn String?
   salary       String?
   status       JobStatus     @default(PENDING)
   author       User          @relation(fields: [authorId], references: [id])

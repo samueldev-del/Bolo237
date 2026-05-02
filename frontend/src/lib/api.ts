@@ -23,9 +23,13 @@ export type ApiJob = {
   reference?: string | null;
   externalApplyUrl?: string | null;
   title: string;
+  titleFr?: string | null;
+  titleEn?: string | null;
   company: string;
   location: string;
   description: string;
+  descriptionFr?: string | null;
+  descriptionEn?: string | null;
   salary: string | null;
   status: string;
   authorId: number;

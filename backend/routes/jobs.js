@@ -6,6 +6,7 @@ const { upload, sniffFileType, ALLOWED_UPLOAD_MIME } = require('../lib/uploads')
 const { readSessionToken, requireUserSession } = require('../lib/session');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
+const { JobTranslationError, buildLocalizedJobFields } = require('../lib/jobTranslations');
 
 // Génère une référence unique de type BOLO-XXXXX (5 caractères alphanumériques majuscules)
 function generateJobReference() {
@@ -25,7 +26,7 @@ const jobSchema = z.object({
   company: z.string().trim().min(2, "Le nom de l'entreprise est requis").max(120).optional(),
   salary: z.string().optional().nullable(),
   externalApplyUrl: z.string().trim().url("URL de candidature externe invalide").optional().nullable(),
-});
+}).strict();
 
 // 🛑 2. LE MIDDLEWARE : Le "Videur" qui bloque ou laisse passer
 const validateRequest = (schema) => async (req, res, next) => {
@@ -93,7 +94,11 @@ router.get('/', async (req, res) => {
     if (term) {
       where.OR = [
         { title:       { contains: term, mode: 'insensitive' } },
+        { titleFr:     { contains: term, mode: 'insensitive' } },
+        { titleEn:     { contains: term, mode: 'insensitive' } },
         { description: { contains: term, mode: 'insensitive' } },
+        { descriptionFr: { contains: term, mode: 'insensitive' } },
+        { descriptionEn: { contains: term, mode: 'insensitive' } },
         { company:     { contains: term, mode: 'insensitive' } },
       ];
     }
@@ -111,7 +116,17 @@ router.get('/', async (req, res) => {
 
     // ── Requête ───────────────────────────────────────────────────
     const [jobs, total] = await Promise.all([
-      prisma.job.findMany({ where, orderBy, skip, take: limitNum }),
+      prisma.job.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limitNum,
+        include: {
+          author: {
+            select: { photoUrl: true, isVerified: true },
+          },
+        },
+      }),
       prisma.job.count({ where }),
     ]);
 
@@ -136,9 +151,17 @@ router.get('/', async (req, res) => {
 router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res) => {
   try {
     // Si on arrive ici, req.body est 100% garanti valide grâce à Zod !
-    const { title, description, location, salary, company, externalApplyUrl } = req.body;
+    const {
+      title,
+      description,
+      location,
+      salary,
+      company,
+      externalApplyUrl,
+    } = req.body;
     const authorId = req.sessionUser.id;
     const companyLabel = String(company || req.sessionUser.name || '').trim();
+    const localizedFields = await buildLocalizedJobFields({ title, description });
 
     if (!companyLabel) {
       return res.status(400).json({
@@ -154,8 +177,12 @@ router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res
           return await prisma.job.create({
             data: {
               title,
+              titleFr: localizedFields.titleFr,
+              titleEn: localizedFields.titleEn,
               company: companyLabel,
               description,
+              descriptionFr: localizedFields.descriptionFr,
+              descriptionEn: localizedFields.descriptionEn,
               location,
               salary,
               externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
@@ -179,6 +206,14 @@ router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res
     });
 
   } catch (error) {
+    if (error instanceof JobTranslationError) {
+      console.error('Erreur traduction creation job:', error);
+      return res.status(502).json({
+        success: false,
+        message: "Traduction automatique indisponible. Réessayez dans un instant.",
+      });
+    }
+
     console.error("Erreur création job:", error);
     res.status(500).json({ success: false, message: "Erreur interne lors de la création de l'offre" });
   }
@@ -206,8 +241,16 @@ router.put('/:id', requireUserSession, validateRequest(jobSchema), async (req, r
     }
 
     // 2. Si on arrive ici, req.body est validé par Zod ET l'utilisateur est le bon
-    const { title, description, location, salary, company, externalApplyUrl } = req.body;
+    const {
+      title,
+      description,
+      location,
+      salary,
+      company,
+      externalApplyUrl,
+    } = req.body;
     const companyLabel = String(company || existingJob.company || req.sessionUser.name || '').trim();
+    const localizedFields = await buildLocalizedJobFields({ title, description });
 
     if (!companyLabel) {
       return res.status(400).json({
@@ -221,8 +264,12 @@ router.put('/:id', requireUserSession, validateRequest(jobSchema), async (req, r
       where: { id: jobId },
       data: {
         title,
+        titleFr: localizedFields.titleFr,
+        titleEn: localizedFields.titleEn,
         company: companyLabel,
         description,
+        descriptionFr: localizedFields.descriptionFr,
+        descriptionEn: localizedFields.descriptionEn,
         location,
         salary,
         externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
@@ -238,6 +285,14 @@ router.put('/:id', requireUserSession, validateRequest(jobSchema), async (req, r
     });
 
   } catch (error) {
+    if (error instanceof JobTranslationError) {
+      console.error('Erreur traduction modification job:', error);
+      return res.status(502).json({
+        success: false,
+        message: "Traduction automatique indisponible. Réessayez dans un instant.",
+      });
+    }
+
     console.error("Erreur modification job:", error);
     res.status(500).json({ success: false, message: "Erreur interne lors de la modification de l'offre." });
   }

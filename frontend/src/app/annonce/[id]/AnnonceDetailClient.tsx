@@ -61,6 +61,38 @@ function splitDescription(description: string): { paragraphs: string[]; bulletIt
   return { paragraphs, bulletItems };
 }
 
+function pickLocalizedText(primary?: string | null, secondary?: string | null, legacy?: string | null): string {
+  const primaryValue = String(primary || '').trim();
+  if (primaryValue) {
+    return primaryValue;
+  }
+
+  const secondaryValue = String(secondary || '').trim();
+  if (secondaryValue) {
+    return secondaryValue;
+  }
+
+  return String(legacy || '').trim();
+}
+
+function getLocalizedJobTitleLocal(
+  job: { title: string; titleFr?: string | null; titleEn?: string | null },
+  isEn: boolean,
+): string {
+  return isEn
+    ? pickLocalizedText(job.titleEn, job.titleFr, job.title)
+    : pickLocalizedText(job.titleFr, job.titleEn, job.title);
+}
+
+function getLocalizedJobDescriptionLocal(
+  job: { description: string; descriptionFr?: string | null; descriptionEn?: string | null },
+  isEn: boolean,
+): string {
+  return isEn
+    ? pickLocalizedText(job.descriptionEn, job.descriptionFr, job.description)
+    : pickLocalizedText(job.descriptionFr, job.descriptionEn, job.description);
+}
+
 type UserProfile = {
   id: number;
   name: string;
@@ -155,22 +187,24 @@ export default function AnnonceDetailClient({ params }: JobParams) {
     }
 
     const listing = mapApiJobToListing(apiJob, 0, isEn);
-    const description = sanitizeJobDescription(apiJob.description || '');
+    const localizedTitle = getLocalizedJobTitleLocal(apiJob, isEn);
+    const localizedDescription = getLocalizedJobDescriptionLocal(apiJob, isEn);
+    const description = sanitizeJobDescription(localizedDescription || apiJob.description || '');
     const companySummary = listing.isVerified
       ? (isEn
           ? `${apiJob.company} has a verified employer profile on Bolo237 and is currently hiring in ${listing.location}.`
-          : `${apiJob.company} dispose d'un profil employeur verifie sur Bolo237 et recrute actuellement a ${listing.location}.`)
+        : `${apiJob.company} dispose d'un profil employeur vérifié sur Bolo237 et recrute actuellement à ${listing.location}.`)
       : (isEn
           ? `${apiJob.company} is actively hiring in ${listing.location} through Bolo237.`
-          : `${apiJob.company} recrute actuellement a ${listing.location} via Bolo237.`);
+        : `${apiJob.company} recrute actuellement à ${listing.location} via Bolo237.`);
 
     return {
       id: apiJob.id,
-      title: apiJob.title,
+      title: localizedTitle || apiJob.title,
       company: apiJob.company,
       listing,
       publication: formatDate(apiJob.createdAt, isEn),
-      deadline: isEn ? 'Not specified' : 'Non precisee',
+      deadline: isEn ? 'Not specified' : 'Non précisée',
       description,
       companySummary,
     };
@@ -208,7 +242,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
             </h1>
             <p className="text-gray-500 mb-6">
               {!isEn
-                ? 'Cette offre n\u2019existe plus ou a \u00e9t\u00e9 retir\u00e9e.'
+                ? 'Cette offre n’existe plus ou a été retirée.'
                 : 'This listing no longer exists or has been removed.'}
             </p>
             <Link href={localizePath('/emplois')} className="inline-block bg-[#C4623F] text-white px-6 py-3 rounded-xl font-bold hover:opacity-90 transition">
@@ -222,14 +256,21 @@ export default function AnnonceDetailClient({ params }: JobParams) {
 
   const canonicalJobUrl = `https://www.bolo237.com/${locale}/annonce/${id}`;
   const externalApplyUrl = apiJob
-    ? (String(apiJob.externalApplyUrl || '').trim() || extractExternalApplyUrl(apiJob.description))
+    ? (
+        String(apiJob.externalApplyUrl || '').trim() ||
+        extractExternalApplyUrl([
+          apiJob.descriptionEn,
+          apiJob.descriptionFr,
+          apiJob.description,
+        ].filter(Boolean).join('\n'))
+      )
     : null;
   const isExternalOnlyApplication = Boolean(externalApplyUrl);
   const jobPostingSchema = apiJob
     ? {
         '@context': 'https://schema.org',
         '@type': 'JobPosting',
-        title: apiJob.title,
+        title: annonce.title,
         description: annonce.description,
         datePosted: apiJob.createdAt,
         employmentType: 'FULL_TIME',
@@ -309,7 +350,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
       setApplyMessage(
         isEn
           ? 'Companies and artisans cannot apply to job listings. Browse the CV database to find candidates.'
-          : 'Les entreprises et artisans ne postulent pas aux offres. Consultez la CVtheque pour trouver des candidats.'
+          : 'Les entreprises et artisans ne postulent pas aux offres. Consultez la CVthèque pour trouver des candidats.'
       );
       return;
     }
@@ -524,7 +565,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                   {annonce.listing.isVerified ? (
                     <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-700">
                       <ShieldCheckIcon />
-                      {isEn ? 'Verified employer' : 'Employeur verifie'}
+                      {isEn ? 'Verified employer' : 'Employeur vérifié'}
                     </span>
                   ) : null}
                   <span className="inline-flex items-center gap-2">
@@ -548,12 +589,16 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                 <div className="flex items-start gap-4">
                   <div className="relative shrink-0">
                     {annonce.listing.logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={annonce.listing.logoUrl}
-                        alt={annonce.company}
-                        className="h-[84px] w-[84px] rounded-[22px] border border-slate-200 bg-white p-2.5 object-contain"
-                      />
+                      <div className="flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-lg border border-gray-100 bg-white p-2 shadow-sm">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={annonce.listing.logoUrl}
+                          alt={annonce.company}
+                          className="h-full w-full object-contain"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
                     ) : (
                       <div
                         style={{ backgroundColor: `${annonce.listing.logoColor}18`, borderColor: `${annonce.listing.logoColor}30`, color: annonce.listing.logoColor }}
@@ -612,7 +657,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                   <p className="mt-4 text-xs font-semibold leading-5 text-slate-500">
                     {isEn
                       ? 'Applications for this role are handled on the company website.'
-                      : 'Les candidatures pour ce poste sont gerees sur le site de l entreprise.'}
+                      : 'Les candidatures pour ce poste sont gérées sur le site de l\'entreprise.'}
                   </p>
                 ) : null}
 
@@ -638,20 +683,20 @@ export default function AnnonceDetailClient({ params }: JobParams) {
               </div>
 
               <article className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
-                <SectionTitle title={isEn ? 'About the role' : 'A propos du poste'} subtitle={isEn ? 'Core mission, context and what the company expects from the candidate.' : 'Mission, contexte et attentes de l employeur pour ce poste.'} />
+                <SectionTitle title={isEn ? 'About the role' : 'À propos du poste'} subtitle={isEn ? 'Core mission, context and what the company expects from the candidate.' : 'Mission, contexte et attentes de l’employeur pour ce poste.'} />
                 <div className="mt-5 space-y-4 text-[15px] leading-8 text-slate-700">
                   {descriptionContent.paragraphs.map((paragraph, index) => (
                     <p key={`${paragraph.slice(0, 40)}-${index}`}>{paragraph}</p>
                   ))}
                   {descriptionContent.paragraphs.length === 0 ? (
-                    <p>{isEn ? 'No detailed description has been provided yet.' : 'Aucune description detaillee n a encore ete fournie.'}</p>
+                    <p>{isEn ? 'No detailed description has been provided yet.' : 'Aucune description détaillée n’a encore été fournie.'}</p>
                   ) : null}
                 </div>
 
                 {descriptionContent.bulletItems.length > 0 ? (
                   <div className="mt-6 rounded-[24px] border border-slate-200 bg-slate-50 p-5">
                     <h3 className="text-sm font-extrabold uppercase tracking-[0.14em] text-slate-500">
-                      {isEn ? 'Key points' : 'Points cles'}
+                      {isEn ? 'Key points' : 'Points clés'}
                     </h3>
                     <ul className="mt-4 space-y-3">
                       {descriptionContent.bulletItems.map((item) => (
@@ -666,11 +711,11 @@ export default function AnnonceDetailClient({ params }: JobParams) {
               </article>
 
               <article className="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm md:p-7">
-                <SectionTitle title={isEn ? 'Apply with a complete profile' : 'Postulez avec un dossier complet'} subtitle={isEn ? 'A well-prepared candidate file improves response quality and cuts back-and-forth.' : 'Un dossier candidat bien prepare ameliore la qualite des retours et reduit les allers-retours.'} />
+                <SectionTitle title={isEn ? 'Apply with a complete profile' : 'Postulez avec un dossier complet'} subtitle={isEn ? 'A well-prepared candidate file improves response quality and cuts back-and-forth.' : 'Un dossier candidat bien préparé améliore la qualité des retours et réduit les allers-retours.'} />
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
-                  <HeroFact label={isEn ? 'Step 1' : 'Etape 1'} value={isEn ? 'Check your profile and contact details.' : 'Verifiez votre profil et vos coordonnees.'} icon={<ProfileIcon />} />
-                  <HeroFact label={isEn ? 'Step 2' : 'Etape 2'} value={isEn ? 'Upload your CV and add your skills.' : 'Ajoutez votre CV et vos competences.'} icon={<DocumentIcon />} />
-                  <HeroFact label={isEn ? 'Step 3' : 'Etape 3'} value={isEn ? 'Send the application once everything is complete.' : 'Envoyez votre candidature une fois le dossier complet.'} icon={<ApplyIcon />} />
+                  <HeroFact label={isEn ? 'Step 1' : 'Étape 1'} value={isEn ? 'Check your profile and contact details.' : 'Vérifiez votre profil et vos coordonnées.'} icon={<ProfileIcon />} />
+                  <HeroFact label={isEn ? 'Step 2' : 'Étape 2'} value={isEn ? 'Upload your CV and add your skills.' : 'Ajoutez votre CV et vos compétences.'} icon={<DocumentIcon />} />
+                  <HeroFact label={isEn ? 'Step 3' : 'Étape 3'} value={isEn ? 'Send the application once everything is complete.' : 'Envoyez votre candidature une fois le dossier complet.'} icon={<ApplyIcon />} />
                 </div>
               </article>
 
@@ -688,7 +733,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
 
             <aside className="space-y-4 lg:sticky lg:top-6 lg:h-fit">
               <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-                <SectionTitle title={isEn ? 'Job overview' : 'Vue d ensemble'} subtitle={isEn ? 'The essentials at a glance.' : 'Les informations essentielles en un coup d oeil.'} />
+                <SectionTitle title={isEn ? 'Job overview' : 'Vue d’ensemble'} subtitle={isEn ? 'The essentials at a glance.' : 'Les informations essentielles en un coup d’œil.'} />
                 <div className="mt-5 space-y-3">
                   {overviewItems.map((item) => (
                     <SidebarInfoRow key={item.label} icon={item.icon} label={item.label} value={item.value} />
@@ -697,12 +742,12 @@ export default function AnnonceDetailClient({ params }: JobParams) {
               </article>
 
               <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-                <SectionTitle title={isEn ? 'About the company' : 'A propos de l entreprise'} subtitle={isEn ? 'Public employer details visible on Bolo237.' : 'Informations publiques de l employeur visibles sur Bolo237.'} />
+                <SectionTitle title={isEn ? 'About the company' : 'À propos de l’entreprise'} subtitle={isEn ? 'Public employer details visible on Bolo237.' : 'Informations publiques de l’employeur visibles sur Bolo237.'} />
                 <p className="mt-4 text-sm leading-7 text-slate-600">{annonce.companySummary}</p>
               </article>
 
               <article className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
-                <SectionTitle title={isEn ? 'Timeline' : 'Chronologie'} subtitle={isEn ? 'Publishing and application references for this listing.' : 'Reperes de publication et de candidature pour cette annonce.'} />
+                <SectionTitle title={isEn ? 'Timeline' : 'Chronologie'} subtitle={isEn ? 'Publishing and application references for this listing.' : 'Repères de publication et de candidature pour cette annonce.'} />
                 <div className="mt-5 space-y-3">
                   <SidebarStat label={isEn ? 'Published' : 'Publication'} value={annonce.publication} />
                   <SidebarStat label={isEn ? 'Deadline' : 'Date limite'} value={annonce.deadline} />
@@ -751,7 +796,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
               {/* Header */}
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-extrabold text-black">
-                  {isEn ? 'Review your application' : 'Verifiez votre dossier de candidature'}
+                  {isEn ? 'Review your application' : 'Vérifiez votre dossier de candidature'}
                 </h2>
                 <button
                   onClick={() => setShowApplicationReview(false)}
@@ -783,10 +828,10 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                     <div>
                       <p className="font-bold text-black">{userProfile?.name || (isEn ? 'Name not set' : 'Nom non renseigne')}</p>
                       <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                        <p className="text-sm text-gray-500">{userProfile?.title || (isEn ? 'Title not set' : 'Titre non renseigne')}</p>
+                        <p className="text-sm text-gray-500">{userProfile?.title || (isEn ? 'Title not set' : 'Titre non renseigné')}</p>
                         {userProfile?.isVerified && (
                           <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-extrabold text-emerald-700">
-                            ✓ {isEn ? 'Certified' : 'Certifie'}
+                            ✓ {isEn ? 'Certified' : 'Certifié'}
                           </span>
                         )}
                       </div>
@@ -794,7 +839,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                   </div>
                   {userProfile?.skills && (
                     <div className="mt-2">
-                      <p className="text-xs font-bold text-gray-500 mb-1">{isEn ? 'Skills' : 'Competences'}</p>
+                      <p className="text-xs font-bold text-gray-500 mb-1">{isEn ? 'Skills' : 'Compétences'}</p>
                       <p className="text-sm text-gray-700">{userProfile.skills}</p>
                     </div>
                   )}
@@ -808,7 +853,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                 </h3>
                 {isLoadingReview && (
                   <p className="text-xs font-semibold text-gray-500 mb-3">
-                    {isEn ? 'Checking your application file...' : 'Verification du dossier en cours...'}
+                    {isEn ? 'Checking your application file...' : 'Vérification du dossier en cours...'}
                   </p>
                 )}
                 <div className="space-y-3">
@@ -833,7 +878,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                       )}
                     </div>
                     <span className={`text-sm font-semibold ${userProfile?.cvUploaded ? 'text-black' : 'text-gray-400'}`}>
-                      {isEn ? 'CV uploaded' : 'CV telecharge'}
+                      {isEn ? 'CV uploaded' : 'CV téléchargé'}
                     </span>
                   </div>
                   <div className="flex items-center gap-3">
@@ -845,7 +890,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                       )}
                     </div>
                     <span className={`text-sm font-semibold ${userProfile?.phoneVerified ? 'text-black' : 'text-gray-400'}`}>
-                      {isEn ? 'Phone verified' : 'Telephone verifie'}
+                      {isEn ? 'Phone verified' : 'Téléphone vérifié'}
                     </span>
                   </div>
                 </div>
@@ -854,7 +899,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
               {userProfile && userProfile.missingItems.length > 0 && (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 mb-6">
                   <p className="text-sm font-extrabold text-amber-800 mb-2">
-                    {isEn ? 'Complete these items before submitting' : 'Elements a completer avant envoi'}
+                    {isEn ? 'Complete these items before submitting' : 'Éléments à compléter avant envoi'}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {userProfile.missingItems.map((item) => (
@@ -872,7 +917,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                 className="inline-flex items-center gap-1.5 text-sm font-bold text-[#C4623F] hover:underline mb-6"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-                {isEn ? 'Complete my profile' : 'Completer mon profil'}
+                {isEn ? 'Complete my profile' : 'Compléter mon profil'}
               </Link>
 
               <form onSubmit={handleApply} className="space-y-4">

@@ -286,7 +286,7 @@ function RechercheContent() {
                 key={`search-${urlState.search}`}
                 ref={searchInputRef}
                 type="text"
-                placeholder={isEn ? 'Job, skill, or company' : 'Job, competence ou entreprise'}
+                placeholder={isEn ? 'Job, skill, or company' : 'Métier, compétence ou entreprise'}
                 defaultValue={urlState.search}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                 className="w-full pl-11 pr-4 py-3.5 rounded-full border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#DA7756] focus:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 text-gray-900 shadow-sm"
@@ -334,7 +334,7 @@ function RechercheContent() {
                 className="rounded-full border border-[#B7D0E4] bg-white px-4 py-2 text-xs font-bold text-[#0F4C81] transition hover:border-[#0F4C81] disabled:cursor-not-allowed disabled:opacity-40"
                 type="button"
               >
-                {isEn ? 'Reset' : 'Reinitialiser'}
+                {isEn ? 'Reset' : 'Réinitialiser'}
               </button>
             </div>
           </div>

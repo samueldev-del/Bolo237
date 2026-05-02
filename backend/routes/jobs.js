@@ -7,6 +7,16 @@ const { readSessionToken, requireUserSession } = require('../lib/session');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
 
+// Génère une référence unique de type BOLO-XXXXX (5 caractères alphanumériques majuscules)
+function generateJobReference() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans I/O/0/1 pour éviter confusions
+  let ref = 'BOLO-';
+  for (let i = 0; i < 5; i++) {
+    ref += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return ref;
+}
+
 // 🛡️ 1. LE SCHÉMA ZOD : Le plan strict de ce qu'on accepte
 const jobSchema = z.object({
   title: z.string().trim().min(5, "Le titre doit faire au moins 5 caractères").max(100),
@@ -137,17 +147,28 @@ router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res
       });
     }
 
-    const newJob = await prisma.job.create({
-      data: {
-        title,
-        company: companyLabel,
-        description,
-        location,
-        salary,
-        authorId,
-        status: 'PENDING', // Toujours en attente pour modération admin
+    const newJob = await (async () => {
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          return await prisma.job.create({
+            data: {
+              title,
+              company: companyLabel,
+              description,
+              location,
+              salary,
+              authorId,
+              reference: generateJobReference(),
+              status: 'PENDING', // Toujours en attente pour modération admin
+            }
+          });
+        } catch (err) {
+          // P2002 = violation contrainte unique (collision de référence, très rare)
+          if (err?.code === 'P2002' && attempt < 4) continue;
+          throw err;
+        }
       }
-    });
+    })();
 
     res.status(201).json({ 
       success: true, 

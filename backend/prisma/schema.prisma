@@ -93,6 +93,7 @@ model ArtisanPortfolio {
 // 2. Table des Offres d'Emploi
 model Job {
   id           Int           @id @default(autoincrement())
+  reference    String?       @unique
   title        String
   company      String
   location     String

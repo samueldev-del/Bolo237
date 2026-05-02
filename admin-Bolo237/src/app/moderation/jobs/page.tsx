@@ -326,6 +326,11 @@ function ModerationJobsPageContent() {
                 <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${STATUS_LABELS[selectedJob.status]?.cls}`}>
                   {STATUS_LABELS[selectedJob.status]?.label}
                 </span>
+                {selectedJob.reference && (
+                  <span className="ml-2 inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-mono font-semibold text-zinc-500">
+                    {selectedJob.reference}
+                  </span>
+                )}
                 <h3 className="text-lg font-bold text-zinc-900 mt-3">{selectedJob.title}</h3>
               </div>
 

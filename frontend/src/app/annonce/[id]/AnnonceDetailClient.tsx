@@ -457,7 +457,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
     { label: isEn ? 'Work mode' : 'Mode de travail', value: getWorkModeLabel(annonce.listing.workMode, isEn), icon: <BriefcaseIcon /> },
     { label: isEn ? 'Working time' : 'Temps de travail', value: getWorkTimeLabel(annonce.listing.workTime, isEn), icon: <ClockIcon /> },
     { label: isEn ? 'Application' : 'Candidature', value: isExternalOnlyApplication ? (isEn ? 'Company website' : 'Site entreprise') : 'Bolo237', icon: <ApplyIcon /> },
-    { label: isEn ? 'Reference' : 'Reference', value: `#${annonce.id}`, icon: <HashIcon /> },
+    { label: isEn ? 'Reference' : 'Reference', value: apiJob?.reference ?? `#${annonce.id}`, icon: <HashIcon /> },
   ];
 
   return (

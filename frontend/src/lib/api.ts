@@ -20,6 +20,7 @@ function buildApiUrl(path: string): string {
 
 export type ApiJob = {
   id: number;
+  reference?: string | null;
   title: string;
   company: string;
   location: string;

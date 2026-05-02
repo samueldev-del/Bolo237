@@ -50,6 +50,7 @@ function captureApiException(error: unknown, context: Record<string, unknown>) {
 
 export type Job = {
   id: number;
+  reference?: string | null;
   title: string;
   company: string;
   location: string;

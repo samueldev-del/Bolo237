@@ -16,7 +16,7 @@ const {
 const { readSessionToken, requireUserSession } = require('../lib/session');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
-const { JobTranslationError, buildLocalizedJobFields } = require('../lib/jobTranslations');
+const { TranslationServiceError, buildBilingualJobContent } = require('../lib/translation.service');
 const { generateJobReference } = require('../lib/references');
 const { validateBody } = require('../lib/requestValidation');
 
@@ -78,9 +78,13 @@ router.get('/', async (req, res) => {
         { title:       { contains: term, mode: 'insensitive' } },
         { titleFr:     { contains: term, mode: 'insensitive' } },
         { titleEn:     { contains: term, mode: 'insensitive' } },
+        { title_fr:    { contains: term, mode: 'insensitive' } },
+        { title_en:    { contains: term, mode: 'insensitive' } },
         { description: { contains: term, mode: 'insensitive' } },
         { descriptionFr: { contains: term, mode: 'insensitive' } },
         { descriptionEn: { contains: term, mode: 'insensitive' } },
+        { description_fr: { contains: term, mode: 'insensitive' } },
+        { description_en: { contains: term, mode: 'insensitive' } },
         { company:     { contains: term, mode: 'insensitive' } },
       ];
     }
@@ -143,7 +147,7 @@ router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) =
     } = req.body;
     const authorId = req.sessionUser.id;
     const companyLabel = String(company || req.sessionUser.name || '').trim();
-    const localizedFields = await buildLocalizedJobFields({ title, description });
+    const localizedFields = await buildBilingualJobContent({ title, description });
 
     if (!companyLabel) {
       return res.status(400).json({
@@ -158,13 +162,17 @@ router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) =
         try {
           return await prisma.job.create({
             data: {
-              title,
+              title: localizedFields.title_fr,
               titleFr: localizedFields.titleFr,
               titleEn: localizedFields.titleEn,
+              title_fr: localizedFields.title_fr,
+              title_en: localizedFields.title_en,
               company: companyLabel,
-              description,
+              description: localizedFields.description_fr,
               descriptionFr: localizedFields.descriptionFr,
               descriptionEn: localizedFields.descriptionEn,
+              description_fr: localizedFields.description_fr,
+              description_en: localizedFields.description_en,
               location,
               salary,
               externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
@@ -188,7 +196,7 @@ router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) =
     });
 
   } catch (error) {
-    if (error instanceof JobTranslationError) {
+    if (error instanceof TranslationServiceError) {
       console.error('Erreur traduction creation job:', error);
       return res.status(502).json({
         success: false,
@@ -232,7 +240,7 @@ router.put('/:id', requireUserSession, validateBody(jobSchema), async (req, res)
       externalApplyUrl,
     } = req.body;
     const companyLabel = String(company || existingJob.company || req.sessionUser.name || '').trim();
-    const localizedFields = await buildLocalizedJobFields({ title, description });
+    const localizedFields = await buildBilingualJobContent({ title, description });
 
     if (!companyLabel) {
       return res.status(400).json({
@@ -245,13 +253,17 @@ router.put('/:id', requireUserSession, validateBody(jobSchema), async (req, res)
     const updatedJob = await prisma.job.update({
       where: { id: jobId },
       data: {
-        title,
+        title: localizedFields.title_fr,
         titleFr: localizedFields.titleFr,
         titleEn: localizedFields.titleEn,
+        title_fr: localizedFields.title_fr,
+        title_en: localizedFields.title_en,
         company: companyLabel,
-        description,
+        description: localizedFields.description_fr,
         descriptionFr: localizedFields.descriptionFr,
         descriptionEn: localizedFields.descriptionEn,
+        description_fr: localizedFields.description_fr,
+        description_en: localizedFields.description_en,
         location,
         salary,
         externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
@@ -267,7 +279,7 @@ router.put('/:id', requireUserSession, validateBody(jobSchema), async (req, res)
     });
 
   } catch (error) {
-    if (error instanceof JobTranslationError) {
+    if (error instanceof TranslationServiceError) {
       console.error('Erreur traduction modification job:', error);
       return res.status(502).json({
         success: false,

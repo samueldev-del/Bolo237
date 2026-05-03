@@ -49,6 +49,8 @@ model User {
   name             String?
   phone            String?             @unique
   photoUrl         String?
+  bio_fr           String?             @db.Text
+  bio_en           String?             @db.Text
   contactClicks    Int                 @default(0)
   role             Role                @default(CANDIDAT)
   isVerified       Boolean             @default(false)
@@ -114,11 +116,15 @@ model Job {
   title        String
   titleFr      String?
   titleEn      String?
+  title_fr     String?
+  title_en     String?
   company      String
   location     String
   description  String
   descriptionFr String?
   descriptionEn String?
+  description_fr String?     @db.Text
+  description_en String?     @db.Text
   salary       String?
   status       JobStatus     @default(PENDING)
   author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)

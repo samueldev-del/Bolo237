@@ -7,24 +7,28 @@
     "dev:clean": "pkill -f \"next dev\" || true; sleep 1; rm -rf .next || true; next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.48.0",
     "jose": "^6.2.3",
     "jspdf": "^4.2.1",
-    "next": "16.2.0",
+    "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.0",
+    "eslint-config-next": "16.2.4",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -96,20 +96,17 @@ export default function CookieConsentBanner() {
   );
   const [bannerOverride, setBannerOverride] = useState<boolean | null>(null);
   // Persisted dismissal: true once the user has ever made a cookie choice.
-  // Checked via useEffect to avoid SSR/hydration mismatch.
-  const [bannerDismissed, setBannerDismissed] = useState(false);
+  // Read lazily to avoid calling setState inside an effect.
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    if (typeof window === 'undefined') {
+      return false;
+    }
+
+    return Boolean(localStorage.getItem(COOKIE_DISMISSED_KEY));
+  });
   const [showSettings, setShowSettings] = useState(false);
   const [functionalEnabled, setFunctionalEnabled] = useState(false);
   const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
-
-  // Check the simple dismissal key on mount (useEffect avoids SSR hydration
-  // mismatch — localStorage is only accessible in the browser).
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (localStorage.getItem(COOKIE_DISMISSED_KEY)) {
-      setBannerDismissed(true);
-    }
-  }, []);
 
   const activeConsent = isMounted
     ? (() => {

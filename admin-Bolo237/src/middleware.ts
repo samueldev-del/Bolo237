@@ -108,11 +108,6 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/") ||
     isPublicAsset(pathname)
   ) {
-    // Si l'utilisateur est deja connecte et va sur /login, rediriger vers /
-    if (pathname === "/login" && hasValidSession) {
-        return NextResponse.redirect(new URL("/", request.url));
-    }
-
     if (pathname === "/login" && sessionToken && !hasValidSession) {
       const response = NextResponse.next();
       response.cookies.delete(ADMIN_SESSION_COOKIE_NAME);

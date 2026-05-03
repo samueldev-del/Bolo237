@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense } from 'react';
 import { fetchApprovedJobs, fetchVerifiedArtisans } from '@/lib/home-jobs';
+import { BLUR_DATA_URL } from '@/lib/imagePlaceholder';
 
 export const revalidate = 60;
 
@@ -54,6 +55,8 @@ export default async function Home() {
                         width={56}
                         height={56}
                         priority={index === 0}
+                        placeholder="blur"
+                        blurDataURL={BLUR_DATA_URL}
                         sizes="56px"
                         className="h-14 w-14 rounded-full object-cover border border-gray-200"
                       />
@@ -101,6 +104,8 @@ export default async function Home() {
                         width={52}
                         height={52}
                         priority={index === 0}
+                        placeholder="blur"
+                        blurDataURL={BLUR_DATA_URL}
                         sizes="52px"
                         className="h-full w-full object-contain"
                       />

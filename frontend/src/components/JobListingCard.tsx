@@ -80,7 +80,7 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
             </span>
           </div>
 
-          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-4 grid gap-2.5 grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3">
             <DetailItem
               icon={<LocationIcon />}
               label={isEn ? 'Location' : 'Lieu'}

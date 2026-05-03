@@ -13,11 +13,46 @@ function getSampleRateFromEnv(name, fallbackValue) {
 const sentryDsn = String(process.env.SENTRY_DSN || '').trim();
 const sentryEnabled = Boolean(sentryDsn);
 
+const SENSITIVE_FIELDS = new Set([
+  'password',
+  'newPassword',
+  'currentPassword',
+  'confirmPassword',
+  'token',
+  'accessToken',
+  'refreshToken',
+  'sessionToken',
+  'otp',
+  'code',
+  'secret',
+  'authorization',
+  'apiKey',
+  'creditCard',
+  'cardNumber',
+  'cvv',
+]);
+
+function scrubObject(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(scrubObject);
+  const out = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (SENSITIVE_FIELDS.has(key)) {
+      out[key] = '[Filtered]';
+    } else if (value && typeof value === 'object') {
+      out[key] = scrubObject(value);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 Sentry.init({
   enabled: sentryEnabled,
   dsn: sentryDsn || undefined,
-  sendDefaultPii: true,
-  includeLocalVariables: true,
+  sendDefaultPii: false,
+  includeLocalVariables: false,
   environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim() || 'development',
   release: String(process.env.SENTRY_RELEASE || '').trim() || undefined,
   tracesSampleRate: getSampleRateFromEnv(
@@ -26,6 +61,32 @@ Sentry.init({
   ),
   profilesSampleRate: getSampleRateFromEnv('SENTRY_PROFILES_SAMPLE_RATE', 0),
   enableLogs: true,
+  beforeSend(event) {
+    try {
+      if (event.request) {
+        if (event.request.cookies) event.request.cookies = '[Filtered]';
+        if (event.request.headers) {
+          const h = event.request.headers;
+          if (h.cookie) h.cookie = '[Filtered]';
+          if (h.authorization) h.authorization = '[Filtered]';
+          if (h['x-api-key']) h['x-api-key'] = '[Filtered]';
+        }
+        if (event.request.data) event.request.data = scrubObject(event.request.data);
+        if (event.request.query_string && typeof event.request.query_string === 'string') {
+          event.request.query_string = event.request.query_string.replace(/(token|otp|code|password)=[^&]*/gi, '$1=[Filtered]');
+        }
+      }
+      if (event.user) {
+        delete event.user.ip_address;
+        delete event.user.email;
+      }
+      if (event.extra) event.extra = scrubObject(event.extra);
+      if (event.contexts) event.contexts = scrubObject(event.contexts);
+    } catch (err) {
+      // never break Sentry on scrub error
+    }
+    return event;
+  },
 });
 
 const express = require('express');
@@ -99,9 +160,13 @@ const {
   createSessionToken,
   getSessionCookieOptions,
   readSessionToken,
+  requireAdminSession,
   requireUserSession,
 } = require('./lib/session');
-const { requireSelfOrAdmin } = require('./lib/security');
+const { validateBody, validateParams, validateQuery } = require('./lib/requestValidation');
+const { requireSelfOrAdmin, hasRequiredSslMode, getDatabaseUsername } = require('./lib/security');
+const { getPositiveIntegerEnv } = require('./lib/env');
+const { ensureCsrfCookie, verifyCsrfToken, csrfTokenRoute } = require('./lib/csrf');
 
 function logFatalError(label, error) {
   if (error instanceof Error) {
@@ -169,33 +234,6 @@ function getDatabaseUrl() {
   }
 
   return databaseUrl;
-}
-
-function hasRequiredSslMode(connectionString) {
-  try {
-    const parsed = new URL(connectionString);
-    const sslMode = String(parsed.searchParams.get('sslmode') || '').trim().toLowerCase();
-    return sslMode === 'require' || sslMode === 'verify-ca' || sslMode === 'verify-full';
-  } catch {
-    return /(?:^|[?&])sslmode=require(?:&|$)/i.test(connectionString);
-  }
-}
-
-function getDatabaseUsername(connectionString) {
-  try {
-    return decodeURIComponent(new URL(connectionString).username || '');
-  } catch {
-    return '';
-  }
-}
-
-function getPositiveIntegerEnv(name, fallbackValue) {
-  const rawValue = Number(process.env[name]);
-  if (Number.isFinite(rawValue) && rawValue > 0) {
-    return Math.floor(rawValue);
-  }
-
-  return fallbackValue;
 }
 
 function getRequestIpKey(req) {
@@ -476,6 +514,8 @@ app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ limit: '1mb', extended: true }));
 app.use('/api', csrfOriginGuard);
+app.use('/api', ensureCsrfCookie);
+app.use('/api', verifyCsrfToken);
 app.use('/uploads', express.static(uploadsRoot, {
   setHeaders: (res) => {
     res.setHeader('Content-Disposition', 'attachment');
@@ -486,40 +526,12 @@ app.use('/uploads', express.static(uploadsRoot, {
 }));
 app.use('/api/admin', requireAdminSession);
 
-async function requireAdminSession(req, res, next) {
-  try {
-    const payload = await readSessionToken(req);
-    if (!payload?.userId) {
-      return res.status(401).json({ error: 'Session admin requise.' });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: Number(payload.userId) },
-      select: { id: true, role: true, isBanned: true },
-    });
-
-    if (!user || user.isBanned) {
-      return res.status(403).json({ error: 'Acces refuse.' });
-    }
-
-    const role = String(user.role || '').toUpperCase();
-    if (role !== 'ADMIN' && role !== 'SUPER_ADMIN') {
-      return res.status(403).json({ error: 'Acces admin requis.' });
-    }
-
-    req.adminUserId = user.id;
-    return next();
-  } catch (error) {
-    console.error('requireAdminSession error:', error);
-    return res.status(500).json({ error: 'Erreur de verification admin.' });
-  }
-}
-
 app.use('/api/dashboard-artisan', createDashboardArtisanRouter({ prisma, requireUserSession }));
 app.use('/api/dashboard-entreprise', createDashboardEntrepriseRouter({ prisma, requireUserSession }));
 app.use('/api/admin', adminRouter);
 app.use('/api/jobs', jobsRouter);
 app.use('/api/users', usersRouter);
+app.get('/api/csrf-token', csrfTokenRoute);
 
 const REPORT_TARGET_ALLOWLIST = new Set(['annonce', 'artisan']);
 const REPORT_REASON_ALLOWLIST = new Set(['demande-argent', 'fausse-identite', 'artisan-injoignable']);
@@ -722,6 +734,188 @@ const userProfilePayloadSchema = z.object({
   skillsText: z.string().max(2000).optional(),
   languagesText: z.string().max(1200).optional(),
 });
+
+const idParamSchema = z.object({ id: z.coerce.number().int().positive() });
+const userIdParamSchema = z.object({ userId: z.coerce.number().int().positive() });
+const verificationReviewParamSchema = z.object({ id: z.string().trim().min(1) });
+const verificationStatusQuerySchema = z.object({
+  role: z.string().trim().min(1),
+  accountKey: z.string().trim().min(1),
+});
+const verificationSubmissionSchema = z.object({
+  role: z.string().trim().min(1),
+  accountKey: z.string().trim().min(1),
+  displayName: z.string().trim().min(1),
+  phone: z.string().trim().min(1),
+  payload: z.object({}).passthrough(),
+});
+const verificationReviewBodySchema = z.object({
+  status: z.enum(['approved', 'rejected']),
+  reviewedBy: z.string().trim().optional(),
+  notes: z.string().trim().max(5000).optional().nullable(),
+});
+const createUserBodySchema = z.object({
+  email: z.string().trim().optional(),
+  password: z.string().min(1),
+  name: z.string().trim().optional(),
+  role: z.enum(['CANDIDAT', 'ENTREPRISE', 'ARTISAN']).optional(),
+  phone: z.string().trim().min(1),
+  website: z.string().trim().optional(),
+});
+const updateUserBodySchema = z.object({
+  name: z.string().optional(),
+  role: z.string().optional(),
+  isVerified: z.boolean().optional(),
+  photoUrl: z.string().trim().max(1000).nullable().optional(),
+});
+const banUserBodySchema = z.object({
+  banned: z.boolean(),
+  reason: z.string().trim().max(1000).optional().nullable(),
+});
+const candidateCreateBodySchema = z.object({
+  userId: z.coerce.number().int().positive().optional(),
+  nom: z.string().trim().min(1),
+  titre: z.string().trim().min(1),
+  localisation: z.string().trim().optional(),
+  experience: z.string().trim().optional(),
+  disponibilite: z.string().trim().optional(),
+  etudes: z.string().trim().optional(),
+  competences: z.array(z.string().trim()).optional(),
+  disponibleNow: z.boolean().optional(),
+});
+const userPhotoBodySchema = z.object({
+  photoUrl: z.string().trim().max(1000).nullable().optional(),
+});
+const idAndJobIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  jobId: z.coerce.number().int().positive(),
+});
+const savedJobBodySchema = z.object({
+  jobId: z.coerce.number().int().positive(),
+});
+const idAndServiceIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  serviceId: z.coerce.number().int().positive(),
+});
+const serviceCreateBodySchema = z.object({
+  name: z.string().trim().min(1, 'Le nom du service est obligatoire.').max(180),
+  description: z.string().trim().max(3000).optional().nullable(),
+  price: z.string().trim().max(200).optional().nullable(),
+});
+const idAndPortfolioIdParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  portfolioId: z.coerce.number().int().positive(),
+});
+const portfolioCreateBodySchema = z.object({
+  imageUrl: z.string().trim().min(1, 'imageUrl est obligatoire.').max(1200),
+  title: z.string().trim().max(200).optional().nullable(),
+});
+const feedbackCreateBodySchema = z.object({
+  userId: z.coerce.number().int().positive().optional(),
+  authorName: z.string().trim().max(120).optional().nullable(),
+  rating: z.coerce.number().int().min(1).max(5),
+  comment: z.string().trim().min(3).max(5000),
+});
+const reviewTargetParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+const reviewCreateBodySchema = z.object({
+  reviewerId: z.coerce.number().int().positive(),
+  rating: z.coerce.number().int().min(1).max(5),
+  comment: z.string().trim().min(3).max(5000),
+});
+const privacyDeleteRequestBodySchema = z.object({
+  reason: z.string().trim().max(1000).optional().nullable(),
+});
+const reportCreateBodySchema = z.object({
+  reason: z.enum(['demande-argent', 'fausse-identite', 'artisan-injoignable']),
+  targetType: z.enum(['annonce', 'artisan']),
+  targetId: z.coerce.number().int().positive(),
+});
+const reportUpdateParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+const reportUpdateBodySchema = z.object({
+  status: z.string().trim().min(1).max(50),
+});
+const adminPrivacyRequestParamSchema = z.object({
+  reference: z.string().trim().min(1),
+});
+const adminPrivacyRequestPatchBodySchema = z.object({
+  status: z.string().trim().optional(),
+  notes: z.string().trim().max(5000).optional().nullable(),
+});
+const adminBroadcastBodySchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  message: z.string().trim().min(1).max(5000),
+  type: z.string().trim().max(100).optional(),
+  targetRole: z.string().trim().max(40).optional(),
+});
+const adminNotificationReadParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
+const uploadQuerySchema = z.object({
+  folder: z.string().trim().max(32).optional(),
+}).passthrough();
+const otpSendBodySchema = z.object({
+  phone: z.string().trim().min(1),
+});
+const otpVerifyBodySchema = z.object({
+  phone: z.string().trim().min(1),
+  code: z.string().trim().min(1),
+});
+const forgotPasswordBodySchema = z.object({
+  phone: z.string().trim().min(1),
+});
+const resetPasswordBodySchema = z.object({
+  phone: z.string().trim().min(1),
+  code: z.string().trim().min(1),
+  newPassword: z.string().min(6),
+});
+const adminCreateEmailTicketBodySchema = z.object({
+  senderEmail: z.string().trim().min(1).max(320),
+  senderName: z.string().trim().max(200).optional().nullable(),
+  subject: z.string().trim().min(1).max(500),
+  body: z.string().max(20000).optional().nullable(),
+});
+const adminTicketParamSchema = z.object({
+  ticketId: z.string().trim().min(1),
+});
+const adminAttachmentParamSchema = z.object({
+  ticketId: z.string().trim().min(1),
+  part: z.string().trim().min(1),
+});
+const adminPrivacyRequestsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+  status: z.string().trim().max(40).optional(),
+  kind: z.string().trim().max(40).optional(),
+  query: z.string().trim().max(160).optional(),
+  q: z.string().trim().max(160).optional(),
+  startDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+}).passthrough();
+const adminNotificationsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+  query: z.string().trim().max(160).optional(),
+  q: z.string().trim().max(160).optional(),
+  startDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+}).passthrough();
+const adminMyNotificationsQuerySchema = z.object({
+  page: z.coerce.number().int().positive().optional(),
+  limit: z.coerce.number().int().positive().optional(),
+  unreadOnly: z.string().trim().max(10).optional(),
+  query: z.string().trim().max(160).optional(),
+  q: z.string().trim().max(160).optional(),
+  startDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  endDate: z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+}).passthrough();
+const adminTrendsQuerySchema = z.object({
+  days: z.coerce.number().int().positive().optional(),
+  locale: z.string().trim().max(10).optional(),
+}).passthrough();
 
 function profileFromBody(userId, body) {
   return {
@@ -937,25 +1131,12 @@ app.get('/api/jobs', async (req, res) => {
 // ROUTES: Verifications (Identite)
 // =============================================
 
-// GET /api/verifications — File complete des demandes
-app.get('/api/verifications', requireAdminSession, async (_req, res) => {
-  try {
-    const items = await prisma.verificationSubmission.findMany({
-      orderBy: { submittedAt: 'desc' },
-    });
-    res.json({ items });
-  } catch (error) {
-    console.error('GET /api/verifications error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des verifications.' });
-  }
-});
+// NOTE: GET /api/verifications (liste admin) a ete deplace vers routes/admin.js
+// Nouveau chemin : GET /api/admin/verifications
 
 // GET /api/verifications/status?role=artisan&accountKey=abc
-app.get('/api/verifications/status', async (req, res) => {
+app.get('/api/verifications/status', validateQuery(verificationStatusQuerySchema), async (req, res) => {
   const { role, accountKey } = req.query;
-  if (!role || !accountKey) {
-    return res.status(400).json({ error: 'Parametres requis: role, accountKey.' });
-  }
 
   try {
     const existing = await prisma.verificationSubmission.findFirst({
@@ -972,15 +1153,9 @@ app.get('/api/verifications/status', async (req, res) => {
 });
 
 // POST /api/verifications — Soumettre ou re-soumettre une demande
-app.post('/api/verifications', verificationSubmissionLimiter, async (req, res) => {
+app.post('/api/verifications', verificationSubmissionLimiter, validateBody(verificationSubmissionSchema), async (req, res) => {
   try {
     const { role, accountKey, displayName, phone, payload } = req.body;
-
-    if (!role || !accountKey || !displayName || !phone || !payload) {
-      return res.status(400).json({
-        error: 'Champs obligatoires manquants: role, accountKey, displayName, phone, payload.',
-      });
-    }
 
     const normalizedRole = String(role).toLowerCase();
     const normalizedKey = String(accountKey).toLowerCase();
@@ -1024,77 +1199,8 @@ app.post('/api/verifications', verificationSubmissionLimiter, async (req, res) =
   }
 });
 
-// PATCH /api/verifications/:id/review — Decision super admin
-app.patch('/api/verifications/:id/review', requireAdminSession, async (req, res) => {
-  const id = String(req.params.id);
-  const { status, reviewedBy, notes } = req.body;
-
-  if (!status || !['approved', 'rejected'].includes(String(status))) {
-    return res.status(400).json({ error: 'Statut invalide. Valeurs autorisees: approved, rejected.' });
-  }
-
-  try {
-    const existing = await prisma.verificationSubmission.findUnique({ where: { id } });
-    if (!existing) return res.status(404).json({ error: 'Demande de verification non trouvee.' });
-
-    const updated = await prisma.verificationSubmission.update({
-      where: { id },
-      data: {
-        status: String(status),
-        reviewedBy: reviewedBy ? String(reviewedBy) : 'super-admin',
-        reviewedAt: new Date(),
-        notes: notes ? String(notes) : null,
-      },
-    });
-
-    if (String(status) === 'approved') {
-      // Try to find the user by payload.userId or by accountKey (email)
-      const rawPayload = updated.payload || {};
-      const maybeUserId = Number((typeof rawPayload === 'object' ? rawPayload.userId : null) || 0);
-      let userToVerify = null;
-
-      if (Number.isFinite(maybeUserId) && maybeUserId > 0) {
-        userToVerify = await prisma.user.findUnique({ where: { id: maybeUserId } }).catch(() => null);
-      }
-
-      // Fallback: find by accountKey (email)
-      if (!userToVerify && updated.accountKey) {
-        userToVerify = await prisma.user.findUnique({ where: { email: updated.accountKey } }).catch(() => null);
-      }
-
-      if (userToVerify) {
-        await prisma.user.update({
-          where: { id: userToVerify.id },
-          data: { isVerified: true },
-        }).catch(() => null);
-
-        const verifiedUser = { ...userToVerify, isVerified: true };
-
-        await Promise.allSettled([
-          createNotification({
-            userId: userToVerify.id,
-            type: 'account_verified',
-            title: 'Compte certifie',
-            message: 'Felicitations ! Votre identite a ete verifiee. Vous avez maintenant le badge certifie sur votre profil.',
-            data: { verificationId: updated.id, role: updated.role },
-          }),
-          sendWhatsAppModerationAlert(
-            `✅ Identite verifiee\nUser: ${userToVerify.name || userToVerify.email}\nRole: ${updated.role}`
-          ),
-          sendAccountVerifiedEmail({ transporter, user: verifiedUser }),
-        ]);
-      }
-    }
-
-    res.json(updated);
-  } catch (error) {
-    reportError('PATCH /api/verifications/:id/review error', error, {
-      route: '/api/verifications/:id/review',
-      verificationId: req.params.id,
-    });
-    res.status(500).json({ error: 'Erreur lors de la mise a jour de la verification.' });
-  }
-});
+// NOTE: PATCH /api/verifications/:id/review a ete deplace vers routes/admin.js
+// Nouveau chemin : PATCH /api/admin/verifications/:id/status
 
 // =============================================
 // ROUTES: Candidate Profiles / CVtheque
@@ -1243,7 +1349,7 @@ app.get('/api/candidates', requireUserSession, async (req, res) => {
   }
 });
 
-app.post('/api/candidates', requireUserSession, candidateProfileLimiter, async (req, res) => {
+app.post('/api/candidates', requireUserSession, candidateProfileLimiter, validateBody(candidateCreateBodySchema), async (req, res) => {
   try {
     const sessionUserId = Number(req.sessionUser?.id || 0);
     const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
@@ -1260,10 +1366,6 @@ app.post('/api/candidates', requireUserSession, candidateProfileLimiter, async (
       competences = [],
       disponibleNow = true,
     } = req.body || {};
-
-    if (!nom || !titre) {
-      return res.status(400).json({ error: 'Champs requis: nom, titre.' });
-    }
 
     const normalizedUserId = userId ? parseInt(String(userId), 10) : sessionUserId;
     if (!normalizedUserId || Number.isNaN(normalizedUserId)) {
@@ -1406,14 +1508,10 @@ app.get('/api/profiles/:userId', requireUserSession, requireSelfOrAdmin({ paramN
   }
 });
 
-app.put('/api/profiles/:userId', requireUserSession, requireSelfOrAdmin({ paramName: 'userId' }), async (req, res) => {
+app.put('/api/profiles/:userId', requireUserSession, validateParams(userIdParamSchema), requireSelfOrAdmin({ paramName: 'userId' }), validateBody(userProfilePayloadSchema), async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId, 10);
-    if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
-
-    const parsedPayload = userProfilePayloadSchema.parse(req.body || {});
-
-    const data = profileFromBody(userId, parsedPayload);
+    const userId = Number(req.params.userId);
+    const data = profileFromBody(userId, req.body || {});
     delete data.userId;
     delete data.updatedAt;
 
@@ -1424,18 +1522,14 @@ app.put('/api/profiles/:userId', requireUserSession, requireSelfOrAdmin({ paramN
     });
     res.json(profile);
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: 'Payload de profil invalide.', issues: error.issues });
-    }
     console.error('PUT /api/profiles/:userId error:', error);
     res.status(500).json({ error: 'Erreur lors de la mise a jour du profil.' });
   }
 });
 
-app.patch('/api/users/:id/photo', requireUserSession, async (req, res) => {
+app.patch('/api/users/:id/photo', requireUserSession, validateParams(idParamSchema), validateBody(userPhotoBodySchema), async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
+    const id = Number(req.params.id);
 
     const sessionUser = req.sessionUser;
     const role = String(sessionUser?.role || '').toUpperCase();
@@ -1447,10 +1541,6 @@ app.patch('/api/users/:id/photo', requireUserSession, async (req, res) => {
 
     const rawPhotoUrl = req.body?.photoUrl;
     const photoUrl = rawPhotoUrl ? String(rawPhotoUrl).trim() : null;
-
-    if (photoUrl && photoUrl.length > 1000) {
-      return res.status(400).json({ error: 'URL photo trop longue.' });
-    }
 
     const updatedUser = await prisma.user.update({
       where: { id },
@@ -1508,9 +1598,9 @@ async function handleTrackContact(req, res) {
   }
 }
 
-app.post('/api/profiles/:userId/track-contact', contactTrackingLimiter, handleTrackContact);
-app.post('/api/profiles/:userId/trackContact', contactTrackingLimiter, handleTrackContact);
-app.post('/api/artisans/:userId/track-contact', contactTrackingLimiter, handleTrackContact);
+app.post('/api/profiles/:userId/track-contact', validateParams(userIdParamSchema), contactTrackingLimiter, handleTrackContact);
+app.post('/api/profiles/:userId/trackContact', validateParams(userIdParamSchema), contactTrackingLimiter, handleTrackContact);
+app.post('/api/artisans/:userId/track-contact', validateParams(userIdParamSchema), contactTrackingLimiter, handleTrackContact);
 
 // =============================================
 // ROUTES: Saved Jobs
@@ -1538,7 +1628,7 @@ app.get('/api/users/:id/saved-jobs', requireUserSession, requireSelfOrAdmin({ pa
   }
 });
 
-app.post('/api/users/:id/saved-jobs', requireUserSession, requireSelfOrAdmin({ paramName: 'id' }), savedJobsLimiter, async (req, res) => {
+app.post('/api/users/:id/saved-jobs', requireUserSession, validateParams(idParamSchema), requireSelfOrAdmin({ paramName: 'id' }), savedJobsLimiter, validateBody(savedJobBodySchema), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const jobId = parseInt(String(req.body?.jobId), 10);
@@ -1560,7 +1650,7 @@ app.post('/api/users/:id/saved-jobs', requireUserSession, requireSelfOrAdmin({ p
   }
 });
 
-app.delete('/api/users/:id/saved-jobs/:jobId', requireUserSession, requireSelfOrAdmin({ paramName: 'id' }), async (req, res) => {
+app.delete('/api/users/:id/saved-jobs/:jobId', requireUserSession, validateParams(idAndJobIdParamSchema), requireSelfOrAdmin({ paramName: 'id' }), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const jobId = parseInt(req.params.jobId, 10);
@@ -1810,6 +1900,7 @@ app.put('/api/jobs/:id', async (req, res) => {
 app.delete(
   '/api/jobs/:id',
   requireUserSession,
+  validateParams(idParamSchema),
   requireSelfOrAdmin({
     resolveOwnerId: async (req) => {
       const jobId = parseInt(req.params.id, 10);
@@ -1909,7 +2000,7 @@ app.get('/api/users/:id', requireAdminSession, async (req, res) => {
 });
 
 // POST /api/users — Créer un utilisateur
-app.post('/api/users', signupIpLimiter, async (req, res) => {
+app.post('/api/users', signupIpLimiter, validateBody(createUserBodySchema), async (req, res) => {
   try {
     const { email, password, name, role, phone } = req.body;
     const honeypotValue = String(req.body?.website || '').trim();
@@ -1917,10 +2008,6 @@ app.post('/api/users', signupIpLimiter, async (req, res) => {
     if (honeypotValue) {
       console.warn(`⚠️ Honeypot inscription declenche depuis IP=${req.ip || 'unknown'}`);
       return res.status(400).json({ error: 'Impossible de traiter cette inscription.' });
-    }
-
-    if (!phone || !password) {
-      return res.status(400).json({ error: 'Numero de telephone et mot de passe requis.' });
     }
 
     const normalizedPhone = String(phone).trim();
@@ -1987,10 +2074,9 @@ app.post('/api/users', signupIpLimiter, async (req, res) => {
 });
 
 // PUT /api/users/:id — Modifier un utilisateur (role, verification, etc.)
-app.put('/api/users/:id', requireAdminSession, async (req, res) => {
+app.put('/api/users/:id', requireAdminSession, validateParams(idParamSchema), validateBody(updateUserBodySchema), async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
+    const id = Number(req.params.id);
 
     const { name, role, isVerified, photoUrl } = req.body;
     const currentUser = await prisma.user.findUnique({
@@ -2047,10 +2133,9 @@ app.put('/api/users/:id', requireAdminSession, async (req, res) => {
 });
 
 // PUT /api/users/:id/ban — Bannir ou débannir un utilisateur
-app.put('/api/users/:id/ban', requireAdminSession, async (req, res) => {
+app.put('/api/users/:id/ban', requireAdminSession, validateParams(idParamSchema), validateBody(banUserBodySchema), async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
+    const id = Number(req.params.id);
 
     const { banned, reason } = req.body;
     const isBanned = Boolean(banned);
@@ -2074,10 +2159,9 @@ app.put('/api/users/:id/ban', requireAdminSession, async (req, res) => {
 });
 
 // DELETE /api/users/:id — Supprimer un utilisateur et ses annonces
-app.delete('/api/users/:id', requireAdminSession, async (req, res) => {
+app.delete('/api/users/:id', requireAdminSession, validateParams(idParamSchema), async (req, res) => {
   try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
+    const id = Number(req.params.id);
 
     // Supprimer d'abord les jobs liés (contrainte FK)
     await prisma.job.deleteMany({ where: { authorId: id } });
@@ -2126,6 +2210,7 @@ app.get('/api/users/:id/notifications', requireUserSession, requireSelfOrAdmin({
 app.patch(
   '/api/notifications/:id/read',
   requireUserSession,
+  validateParams(idParamSchema),
   requireSelfOrAdmin({
     resolveOwnerId: async (req) => {
       const notificationId = parseInt(req.params.id, 10);
@@ -2159,7 +2244,7 @@ app.patch(
 });
 
 // PATCH /api/users/:id/notifications/read-all — Marquer tout comme lu
-app.patch('/api/users/:id/notifications/read-all', requireUserSession, requireSelfOrAdmin({ paramName: 'id' }), async (req, res) => {
+app.patch('/api/users/:id/notifications/read-all', requireUserSession, validateParams(idParamSchema), requireSelfOrAdmin({ paramName: 'id' }), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -2259,7 +2344,7 @@ app.get('/api/users/:id/services', requireUserSession, async (req, res) => {
 });
 
 // POST /api/users/:id/services — Ajouter un service artisan
-app.post('/api/users/:id/services', requireUserSession, async (req, res) => {
+app.post('/api/users/:id/services', requireUserSession, validateParams(idParamSchema), validateBody(serviceCreateBodySchema), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -2293,7 +2378,7 @@ app.post('/api/users/:id/services', requireUserSession, async (req, res) => {
 });
 
 // DELETE /api/users/:id/services/:serviceId — Supprimer un service artisan
-app.delete('/api/users/:id/services/:serviceId', requireUserSession, async (req, res) => {
+app.delete('/api/users/:id/services/:serviceId', requireUserSession, validateParams(idAndServiceIdParamSchema), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const serviceId = parseInt(req.params.serviceId, 10);
@@ -2366,7 +2451,7 @@ app.get('/api/users/:id/portfolio', requireUserSession, async (req, res) => {
 });
 
 // POST /api/users/:id/portfolio — Ajouter une image portfolio
-app.post('/api/users/:id/portfolio', requireUserSession, async (req, res) => {
+app.post('/api/users/:id/portfolio', requireUserSession, validateParams(idParamSchema), validateBody(portfolioCreateBodySchema), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     if (isNaN(userId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -2398,7 +2483,7 @@ app.post('/api/users/:id/portfolio', requireUserSession, async (req, res) => {
 });
 
 // DELETE /api/users/:id/portfolio/:portfolioId — Supprimer une image portfolio
-app.delete('/api/users/:id/portfolio/:portfolioId', requireUserSession, async (req, res) => {
+app.delete('/api/users/:id/portfolio/:portfolioId', requireUserSession, validateParams(idAndPortfolioIdParamSchema), async (req, res) => {
   try {
     const userId = parseInt(req.params.id, 10);
     const portfolioId = parseInt(req.params.portfolioId, 10);
@@ -2431,7 +2516,7 @@ app.delete('/api/users/:id/portfolio/:portfolioId', requireUserSession, async (r
 // ROUTES: App Feedbacks
 // =============================================
 
-app.post('/api/feedbacks', feedbackSubmissionLimiter, async (req, res) => {
+app.post('/api/feedbacks', feedbackSubmissionLimiter, validateBody(feedbackCreateBodySchema), async (req, res) => {
   try {
     const { userId, authorName, rating, comment } = req.body || {};
 
@@ -2533,7 +2618,7 @@ app.get('/api/users/:id/reviews', async (req, res) => {
   }
 });
 
-app.post('/api/users/:id/reviews', reviewSubmissionLimiter, async (req, res) => {
+app.post('/api/users/:id/reviews', reviewSubmissionLimiter, validateParams(reviewTargetParamSchema), validateBody(reviewCreateBodySchema), async (req, res) => {
   try {
     const reviewedId = parseInt(req.params.id, 10);
     if (isNaN(reviewedId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
@@ -2731,7 +2816,7 @@ app.get('/api/privacy/export', requireUserSession, async (req, res) => {
   }
 });
 
-app.post('/api/privacy/delete-request', requireUserSession, privacyRequestLimiter, async (req, res) => {
+app.post('/api/privacy/delete-request', requireUserSession, privacyRequestLimiter, validateBody(privacyDeleteRequestBodySchema), async (req, res) => {
   try {
     const user = req.sessionUser;
     const reason = String(req.body?.reason || '').trim().slice(0, 1000);
@@ -2825,27 +2910,11 @@ app.get('/api/reports/summary', async (req, res) => {
   }
 });
 
-// GET /api/reports — Liste des signalements
-app.get('/api/reports', requireAdminSession, async (req, res) => {
-  try {
-    const { status } = req.query;
-    const where = {};
-    if (status) where.status = String(status);
-
-    const reports = await prisma.report.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-    });
-
-    res.json(reports);
-  } catch (error) {
-    console.error('GET /api/reports error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des signalements.' });
-  }
-});
+// NOTE: GET /api/reports (liste admin) a ete deplace vers routes/admin.js
+// Nouveau chemin : GET /api/admin/reports
 
 // POST /api/reports — Créer un signalement
-app.post('/api/reports', reportSubmissionLimiter, async (req, res) => {
+app.post('/api/reports', reportSubmissionLimiter, validateBody(reportCreateBodySchema), async (req, res) => {
   try {
     const reason = normalizeReportReason(req.body?.reason);
     const targetType = normalizeReportTargetType(req.body?.targetType);
@@ -2896,755 +2965,19 @@ app.post('/api/reports', reportSubmissionLimiter, async (req, res) => {
   }
 });
 
-// PUT /api/reports/:id — Modifier le statut d'un signalement
-app.put('/api/reports/:id', requireAdminSession, async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
-
-    const { status } = req.body;
-    if (!status) return res.status(400).json({ error: 'Statut requis.' });
-
-    const report = await prisma.report.update({
-      where: { id },
-      data: { status: String(status) },
-    });
-
-    res.json(report);
-  } catch (error) {
-    if (error.code === 'P2025') return res.status(404).json({ error: 'Signalement non trouvé.' });
-    console.error('PUT /api/reports/:id error:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise à jour.' });
-  }
-});
+// NOTE: PUT /api/reports/:id a ete deplace vers routes/admin.js
+// Nouveau chemin : PATCH /api/admin/reports/:id/status
 
 // =============================================
 // ROUTES: Admin
 // =============================================
-
-// GET /api/admin/stats — Statistiques globales (enrichi)
-app.get('/api/admin/stats', requireAdminSession, async (req, res) => {
-  try {
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-    const [usersCount, pendingJobsCount, approvedJobsCount, reportsCount, todaySignups, totalReviews, enterprisePending] = await Promise.all([
-      prisma.user.count(),
-      prisma.job.count({ where: { status: 'PENDING' } }),
-      prisma.job.count({ where: { status: { in: ['APPROVED', 'ACTIVE'] } } }),
-      prisma.report.count({ where: { status: 'OPEN' } }),
-      prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
-      prisma.userReview.count(),
-      prisma.user.count({ where: { role: 'ENTREPRISE', isVerified: false } }),
-    ]);
-
-    res.json({
-      users: usersCount,
-      pendingJobs: pendingJobsCount,
-      approvedJobs: approvedJobsCount,
-      reports: reportsCount,
-      todaySignups,
-      totalReviews,
-      enterprisePending,
-    });
-  } catch (error) {
-    console.error('GET /api/admin/stats error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des statistiques.' });
-  }
-});
-
-// GET /api/admin/privacy-requests — Journal des demandes de confidentialite
-app.get('/api/admin/privacy-requests', requireAdminSession, async (req, res) => {
-  try {
-    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
-    const skip = (page - 1) * limit;
-    const rawStatus = req.query.status ? String(req.query.status).trim() : '';
-    const rawKind = req.query.kind ? String(req.query.kind).trim() : '';
-    const rawQuery = String(req.query.query || req.query.q || '').trim().slice(0, 160);
-    const startDate = parseDateOnlyFilter(req.query.startDate);
-    const endDate = parseDateOnlyFilter(req.query.endDate);
-    const status = rawStatus ? normalizePrivacyRequestStatus(rawStatus) : null;
-    const kind = rawKind ? normalizePrivacyRequestKind(rawKind) : null;
-
-    if (rawStatus && !status) {
-      return res.status(400).json({ error: 'Statut de demande de confidentialite invalide.' });
-    }
-
-    if (rawKind && !kind) {
-      return res.status(400).json({ error: 'Type de demande de confidentialite invalide.' });
-    }
-
-    if (req.query.startDate && startDate === null) {
-      return res.status(400).json({ error: 'Date de debut invalide. Format attendu: YYYY-MM-DD.' });
-    }
-
-    if (req.query.endDate && endDate === null) {
-      return res.status(400).json({ error: 'Date de fin invalide. Format attendu: YYYY-MM-DD.' });
-    }
-
-    if (startDate && endDate && startDate > endDate) {
-      return res.status(400).json({ error: 'La date de debut doit etre anterieure ou egale a la date de fin.' });
-    }
-
-    const where = {};
-    if (status) where.status = status;
-    if (kind) where.kind = kind;
-    Object.assign(where, buildDateRangeFilter('requestedAt', startDate, endDate));
-
-    if (rawQuery) {
-      where.OR = [
-        { reference: { contains: rawQuery, mode: 'insensitive' } },
-        { requesterEmail: { contains: rawQuery, mode: 'insensitive' } },
-        { requesterName: { contains: rawQuery, mode: 'insensitive' } },
-        { requesterPhone: { contains: rawQuery, mode: 'insensitive' } },
-        { requesterRole: { contains: rawQuery, mode: 'insensitive' } },
-        { reason: { contains: rawQuery, mode: 'insensitive' } },
-        { notes: { contains: rawQuery, mode: 'insensitive' } },
-        { processedBy: { contains: rawQuery, mode: 'insensitive' } },
-      ];
-    }
-
-    const [items, filteredTotal, total, pending, inReview, completed, rejected, exportsCount, deletionsCount] = await Promise.all([
-      prisma.privacyRequest.findMany({
-        where,
-        orderBy: [{ requestedAt: 'desc' }, { id: 'desc' }],
-        skip,
-        take: limit,
-        include: {
-          user: { select: { id: true, name: true, email: true, role: true } },
-        },
-      }),
-      prisma.privacyRequest.count({ where }),
-      prisma.privacyRequest.count(),
-      prisma.privacyRequest.count({ where: { status: 'PENDING' } }),
-      prisma.privacyRequest.count({ where: { status: 'IN_REVIEW' } }),
-      prisma.privacyRequest.count({ where: { status: 'COMPLETED' } }),
-      prisma.privacyRequest.count({ where: { status: 'REJECTED' } }),
-      prisma.privacyRequest.count({ where: { kind: 'EXPORT' } }),
-      prisma.privacyRequest.count({ where: { kind: 'DELETE' } }),
-    ]);
-
-    res.json({
-      items,
-      pagination: { page, limit, total: filteredTotal, totalPages: Math.ceil(filteredTotal / limit) || 1 },
-      summary: {
-        total,
-        pending,
-        inReview,
-        completed,
-        rejected,
-        exports: exportsCount,
-        deletions: deletionsCount,
-      },
-    });
-  } catch (error) {
-    console.error('GET /api/admin/privacy-requests error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture du journal de confidentialite.' });
-  }
-});
-
-// PATCH /api/admin/privacy-requests/:reference — Suivi manuel d'une demande de confidentialite
-app.patch('/api/admin/privacy-requests/:reference', requireAdminSession, async (req, res) => {
-  try {
-    const reference = String(req.params.reference || '').trim().toUpperCase();
-    const body = req.body && typeof req.body === 'object' ? req.body : {};
-    const statusProvided = Object.prototype.hasOwnProperty.call(body, 'status');
-    const notesProvided = Object.prototype.hasOwnProperty.call(body, 'notes');
-    const status = statusProvided ? normalizePrivacyRequestStatus(body.status) : null;
-    const notes = normalizePrivacyNotes(body.notes);
-
-    if (!reference) {
-      return res.status(400).json({ error: 'Reference de demande invalide.' });
-    }
-
-    if (statusProvided && !status) {
-      return res.status(400).json({ error: 'Statut de confidentialite invalide.' });
-    }
-
-    if (!statusProvided && !notesProvided) {
-      return res.status(400).json({ error: 'Aucune mise a jour fournie.' });
-    }
-
-    const [current, adminUser] = await Promise.all([
-      prisma.privacyRequest.findUnique({
-        where: { reference },
-        include: { user: { select: { id: true, name: true, email: true, role: true } } },
-      }),
-      prisma.user.findUnique({
-        where: { id: req.adminUserId },
-        select: { id: true, name: true, email: true },
-      }),
-    ]);
-
-    if (!current) {
-      return res.status(404).json({ error: 'Demande de confidentialite introuvable.' });
-    }
-
-    const nextStatus = statusProvided ? status : current.status;
-    const adminLabel = adminUser?.email || adminUser?.name || `admin#${req.adminUserId}`;
-    const updateData = {};
-
-    if (statusProvided) {
-      updateData.status = nextStatus;
-    }
-
-    if (notesProvided) {
-      updateData.notes = notes || null;
-    }
-
-    if (statusProvided && nextStatus === 'PENDING') {
-      updateData.processedAt = null;
-      updateData.processedBy = null;
-    } else if ((statusProvided && nextStatus !== 'PENDING') || (notesProvided && current.status !== 'PENDING')) {
-      updateData.processedAt = new Date();
-      updateData.processedBy = adminLabel;
-    }
-
-    const updated = await prisma.privacyRequest.update({
-      where: { reference },
-      data: updateData,
-      include: { user: { select: { id: true, name: true, email: true, role: true } } },
-    });
-
-    if (current.kind === 'DELETE' && statusProvided && nextStatus !== current.status) {
-      await createAdminNotifications({
-        type: 'privacy_delete_status',
-        title: 'Statut de suppression mis a jour',
-        message: `${reference} est passe de ${current.status} a ${nextStatus} par ${adminLabel}.`,
-        data: {
-          area: 'privacy',
-          reference,
-          kind: current.kind,
-          previousStatus: current.status,
-          status: nextStatus,
-          requesterEmail: current.requesterEmail,
-          processedBy: adminLabel,
-        },
-        excludeUserIds: req.adminUserId ? [req.adminUserId] : [],
-        emailAlert: true,
-        whatsappAlert: true,
-        replyTo: current.requesterEmail,
-      });
-    }
-
-    res.json(updated);
-  } catch (error) {
-    console.error('PATCH /api/admin/privacy-requests/:reference error:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise a jour de la demande de confidentialite.' });
-  }
-});
-
-// GET /api/admin/reviews — All reviews with alert for low-rated users
-app.get('/api/admin/reviews', requireAdminSession, async (req, res) => {
-  try {
-    const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
-    const reviews = await prisma.userReview.findMany({
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      include: {
-        reviewed: { select: { id: true, name: true, email: true, role: true } },
-        reviewer: { select: { id: true, name: true, email: true, role: true } },
-      },
-    });
-
-    // Compute average per reviewed user to detect low-rated profiles
-    const userRatings = {};
-    reviews.forEach((r) => {
-      const uid = r.reviewedId;
-      if (!userRatings[uid]) userRatings[uid] = { total: 0, count: 0, name: r.reviewed?.name || '', role: r.reviewed?.role || '' };
-      userRatings[uid].total += r.rating;
-      userRatings[uid].count += 1;
-    });
-
-    const alerts = Object.entries(userRatings)
-      .map(([uid, data]) => ({
-        userId: parseInt(uid, 10),
-        name: data.name,
-        role: data.role,
-        averageRating: Math.round((data.total / data.count) * 10) / 10,
-        reviewCount: data.count,
-      }))
-      .filter((u) => u.averageRating <= 2.5 && u.reviewCount >= 2)
-      .sort((a, b) => a.averageRating - b.averageRating);
-
-    res.json({ reviews, alerts });
-  } catch (error) {
-    console.error('GET /api/admin/reviews error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des avis.' });
-  }
-});
-
-// GET /api/admin/users — User list with recent signups
-app.get('/api/admin/users', requireAdminSession, async (req, res) => {
-  try {
-    const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
-    const role = req.query.role ? String(req.query.role).toUpperCase() : undefined;
-    const where = {};
-    if (role) where.role = role;
-
-    const users = await prisma.user.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      select: {
-        id: true, name: true, email: true, role: true, phone: true,
-        isVerified: true, isBanned: true, createdAt: true,
-      },
-    });
-
-    res.json({ users });
-  } catch (error) {
-    console.error('GET /api/admin/users error:', error);
-    res.status(500).json({ error: 'Erreur.' });
-  }
-});
-
-// GET /api/admin/trends?days=7 — Tendances des inscriptions et publications
-app.get('/api/admin/trends', requireAdminSession, async (req, res) => {
-  try {
-    const daysRaw = parseInt(String(req.query.days || '7'), 10);
-    const days = [7, 30].includes(daysRaw) ? daysRaw : 7;
-    const locale = String(req.query.locale || 'fr').toLowerCase() === 'en' ? 'en-US' : 'fr-FR';
-
-    const buckets = buildDateBuckets(days);
-    const startDate = buckets[0];
-
-    const [users, jobs] = await Promise.all([
-      prisma.user.findMany({
-        where: { createdAt: { gte: startDate } },
-        select: { createdAt: true },
-      }),
-      prisma.job.findMany({
-        where: { createdAt: { gte: startDate } },
-        select: { createdAt: true },
-      }),
-    ]);
-
-    const userCounts = new Map();
-    const jobCounts = new Map();
-
-    users.forEach((u) => {
-      const key = toDayKey(u.createdAt);
-      userCounts.set(key, (userCounts.get(key) || 0) + 1);
-    });
-
-    jobs.forEach((j) => {
-      const key = toDayKey(j.createdAt);
-      jobCounts.set(key, (jobCounts.get(key) || 0) + 1);
-    });
-
-    const points = buckets.map((d) => {
-      const key = toDayKey(d);
-      return {
-        dayKey: key,
-        label: formatShortDate(d, locale),
-        users: userCounts.get(key) || 0,
-        jobs: jobCounts.get(key) || 0,
-      };
-    });
-
-    res.json({ days, points });
-  } catch (error) {
-    console.error('GET /api/admin/trends error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des tendances.' });
-  }
-});
-
-// GET /api/admin/banned-users — Liste des utilisateurs bannis
-app.get('/api/admin/banned-users', requireAdminSession, async (req, res) => {
-  try {
-    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
-    const search = req.query.search ? String(req.query.search).trim() : '';
-    const skip = (page - 1) * limit;
-
-    const where = { isBanned: true };
-    if (search) {
-      where.OR = [
-        { name: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        orderBy: { bannedAt: 'desc' },
-        skip,
-        take: limit,
-        select: { id: true, name: true, email: true, role: true, isBanned: true, banReason: true, bannedAt: true, createdAt: true },
-      }),
-      prisma.user.count({ where }),
-    ]);
-
-    res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
-  } catch (error) {
-    console.error('GET /api/admin/banned-users error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des utilisateurs bannis.' });
-  }
-});
-
-// POST /api/admin/notifications/broadcast — Envoyer une notification a tous ou par role
-app.post('/api/admin/notifications/broadcast', requireAdminSession, async (req, res) => {
-  try {
-    const { title, message, type, targetRole } = req.body;
-    if (!title || !message) return res.status(400).json({ error: 'title et message requis.' });
-
-    const roleFilter = targetRole && targetRole !== 'ALL' ? String(targetRole).toUpperCase() : undefined;
-    const userWhere = roleFilter ? { role: roleFilter } : {};
-
-    const users = await prisma.user.findMany({
-      where: userWhere,
-      select: { id: true },
-    });
-
-    if (users.length === 0) return res.json({ sent: 0 });
-
-    const data = users.map((u) => ({
-      userId: u.id,
-      type: type || 'broadcast',
-      title: String(title),
-      message: String(message),
-    }));
-
-    const result = await prisma.notification.createMany({ data });
-    res.json({ sent: result.count });
-  } catch (error) {
-    console.error('POST /api/admin/notifications/broadcast error:', error);
-    res.status(500).json({ error: 'Erreur lors de l envoi des notifications.' });
-  }
-});
-
-// GET /api/admin/notifications — Toutes les notifications (admin)
-app.get('/api/admin/notifications', requireAdminSession, async (req, res) => {
-  try {
-    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
-    const skip = (page - 1) * limit;
-    const rawQuery = String(req.query.query || req.query.q || '').trim().slice(0, 160);
-    const startDate = parseDateOnlyFilter(req.query.startDate);
-    const endDate = parseDateOnlyFilter(req.query.endDate);
-
-    if (req.query.startDate && startDate === null) {
-      return res.status(400).json({ error: 'Date de debut invalide. Format attendu: YYYY-MM-DD.' });
-    }
-
-    if (req.query.endDate && endDate === null) {
-      return res.status(400).json({ error: 'Date de fin invalide. Format attendu: YYYY-MM-DD.' });
-    }
-
-    if (startDate && endDate && startDate > endDate) {
-      return res.status(400).json({ error: 'La date de debut doit etre anterieure ou egale a la date de fin.' });
-    }
-
-    const where = {
-      ...buildDateRangeFilter('createdAt', startDate, endDate),
-    };
-
-    if (rawQuery) {
-      where.OR = [
-        { title: { contains: rawQuery, mode: 'insensitive' } },
-        { message: { contains: rawQuery, mode: 'insensitive' } },
-        { type: { contains: rawQuery, mode: 'insensitive' } },
-        { user: { is: { name: { contains: rawQuery, mode: 'insensitive' } } } },
-        { user: { is: { email: { contains: rawQuery, mode: 'insensitive' } } } },
-      ];
-    }
-
-    const [items, total] = await Promise.all([
-      prisma.notification.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-        include: {
-          user: { select: { id: true, name: true, email: true, role: true } },
-        },
-      }),
-      prisma.notification.count({ where }),
-    ]);
-
-    res.json({ items, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
-  } catch (error) {
-    console.error('GET /api/admin/notifications error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des notifications.' });
-  }
-});
-
-// GET /api/admin/me/notifications — Notifications internes du compte admin connecte
-app.get('/api/admin/me/notifications', requireAdminSession, async (req, res) => {
-  try {
-    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
-    const skip = (page - 1) * limit;
-    const unreadOnly = String(req.query.unreadOnly || 'false') === 'true';
-    const rawQuery = String(req.query.query || req.query.q || '').trim().slice(0, 160);
-    const startDate = parseDateOnlyFilter(req.query.startDate);
-    const endDate = parseDateOnlyFilter(req.query.endDate);
-
-    if (req.query.startDate && startDate === null) {
-      return res.status(400).json({ error: 'Date de debut invalide. Format attendu: YYYY-MM-DD.' });
-    }
-
-    if (req.query.endDate && endDate === null) {
-      return res.status(400).json({ error: 'Date de fin invalide. Format attendu: YYYY-MM-DD.' });
-    }
-
-    if (startDate && endDate && startDate > endDate) {
-      return res.status(400).json({ error: 'La date de debut doit etre anterieure ou egale a la date de fin.' });
-    }
-
-    const where = unreadOnly
-      ? { userId: req.adminUserId, isRead: false }
-      : { userId: req.adminUserId };
-
-    Object.assign(where, buildDateRangeFilter('createdAt', startDate, endDate));
-
-    if (rawQuery) {
-      where.OR = [
-        { title: { contains: rawQuery, mode: 'insensitive' } },
-        { message: { contains: rawQuery, mode: 'insensitive' } },
-        { type: { contains: rawQuery, mode: 'insensitive' } },
-      ];
-    }
-
-    const [items, total, unreadCount] = await Promise.all([
-      prisma.notification.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.notification.count({ where }),
-      prisma.notification.count({ where: { userId: req.adminUserId, isRead: false } }),
-    ]);
-
-    res.json({
-      items,
-      unreadCount,
-      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) || 1 },
-    });
-  } catch (error) {
-    console.error('GET /api/admin/me/notifications error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture des notifications admin.' });
-  }
-});
-
-// PATCH /api/admin/me/notifications/:id/read — Marquer une notification admin comme lue
-app.patch('/api/admin/me/notifications/:id/read', requireAdminSession, async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) {
-      return res.status(400).json({ error: 'ID notification invalide.' });
-    }
-
-    const notif = await prisma.notification.updateMany({
-      where: { id, userId: req.adminUserId },
-      data: { isRead: true, readAt: new Date() },
-    });
-
-    if (notif.count === 0) {
-      return res.status(404).json({ error: 'Notification admin non trouvee.' });
-    }
-
-    const updated = await prisma.notification.findUnique({ where: { id } });
-    res.json(updated);
-  } catch (error) {
-    console.error('PATCH /api/admin/me/notifications/:id/read error:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise a jour de la notification admin.' });
-  }
-});
-
-// PATCH /api/admin/me/notifications/read-all — Marquer toutes les notifications admin comme lues
-app.patch('/api/admin/me/notifications/read-all', requireAdminSession, async (req, res) => {
-  try {
-    const result = await prisma.notification.updateMany({
-      where: { userId: req.adminUserId, isRead: false },
-      data: { isRead: true, readAt: new Date() },
-    });
-
-    res.json({ ok: true, updated: result.count });
-  } catch (error) {
-    console.error('PATCH /api/admin/me/notifications/read-all error:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise a jour des notifications admin.' });
-  }
-});
-
-// GET /api/admin/search?q=term — Recherche globale admin
-app.get('/api/admin/search', requireAdminSession, async (req, res) => {
-  try {
-    const q = req.query.q ? String(req.query.q).trim() : '';
-    if (!q) return res.json({ users: [], jobs: [] });
-
-    const numericQuery = q.replace(/^#/, '');
-    const exactSearchId = /^\d+$/.test(numericQuery) ? parseInt(numericQuery, 10) : null;
-
-    const userSearchConditions = [
-      { name: { contains: q, mode: 'insensitive' } },
-      { email: { contains: q, mode: 'insensitive' } },
-      { phone: { contains: q, mode: 'insensitive' } },
-    ];
-
-    const jobSearchConditions = [
-      { title: { contains: q, mode: 'insensitive' } },
-      { company: { contains: q, mode: 'insensitive' } },
-    ];
-
-    if (exactSearchId !== null) {
-      userSearchConditions.unshift({ id: exactSearchId });
-      jobSearchConditions.unshift({ id: exactSearchId });
-    }
-
-    const [users, jobs] = await Promise.all([
-      prisma.user.findMany({
-        where: { OR: userSearchConditions },
-        take: 5,
-        select: { id: true, name: true, email: true, phone: true, role: true },
-      }),
-      prisma.job.findMany({
-        where: { OR: jobSearchConditions },
-        take: 5,
-        select: { id: true, title: true, company: true, status: true },
-      }),
-    ]);
-
-    res.json({ users, jobs });
-  } catch (error) {
-    console.error('GET /api/admin/search error:', error);
-    res.status(500).json({ error: 'Erreur lors de la recherche.' });
-  }
-});
-
-// GET /api/admin/settings — Parametres de la plateforme
-app.get('/api/admin/settings', requireAdminSession, (_req, res) => {
-  res.json(platformSettings);
-});
-
-// PUT /api/admin/settings — Mettre a jour les parametres
-app.put('/api/admin/settings', requireAdminSession, (req, res) => {
-  try {
-    platformSettings = normalizePlatformSettings({
-      ...platformSettings,
-      ...(req.body && typeof req.body === 'object' ? req.body : {}),
-      moderationRules: {
-        ...platformSettings.moderationRules,
-        ...(req.body?.moderationRules && typeof req.body.moderationRules === 'object' ? req.body.moderationRules : {}),
-      },
-      notificationPreferences: {
-        ...platformSettings.notificationPreferences,
-        ...(req.body?.notificationPreferences && typeof req.body.notificationPreferences === 'object' ? req.body.notificationPreferences : {}),
-      },
-    });
-    fs.writeFileSync(SETTINGS_PATH, JSON.stringify(platformSettings, null, 2), 'utf8');
-    res.json(platformSettings);
-  } catch (error) {
-    console.error('PUT /api/admin/settings error:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise a jour des parametres.' });
-  }
-});
-
-// GET /api/admin/activity-log — Journal d activite recent
-app.get('/api/admin/activity-log', requireAdminSession, async (req, res) => {
-  try {
-    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
-
-    const [recentUsers, recentJobs, recentReports, recentBans, recentPrivacyRequests] = await Promise.all([
-      prisma.user.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        select: { id: true, name: true, role: true, createdAt: true },
-      }),
-      prisma.job.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        select: { id: true, title: true, company: true, createdAt: true },
-      }),
-      prisma.report.findMany({
-        orderBy: { createdAt: 'desc' },
-        take: limit,
-        select: { id: true, reason: true, createdAt: true },
-      }),
-      prisma.user.findMany({
-        where: { isBanned: true, bannedAt: { not: null } },
-        orderBy: { bannedAt: 'desc' },
-        take: limit,
-        select: { id: true, name: true, bannedAt: true },
-      }),
-      prisma.privacyRequest.findMany({
-        orderBy: { requestedAt: 'desc' },
-        take: limit,
-        select: { reference: true, kind: true, status: true, requestedAt: true, requesterEmail: true },
-      }),
-    ]);
-
-    const events = [];
-
-    recentUsers.forEach((u) => {
-      events.push({
-        type: 'signup',
-        description: `Nouvel utilisateur: ${u.name} (${u.role})`,
-        timestamp: u.createdAt,
-        meta: { userId: u.id, name: u.name, role: u.role },
-      });
-    });
-
-    recentJobs.forEach((j) => {
-      events.push({
-        type: 'job_posted',
-        description: `Nouvelle offre: ${j.title} par ${j.company}`,
-        timestamp: j.createdAt,
-        meta: { jobId: j.id, title: j.title, company: j.company },
-      });
-    });
-
-    recentReports.forEach((r) => {
-      events.push({
-        type: 'report',
-        description: `Signalement #${r.id}: ${r.reason}`,
-        timestamp: r.createdAt,
-        meta: { reportId: r.id, reason: r.reason },
-      });
-    });
-
-    recentBans.forEach((b) => {
-      events.push({
-        type: 'ban',
-        description: `Utilisateur banni: ${b.name}`,
-        timestamp: b.bannedAt,
-        meta: { userId: b.id, name: b.name },
-      });
-    });
-
-    recentPrivacyRequests.forEach((request) => {
-      const actionLabel = request.kind === 'EXPORT' ? 'Export de donnees' : 'Demande de suppression';
-      events.push({
-        type: 'privacy_request',
-        description: `${actionLabel}: ${request.reference} (${request.status})`,
-        timestamp: request.requestedAt,
-        meta: {
-          reference: request.reference,
-          kind: request.kind,
-          status: request.status,
-          requesterEmail: request.requesterEmail,
-        },
-      });
-    });
-
-    events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-    res.json({ events: events.slice(0, limit) });
-  } catch (error) {
-    console.error('GET /api/admin/activity-log error:', error);
-    res.status(500).json({ error: 'Erreur lors de la lecture du journal d activite.' });
-  }
-});
+// Toutes les routes /api/admin/* ont ete migrees vers backend/routes/admin.js
 
 // =============================================
 // ROUTES: File Upload (Cloudinary)
 // =============================================
 
-app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res) => {
+app.post('/api/upload', uploadIpLimiter, validateQuery(uploadQuerySchema), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file provided' });
     if (!ALLOWED_UPLOAD_MIME.has(String(req.file.mimetype || '').toLowerCase())) {
@@ -3712,12 +3045,12 @@ app.post('/api/upload', uploadIpLimiter, upload.single('file'), async (req, res)
 const otpStore = new Map(); // phone -> { code, expires }
 
 // Route pour ENVOYER le code SMS
-app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
+app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, validateBody(otpSendBodySchema), async (req, res) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis" });
 
-  // 1. Générer un vrai code à 6 chiffres
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  // 1. Générer un vrai code à 6 chiffres (CSPRNG)
+  const otp = crypto.randomInt(100000, 1000000).toString();
 
   // 2. Sauvegarder en mémoire (expire dans 5 minutes)
   otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
@@ -3743,7 +3076,7 @@ app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
 });
 
 // Route pour VÉRIFIER le code SMS
-app.post('/api/otp/verify', otpVerifyLimiter, async (req, res) => {
+app.post('/api/otp/verify', otpVerifyLimiter, validateBody(otpVerifyBodySchema), async (req, res) => {
   const { phone, code } = req.body;
 
   const record = otpStore.get(phone);
@@ -3766,7 +3099,7 @@ app.post('/api/otp/verify', otpVerifyLimiter, async (req, res) => {
 // =============================================
 
 // Etape 1: Demander un reset — envoie un OTP au telephone associé
-app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) => {
+app.post('/api/auth/forgot-password', forgotPasswordLimiter, validateBody(forgotPasswordBodySchema), async (req, res) => {
   try {
     const { phone } = req.body;
     if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis." });
@@ -3775,8 +3108,8 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) =>
     const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
     if (!user) return res.status(404).json({ error: "Aucun compte associé à ce numéro." });
 
-    // Générer et stocker un OTP
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    // Générer et stocker un OTP (CSPRNG)
+    const otp = crypto.randomInt(100000, 1000000).toString();
     otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
 
     const deliveryTasks = [];
@@ -3805,7 +3138,7 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, async (req, res) =>
 });
 
 // Etape 2: Vérifier OTP + définir nouveau mot de passe
-app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
+app.post('/api/auth/reset-password', resetPasswordLimiter, validateBody(resetPasswordBodySchema), async (req, res) => {
   try {
     const { phone, code, newPassword } = req.body;
     if (!phone || !code || !newPassword) {
@@ -3848,164 +3181,7 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, async (req, res) => {
 // =============================================
 // ROUTES: Boite de Reception (Hostinger IMAP + legacy webhook)
 // =============================================
-
-app.post('/api/admin/emails', requireAdminSession, async (req, res) => {
-  try {
-    const { senderEmail, senderName, subject, body } = req.body;
-
-    // 1. Vérification basique
-    if (!senderEmail || !subject) {
-      return res.status(400).json({ error: 'Email expéditeur et sujet requis.' });
-    }
-
-    // 2. Sauvegarde dans la base de données (Neon)
-    const ticket = await prisma.supportTicket.create({
-      data: {
-        senderEmail: String(senderEmail),
-        senderName: senderName ? String(senderName) : null,
-        subject: String(subject),
-        body: String(body),
-        status: 'UNREAD'
-      }
-    });
-
-    // 3. Le petit bonus CEO : Alerte WhatsApp immédiate !
-    await sendWhatsAppModerationAlert(
-      `📧 Nouvel Email Pro !\nDe: ${senderEmail}\nSujet: ${subject}`
-    ).catch((err) => console.error("Erreur Twilio WhatsApp :", err.message));
-
-    // 4. On répond à n8n que tout s'est bien passé
-    res.status(201).json({ success: true, ticket });
-    
-  } catch (error) {
-    console.error('POST /api/admin/emails error:', error);
-    res.status(500).json({ error: 'Erreur lors de la sauvegarde de l\'email.' });
-  }
-});
-
-app.get('/api/admin/emails', requireAdminSession, async (req, res) => {
-  try {
-    const force = req.query.force === '1' || req.query.force === 'true';
-    const inbox = await getAdminInbox(prisma, {
-      force,
-      limit: req.query.limit,
-      scope: req.query.view,
-    });
-
-    res.status(200).json(inbox);
-  } catch (error) {
-    console.error('GET /api/admin/emails error:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des emails.' });
-  }
-});
-
-app.get('/api/admin/emails/summary', requireAdminSession, async (req, res) => {
-  try {
-    const force = req.query.force === '1' || req.query.force === 'true';
-    const summary = await getAdminInboxSummary(prisma, {
-      force,
-      scope: req.query.view,
-    });
-    res.status(200).json(summary);
-  } catch (error) {
-    console.error('GET /api/admin/emails/summary error:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération du résumé des emails.' });
-  }
-});
-
-app.post('/api/admin/emails/:ticketId/read', requireAdminSession, async (req, res) => {
-  try {
-    const item = await markAdminInboxTicketRead(prisma, req.params.ticketId);
-    res.status(200).json({ success: true, item });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Impossible de mettre le message à jour.';
-    const statusCode = error?.code === 'NOT_FOUND'
-      ? 404
-      : /invalide|requis/i.test(message)
-        ? 400
-        : 500;
-
-    console.error('POST /api/admin/emails/:ticketId/read error:', error);
-    res.status(statusCode).json({ error: message });
-  }
-});
-
-app.post('/api/admin/emails/:ticketId/archive', requireAdminSession, async (req, res) => {
-  try {
-    const result = await archiveAdminInboxTicket(prisma, req.params.ticketId);
-    res.status(200).json(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Impossible d\'archiver le message.';
-    const statusCode = error?.code === 'NOT_FOUND'
-      ? 404
-      : /invalide|indisponible/i.test(message)
-        ? 400
-        : 500;
-
-    console.error('POST /api/admin/emails/:ticketId/archive error:', error);
-    res.status(statusCode).json({ error: message });
-  }
-});
-
-app.post('/api/admin/emails/:ticketId/trash', requireAdminSession, async (req, res) => {
-  try {
-    const result = await trashAdminInboxTicket(prisma, req.params.ticketId);
-    res.status(200).json(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Impossible de supprimer le message.';
-    const statusCode = error?.code === 'NOT_FOUND'
-      ? 404
-      : /invalide|indisponible/i.test(message)
-        ? 400
-        : 500;
-
-    console.error('POST /api/admin/emails/:ticketId/trash error:', error);
-    res.status(statusCode).json({ error: message });
-  }
-});
-
-app.get('/api/admin/emails/:ticketId/attachments/:part/download', requireAdminSession, async (req, res) => {
-  try {
-    const result = await downloadAdminInboxAttachment(prisma, req.params.ticketId, req.params.part);
-    const filename = String(result.meta.filename || result.attachment.filename || 'attachment.bin').replace(/[\r\n"]/g, '_');
-    const contentType = String(result.meta.contentType || result.attachment.contentType || 'application/octet-stream');
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Length', String(result.content.length));
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"; filename*=UTF-8''${encodeURIComponent(filename)}`);
-    res.status(200).send(result.content);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Impossible de telecharger la piece jointe.';
-    const statusCode = error?.code === 'NOT_FOUND'
-      ? 404
-      : error?.code === 'TOO_LARGE'
-        ? 413
-        : /invalide|indisponible/i.test(message)
-          ? 400
-          : 500;
-
-    console.error('GET /api/admin/emails/:ticketId/attachments/:part/download error:', error);
-    res.status(statusCode).json({ error: message });
-  }
-});
-
-// ROUTE: Repondre a un ticket
-app.post('/api/admin/emails/reply', requireAdminSession, async (req, res) => {
-  try {
-    const result = await replyToAdminInboxTicket(prisma, transporter, req.body);
-    res.status(200).json(result);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'Impossible d\'envoyer la reponse.';
-    const statusCode = error?.code === 'NOT_FOUND'
-      ? 404
-      : /invalide|requis/i.test(message)
-        ? 400
-        : 500;
-
-    console.error('Erreur envoi reponse:', error);
-    res.status(statusCode).json({ error: message });
-  }
-});
+// Routes /api/admin/emails* migrees vers backend/routes/admin.js
 
 // --- Page d'accueil API ---
 app.get('/', (_req, res) => {

@@ -76,6 +76,27 @@ export function persistPhotoUrl(photoKey: 'photoUrl' | 'logoUrl', url: string | 
   } catch {}
 }
 
+// Whitelist des champs UI persistés en localStorage.
+// Toute donnée sensible (id, email, token, phone, etc.) reste hors localStorage
+// et doit être récupérée via /api/me lorsque nécessaire.
+const PERSISTABLE_KEYS: ReadonlyArray<keyof StoredUser> = [
+  'name',
+  'role',
+  'isVerified',
+  'photoUrl' as keyof StoredUser,
+  'logoUrl' as keyof StoredUser,
+];
+
+function pickPersistable(input: Record<string, unknown>): Partial<StoredUser> {
+  const out: Record<string, unknown> = {};
+  for (const key of PERSISTABLE_KEYS) {
+    if (input[key as string] !== undefined) {
+      out[key as string] = input[key as string];
+    }
+  }
+  return out as Partial<StoredUser>;
+}
+
 export function storeAuthenticatedUser(
   user: Partial<StoredUser>,
   options: { role?: string | null; phoneVerified?: boolean } = {}
@@ -83,12 +104,12 @@ export function storeAuthenticatedUser(
   if (typeof window === 'undefined') return null;
 
   const current = getStoredUser() || {};
-  // Restore persisted photo/logo URLs that survive logout
   let persisted: Record<string, string> = {};
   try {
     persisted = JSON.parse(window.localStorage.getItem(PHOTO_PERSIST_KEY) || '{}');
   } catch {}
-  const next = { ...persisted, ...current, ...user };
+  const merged = { ...persisted, ...current, ...user } as Record<string, unknown>;
+  const next = pickPersistable(merged) as StoredUser;
   window.localStorage.setItem(USER_KEY, JSON.stringify(next));
 
   if (options.role !== undefined) {

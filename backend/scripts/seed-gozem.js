@@ -2,19 +2,12 @@ const bcrypt = require('bcryptjs');
 const path = require('node:path');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const { prisma, pool } = require('../lib/db');
+const { generateJobReference } = require('../lib/references');
 
 const GOZEM_EMAIL = 'gozem@bolo237.com';
 const GOZEM_NAME = 'Gozem';
 const EXTERNAL_APPLY_URL = 'https://gozem.breezy.hr/p/0ba1957ab7ca-business-developer';
 
-function generateJobReference() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let ref = 'BOLO-';
-  for (let i = 0; i < 5; i += 1) {
-    ref += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return ref;
-}
 
 async function generateUniqueReference() {
   for (let attempt = 0; attempt < 20; attempt += 1) {

@@ -1,0 +1,38 @@
+name: Keep Render backend awake
+
+# Ping le backend toutes les 14 minutes pour empecher Render free-tier
+# de mettre l'instance en veille (sommeil apres 15 min d'inactivite).
+# Utilisation: ~150 min/mois sur les 2000 min gratuites de GitHub Actions.
+
+on:
+  schedule:
+    # Toutes les 14 minutes (cron utilise UTC, mais l'intervalle est ce qui compte)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Permet aussi un declenchement manuel depuis l'onglet Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping /api/health
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://api-237jobs.onrender.com' }}
+        run: |
+          set -euo pipefail
+          echo "Pinging $BACKEND_URL/api/health"
+          # Retry jusqu'a 3 fois pour absorber un eventuel cold-start (~30-60s)
+          for attempt in 1 2 3; do
+            if status=$(curl -sS -o /tmp/body -w "%{http_code}" --max-time 90 "$BACKEND_URL/api/health"); then
+              echo "Attempt $attempt: HTTP $status"
+              if [ "$status" -ge 200 ] && [ "$status" -lt 400 ]; then
+                cat /tmp/body || true
+                exit 0
+              fi
+            else
+              echo "Attempt $attempt: curl failed"
+            fi
+            [ "$attempt" -lt 3 ] && sleep 15
+          done
+          echo "Backend ping failed after 3 attempts"
+          exit 1

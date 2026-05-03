@@ -2,6 +2,7 @@ import "server-only";
 
 const DEFAULT_BACKEND_API_URL = "https://api-237jobs.onrender.com";
 const SESSION_COOKIE_NAME = "bolo237_session";
+const CSRF_COOKIE_NAME = "bolo237_csrf";
 const ADMIN_ROLES = new Set(["ADMIN", "SUPER_ADMIN"]);
 const PROD_ORIGIN = String(process.env.NEXT_PUBLIC_APP_URL || "").trim() || "https://admin.bolo237.com";
 
@@ -15,12 +16,57 @@ type BackendLoginBackoff = {
   message: string;
 };
 
+type CsrfContext = {
+  token: string;
+  cookie: string;
+  expiresAt: number;
+};
+
 let cachedBackendSession: CachedBackendSession | null = null;
 let pendingBackendLogin: Promise<string> | null = null;
 let backendLoginBackoff: BackendLoginBackoff | null = null;
+let cachedCsrfContext: CsrfContext | null = null;
 
 function normalizeBase(value: string) {
   return String(value || "").trim().replace(/\/$/, "");
+}
+
+// Wrapper fetch resilient aux cold-starts Render :
+// - timeout configurable (defaut 50s, cold-start typique 30-60s)
+// - 1 retry sur erreur reseau ("fetch failed", AbortError)
+// - traduction des erreurs opaques en messages clairs
+async function fetchResilient(input: string, init: RequestInit & { timeoutMs?: number } = {}) {
+  const timeoutMs = init.timeoutMs ?? 50_000;
+  const { timeoutMs: _omit, ...fetchInit } = init;
+  void _omit;
+
+  const attempt = async (): Promise<Response> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(input, { ...fetchInit, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  try {
+    return await attempt();
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    const message = err instanceof Error ? err.message : String(err);
+    const isTransient = name === "AbortError" || /fetch failed|ECONNRESET|ETIMEDOUT|ENOTFOUND|EAI_AGAIN/i.test(message);
+    if (!isTransient) throw err;
+    try {
+      return await attempt();
+    } catch (err2) {
+      const name2 = err2 instanceof Error ? err2.name : "";
+      if (name2 === "AbortError") {
+        throw new Error("Le backend n'a pas repondu (timeout). Reessayez dans quelques secondes — Render se reveille peut-etre.");
+      }
+      throw new Error("Backend injoignable. Verifiez que Render est en ligne, puis reessayez.");
+    }
+  }
 }
 
 function getBackendApiBase() {
@@ -47,6 +93,53 @@ function getSetCookieValues(headers: Headers) {
 
   const single = headers.get("set-cookie");
   return single ? [single] : [];
+}
+
+function parseCookieByName(headers: Headers, name: string) {
+  for (const value of getSetCookieValues(headers)) {
+    const [cookiePair = ""] = String(value).split(";");
+    if (cookiePair.startsWith(`${name}=`)) {
+      return cookiePair.trim();
+    }
+  }
+  return null;
+}
+
+function getValidCsrfContext(): CsrfContext | null {
+  if (cachedCsrfContext && cachedCsrfContext.expiresAt > Date.now()) {
+    return cachedCsrfContext;
+  }
+  cachedCsrfContext = null;
+  return null;
+}
+
+async function fetchCsrfContext(): Promise<CsrfContext | null> {
+  const cached = getValidCsrfContext();
+  if (cached) return cached;
+
+  try {
+    const response = await fetchResilient(`${getBackendApiBase()}/api/csrf-token`, {
+      method: "GET",
+      cache: "no-store",
+      timeoutMs: 30_000,
+    });
+    if (!response.ok) return null;
+
+    const data = (await response.json().catch(() => ({}))) as { csrfToken?: string };
+    const token = String(data.csrfToken || response.headers.get("x-csrf-token") || "").trim();
+    const cookie = parseCookieByName(response.headers, CSRF_COOKIE_NAME);
+
+    if (!token || !cookie) return null;
+
+    cachedCsrfContext = { token, cookie, expiresAt: Date.now() + 10 * 60 * 1000 };
+    return cachedCsrfContext;
+  } catch {
+    return null;
+  }
+}
+
+function clearCsrfContext() {
+  cachedCsrfContext = null;
 }
 
 function parseSessionCookie(headers: Headers) {
@@ -151,11 +244,19 @@ async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
     headers.set("origin", PROD_ORIGIN);
     headers.set("referer", `${PROD_ORIGIN}/`);
 
-    const response = await fetch(`${getBackendApiBase()}/api/auth/login`, {
+    // Fetch CSRF token before the POST so the backend CSRF middleware accepts it.
+    const csrf = await fetchCsrfContext();
+    if (csrf) {
+      headers.set("x-csrf-token", csrf.token);
+      headers.set("cookie", csrf.cookie);
+    }
+
+    const response = await fetchResilient(`${getBackendApiBase()}/api/auth/login`, {
       method: "POST",
       headers,
       body: JSON.stringify({ identifier: email, password }),
       cache: "no-store",
+      timeoutMs: 50_000,
     });
 
     const payload = (await readJsonBody(response)) as { error?: string; role?: string };
@@ -204,10 +305,15 @@ export function clearBackendAdminSession() {
   pendingBackendLogin = null;
 }
 
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 export async function fetchBackendAsAdmin(path: string, init?: RequestInit) {
   if (!String(path || "").startsWith("/api/")) {
     throw new Error("Chemin backend invalide.");
   }
+
+  const method = String(init?.method || "GET").toUpperCase();
+  const needsCsrf = !SAFE_METHODS.has(method);
 
   const execute = async (forceRefresh: boolean) => {
     const sessionCookie = await loginAsBackendAdmin(forceRefresh);
@@ -218,12 +324,25 @@ export async function fetchBackendAsAdmin(path: string, init?: RequestInit) {
     headers.delete("host");
     headers.set("origin", PROD_ORIGIN);
     headers.set("referer", `${PROD_ORIGIN}/`);
-    headers.set("cookie", sessionCookie);
 
-    return fetch(`${getBackendApiBase()}${path}`, {
+    if (needsCsrf) {
+      const csrf = await fetchCsrfContext();
+      if (csrf) {
+        headers.set("x-csrf-token", csrf.token);
+        // Merge session cookie + CSRF cookie
+        headers.set("cookie", `${sessionCookie}; ${csrf.cookie}`);
+      } else {
+        headers.set("cookie", sessionCookie);
+      }
+    } else {
+      headers.set("cookie", sessionCookie);
+    }
+
+    return fetchResilient(`${getBackendApiBase()}${path}`, {
       ...init,
       headers,
       cache: "no-store",
+      timeoutMs: 50_000,
     });
   };
 
@@ -231,6 +350,7 @@ export async function fetchBackendAsAdmin(path: string, init?: RequestInit) {
 
   if (response.status === 401 || response.status === 403) {
     clearBackendAdminSession();
+    clearCsrfContext();
     response = await execute(true);
   }
 

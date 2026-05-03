@@ -26,6 +26,21 @@ enum JobStatus {
   ARCHIVED
 }
 
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  CLOSED
+  REJECTED
+}
+
+enum ReportTargetType {
+  JOB
+  USER
+  COMMENT
+  MESSAGE
+  OTHER
+}
+
 // 1. Table des Utilisateurs
 model User {
   id               Int                 @id @default(autoincrement())
@@ -121,12 +136,12 @@ model Job {
 
 // 3. Table des Signalements (Pour la sécurité)
 model Report {
-  id         Int      @id @default(autoincrement())
+  id         Int              @id @default(autoincrement())
   reason     String
-  targetType String
+  targetType ReportTargetType
   targetId   Int
-  status     String   @default("OPEN")
-  createdAt  DateTime @default(now())
+  status     ReportStatus     @default(OPEN)
+  createdAt  DateTime         @default(now())
 
   @@index([createdAt])
   @@index([status, createdAt])

@@ -15,7 +15,12 @@ function getDatabaseUrl() {
 const DATABASE_URL = getDatabaseUrl();
 validateSecurityConfiguration(DATABASE_URL);
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool({
+  connectionString: DATABASE_URL,
+  max: Number(process.env.DB_POOL_MAX) || 10,
+  idleTimeoutMillis: Number(process.env.DB_POOL_IDLE_MS) || 30000,
+  connectionTimeoutMillis: Number(process.env.DB_POOL_CONN_TIMEOUT_MS) || 10000,
+});
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 

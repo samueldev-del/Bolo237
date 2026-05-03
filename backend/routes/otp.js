@@ -1,15 +1,25 @@
 const express = require('express');
 const crypto = require('crypto');
+const { z } = require('zod');
 
 const { prisma } = require('../lib/db');
 const { twilioClient } = require('../lib/twilioService');
 const { otpIpLimiter, otpPhoneLimiter, otpVerifyLimiter } = require('../lib/limiters');
+const { validateBody } = require('../lib/requestValidation');
 
 const router = express.Router();
 
-router.post('/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
+const sendOtpSchema = z.object({
+  phone: z.string().trim().min(1, 'Numero de telephone requis.'),
+});
+
+const verifyOtpSchema = z.object({
+  phone: z.string().trim().min(1, 'Numero de telephone requis.'),
+  code: z.string().trim().min(1, 'Code requis.'),
+});
+
+router.post('/send', otpIpLimiter, otpPhoneLimiter, validateBody(sendOtpSchema), async (req, res) => {
   const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: 'Numéro de téléphone requis' });
 
   const otp = crypto.randomInt(100000, 1000000).toString();
   const expiresAt = new Date(Date.now() + 5 * 60000);
@@ -40,7 +50,7 @@ router.post('/send', otpIpLimiter, otpPhoneLimiter, async (req, res) => {
   }
 });
 
-router.post('/verify', otpVerifyLimiter, async (req, res) => {
+router.post('/verify', otpVerifyLimiter, validateBody(verifyOtpSchema), async (req, res) => {
   const { phone, code } = req.body;
 
   const phoneKey = String(phone);

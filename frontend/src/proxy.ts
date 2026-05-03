@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { jwtVerify } from 'jose';
 
 const DEFAULT_LOCALE = 'fr';
 const SUPPORTED_LOCALES = ['fr', 'en'] as const;
@@ -12,22 +13,23 @@ function getPreferredLocale(request: NextRequest): SupportedLocale {
 	return /\ben\b/i.test(acceptLanguage) ? 'en' : DEFAULT_LOCALE;
 }
 
-function decodeBase64Url(input: string) {
-	const base64 = input.replace(/-/g, '+').replace(/_/g, '/');
-	const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
-	return atob(padded);
+let cachedSecret: Uint8Array | null = null;
+function getSessionSecret(): Uint8Array | null {
+	if (cachedSecret) return cachedSecret;
+	const raw = process.env.SESSION_JWT_SECRET;
+	if (!raw) return null;
+	cachedSecret = new TextEncoder().encode(raw);
+	return cachedSecret;
 }
 
-function getSessionRoleFromCookie(cookieValue: string | undefined): string | null {
+async function getSessionRoleFromCookie(cookieValue: string | undefined): Promise<string | null> {
 	if (!cookieValue) return null;
+	const secret = getSessionSecret();
+	if (!secret) return null;
 
 	try {
-		const parts = cookieValue.split('.');
-		if (parts.length !== 3) return null;
-
-		const payloadRaw = decodeBase64Url(parts[1]);
-		const payload = JSON.parse(payloadRaw) as { role?: string };
-		const role = String(payload.role || '').trim().toUpperCase();
+		const { payload } = await jwtVerify(cookieValue, secret, { algorithms: ['HS256'] });
+		const role = String((payload as { role?: string }).role || '').trim().toUpperCase();
 		return role || null;
 	} catch {
 		return null;
@@ -74,7 +76,7 @@ function getRoleDashboardPath(role: string, locale: SupportedLocale) {
 	return null;
 }
 
-export function proxy(request: NextRequest) {
+export async function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 
 	if (
@@ -91,7 +93,7 @@ export function proxy(request: NextRequest) {
 	const effectiveLocale = pathLocale || getPreferredLocale(request);
 
 	const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
-	const sessionRole = getSessionRoleFromCookie(sessionCookie);
+	const sessionRole = await getSessionRoleFromCookie(sessionCookie);
 
 	if (sessionRole && (isHomePath(pathname) || isLoginPath(pathname, normalizedPathname))) {
 		const dashboardPath = getRoleDashboardPath(sessionRole, effectiveLocale);
@@ -109,14 +111,53 @@ export function proxy(request: NextRequest) {
 		return response;
 	}
 
+	const nonce = generateCspNonce();
+	const isProd = process.env.NODE_ENV === 'production';
+	const cspHeader = buildCspHeader(nonce, isProd);
+
+	const requestHeaders = new Headers(request.headers);
+	requestHeaders.set('x-nonce', nonce);
+	requestHeaders.set('content-security-policy', cspHeader);
+
 	if (pathname === '/fr' || pathname === '/en') {
-		return NextResponse.next();
+		const response = NextResponse.next({ request: { headers: requestHeaders } });
+		response.headers.set('Content-Security-Policy', cspHeader);
+		return response;
 	}
 
 	const rewriteUrl = request.nextUrl.clone();
 	rewriteUrl.pathname = normalizedPathname;
 
-	return NextResponse.rewrite(rewriteUrl);
+	const response = NextResponse.rewrite(rewriteUrl, { request: { headers: requestHeaders } });
+	response.headers.set('Content-Security-Policy', cspHeader);
+	return response;
+}
+
+function generateCspNonce(): string {
+	const bytes = new Uint8Array(16);
+	crypto.getRandomValues(bytes);
+	let binary = '';
+	for (const b of bytes) binary += String.fromCharCode(b);
+	return btoa(binary);
+}
+
+function buildCspHeader(nonce: string, isProd: boolean): string {
+	const scriptSrc = isProd
+		? `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`
+		: `script-src 'self' 'nonce-${nonce}' 'unsafe-eval'`;
+	return [
+		"default-src 'self'",
+		scriptSrc,
+		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+		"font-src 'self' https://fonts.gstatic.com data:",
+		"img-src 'self' data: blob: https:",
+		"worker-src 'self' blob:",
+		"child-src 'self' blob:",
+		"frame-ancestors 'none'",
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self' https://wa.me",
+	].join('; ');
 }
 
 export const config = {

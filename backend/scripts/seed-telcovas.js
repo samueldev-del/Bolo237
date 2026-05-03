@@ -3,20 +3,13 @@ const path = require('node:path');
 const bcrypt = require('bcryptjs');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const { prisma, pool } = require('../lib/db');
+const { generateJobReference } = require('../lib/references');
 
 const TELCOVAS_EMAIL = 'telcovas@bolo237.com';
 const TELCOVAS_NAME = 'Telcovas';
 const TELCOVAS_LOGO_PUBLIC_PATH = '/companies/telcovas.jpeg';
 const EXTERNAL_APPLY_URL = 'https://telcovas.snaphunt.com/job/G4C2TP79RM?source=linkedin';
 
-function generateJobReference() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let ref = 'BOLO-';
-  for (let i = 0; i < 5; i += 1) {
-    ref += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return ref;
-}
 
 async function generateUniqueReference() {
   for (let attempt = 0; attempt < 20; attempt += 1) {

@@ -1,44 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
-const isDev = process.env.NODE_ENV !== 'production';
-
-const connectSources = [
-  "'self'",
-  'https://www.bolo237.com',
-  'https://admin.bolo237.com',
-  'https://api-237jobs.onrender.com',
-  'https://ingest.sentry.io',
-  'https://*.ingest.sentry.io',
-  ...(isDev
-    ? [
-        'http://localhost:3000',
-        'http://localhost:3001',
-        'http://localhost:5000',
-        'ws://localhost:3000',
-        'ws://localhost:3001',
-        'ws://localhost:5000',
-        'wss://localhost:3000',
-        'wss://localhost:3001',
-      ]
-    : []),
-];
-
-const contentSecurityPolicy = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com data:",
-  "img-src 'self' data: blob: https:",
-  `connect-src ${connectSources.join(' ')}`,
-  "worker-src 'self' blob:",
-  "child-src 'self' blob:",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self' https://wa.me",
-].join('; ');
-
 const nextConfig: NextConfig = {
   output: 'standalone',
   images: {
@@ -60,7 +22,6 @@ const nextConfig: NextConfig = {
       {
         source: '/:path*',
         headers: [
-          { key: 'Content-Security-Policy', value: contentSecurityPolicy },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'X-DNS-Prefetch-Control', value: 'off' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },

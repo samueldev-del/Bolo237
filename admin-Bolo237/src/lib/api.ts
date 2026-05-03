@@ -282,12 +282,64 @@ export type AdminInboxMutationResponse = {
 
 // ── Fetch helper ─────────────────────────────────────────────────
 
+const CSRF_COOKIE_NAME = 'bolo237_csrf';
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+let csrfTokenCache: string | null = null;
+let csrfFetchInflight: Promise<string | null> | null = null;
+
+function readCsrfCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([a-fA-F0-9]{64})`));
+  return match ? match[1].toLowerCase() : null;
+}
+
+async function ensureCsrfToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  if (!csrfTokenCache) csrfTokenCache = readCsrfCookie();
+  if (csrfTokenCache) return csrfTokenCache;
+
+  if (!csrfFetchInflight) {
+    csrfFetchInflight = (async () => {
+      try {
+        const res = await fetch(buildBackendProxyPath('/api/csrf-token'), {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        if (!res.ok) return null;
+        const data = (await res.json().catch(() => null)) as { csrfToken?: string } | null;
+        const fromBody = data?.csrfToken && /^[a-fA-F0-9]{64}$/.test(data.csrfToken)
+          ? data.csrfToken.toLowerCase()
+          : null;
+        const fromCookie = readCsrfCookie();
+        csrfTokenCache = fromCookie || fromBody || null;
+        return csrfTokenCache;
+      } catch {
+        return null;
+      } finally {
+        csrfFetchInflight = null;
+      }
+    })();
+  }
+  return csrfFetchInflight;
+}
+
+export function invalidateCsrfToken(): void {
+  csrfTokenCache = null;
+}
+
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const headers = new Headers(options?.headers);
   const method = String(options?.method || 'GET').toUpperCase();
 
   if (options?.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
+  }
+
+  if (!SAFE_METHODS.has(method)) {
+    const token = await ensureCsrfToken();
+    if (token && !headers.has('x-csrf-token')) {
+      headers.set('x-csrf-token', token);
+    }
   }
 
   let res: Response;
@@ -302,6 +354,28 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   } catch (error) {
     captureApiException(error, { kind: 'network', method, path });
     throw error;
+  }
+
+  if (res.status === 403 && !SAFE_METHODS.has(method)) {
+    const peek = await res.clone().json().catch(() => ({} as { error?: string }));
+    if (/csrf/i.test(String(peek?.error || ''))) {
+      invalidateCsrfToken();
+      const fresh = await ensureCsrfToken();
+      if (fresh) {
+        headers.set('x-csrf-token', fresh);
+        try {
+          res = await fetch(buildBackendProxyPath(path), {
+            ...options,
+            credentials: 'same-origin',
+            headers,
+            cache: 'no-store',
+          });
+        } catch (error) {
+          captureApiException(error, { kind: 'network', method, path });
+          throw error;
+        }
+      }
+    }
   }
 
   if (!res.ok) {
@@ -415,14 +489,14 @@ export function deleteUser(id: number): Promise<void> {
 
 export function fetchReports(status?: string): Promise<Report[]> {
   const qs = status ? `?status=${status}` : '';
-  return apiFetch<Report[]>(`/api/reports${qs}`);
+  return apiFetch<{ success: boolean; data: Report[] }>(`/api/admin/reports${qs}`).then((r) => r.data);
 }
 
 export function updateReport(id: number, data: { status: string }): Promise<Report> {
-  return apiFetch<Report>(`/api/reports/${id}`, {
-    method: 'PUT',
+  return apiFetch<{ success: boolean; data: Report }>(`/api/admin/reports/${id}/status`, {
+    method: 'PATCH',
     body: JSON.stringify(data),
-  });
+  }).then((r) => r.data);
 }
 
 // ── Trends ──────────────────────────────────────────────────────
@@ -446,17 +520,17 @@ export function fetchAdminTrends(days: number = 7): Promise<TrendsResponse> {
 // ── Verifications ───────────────────────────────────────────────
 
 export function fetchVerificationSubmissions(): Promise<VerificationSubmission[]> {
-  return apiFetch<{ items: VerificationSubmission[] }>('/api/verifications').then((r) => r.items);
+  return apiFetch<{ success: boolean; data: VerificationSubmission[] }>('/api/admin/verifications').then((r) => r.data);
 }
 
 export function reviewVerification(
   id: string,
   data: { status: 'approved' | 'rejected'; reviewedBy: string; notes?: string },
 ): Promise<VerificationSubmission> {
-  return apiFetch<VerificationSubmission>(`/api/verifications/${id}/review`, {
+  return apiFetch<{ success: boolean; data: VerificationSubmission }>(`/api/admin/verifications/${id}/status`, {
     method: 'PATCH',
-    body: JSON.stringify(data),
-  });
+    body: JSON.stringify({ status: data.status, notes: data.notes }),
+  }).then((r) => r.data);
 }
 
 // ── App Feedbacks ───────────────────────────────────────────────

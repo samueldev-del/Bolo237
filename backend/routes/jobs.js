@@ -7,16 +7,8 @@ const { readSessionToken, requireUserSession } = require('../lib/session');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
 const { JobTranslationError, buildLocalizedJobFields } = require('../lib/jobTranslations');
-
-// Génère une référence unique de type BOLO-XXXXX (5 caractères alphanumériques majuscules)
-function generateJobReference() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // sans I/O/0/1 pour éviter confusions
-  let ref = 'BOLO-';
-  for (let i = 0; i < 5; i++) {
-    ref += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return ref;
-}
+const { generateJobReference } = require('../lib/references');
+const { validateBody } = require('../lib/requestValidation');
 
 // 🛡️ 1. LE SCHÉMA ZOD : Le plan strict de ce qu'on accepte
 const jobSchema = z.object({
@@ -27,26 +19,6 @@ const jobSchema = z.object({
   salary: z.string().optional().nullable(),
   externalApplyUrl: z.string().trim().url("URL de candidature externe invalide").optional().nullable(),
 }).strict();
-
-// 🛑 2. LE MIDDLEWARE : Le "Videur" qui bloque ou laisse passer
-const validateRequest = (schema) => async (req, res, next) => {
-  try {
-    // Zod va vérifier le body, enlever les espaces inutiles (.trim()) 
-    // et remplacer req.body par les données propres.
-    req.body = await schema.parseAsync(req.body);
-    next();
-  } catch (error) {
-    // Si Zod détecte une erreur (ex: titre trop court), on bloque ici ! Prisma n'est jamais touché.
-    return res.status(400).json({
-      success: false,
-      message: "Données invalides",
-      errors: error.errors.map(err => ({
-        champ: err.path.join('.'),
-        message: err.message
-      }))
-    });
-  }
-};
 
 // ==========================================
 // 🚀 LES ROUTES
@@ -148,7 +120,7 @@ router.get('/', async (req, res) => {
 
 // POST /jobs (Création avec validation Zod)
 // On place `validateRequest(jobSchema)` AVANT la logique de création
-router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res) => {
+router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) => {
   try {
     // Si on arrive ici, req.body est 100% garanti valide grâce à Zod !
     const {
@@ -220,7 +192,7 @@ router.post('/', requireUserSession, validateRequest(jobSchema), async (req, res
 });
 
 // PUT /jobs/:id (Modification avec validation Zod)
-router.put('/:id', requireUserSession, validateRequest(jobSchema), async (req, res) => {
+router.put('/:id', requireUserSession, validateBody(jobSchema), async (req, res) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const userId = req.sessionUser.id;

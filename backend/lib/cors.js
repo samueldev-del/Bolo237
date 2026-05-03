@@ -35,6 +35,8 @@ const corsOptions = {
     return callback(null, false);
   },
   credentials: true,
+  exposedHeaders: ['X-CSRF-Token'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-XSRF-Token'],
 };
 
 module.exports = { isAllowedOrigin, corsOptions, allowedOrigins };

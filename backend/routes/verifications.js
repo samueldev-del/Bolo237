@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { z } = require('zod');
 
 const { prisma } = require('../lib/db');
 const { requireAdminSession } = require('../lib/session');
@@ -8,6 +9,30 @@ const { sendWhatsAppModerationAlert } = require('../lib/twilioService');
 const { createNotification } = require('../lib/notifications');
 const { sendAccountVerifiedEmail, transporter } = require('../lib/transactionalEmail');
 const { reportError } = require('../lib/observability');
+const { validateBody, validateQuery, validateParams } = require('../lib/requestValidation');
+
+const verificationStatusQuerySchema = z.object({
+  role: z.string().trim().min(1, 'Parametre role requis.'),
+  accountKey: z.string().trim().min(1, 'Parametre accountKey requis.'),
+});
+
+const verificationSubmissionSchema = z.object({
+  role: z.string().trim().min(1, 'Champ role requis.'),
+  accountKey: z.string().trim().min(1, 'Champ accountKey requis.'),
+  displayName: z.string().trim().min(1, 'Champ displayName requis.'),
+  phone: z.string().trim().min(1, 'Champ phone requis.'),
+  payload: z.object({}).passthrough(),
+});
+
+const verificationReviewParamsSchema = z.object({
+  id: z.string().trim().min(1, 'Identifiant requis.'),
+});
+
+const verificationReviewSchema = z.object({
+  status: z.enum(['approved', 'rejected']),
+  reviewedBy: z.string().trim().optional(),
+  notes: z.string().trim().max(5000, 'Notes trop longues.').optional().nullable(),
+});
 
 // GET /api/verifications — File complete des demandes
 router.get('/', requireAdminSession, async (req, res) => {
@@ -23,11 +48,8 @@ router.get('/', requireAdminSession, async (req, res) => {
 });
 
 // GET /api/verifications/status?role=artisan&accountKey=abc
-router.get('/status', async (req, res) => {
+router.get('/status', validateQuery(verificationStatusQuerySchema), async (req, res) => {
   const { role, accountKey } = req.query;
-  if (!role || !accountKey) {
-    return res.status(400).json({ error: 'Parametres requis: role, accountKey.' });
-  }
 
   try {
     const existing = await prisma.verificationSubmission.findFirst({
@@ -44,15 +66,9 @@ router.get('/status', async (req, res) => {
 });
 
 // POST /api/verifications — Soumettre ou re-soumettre une demande
-router.post('/', verificationSubmissionLimiter, async (req, res) => {
+router.post('/', verificationSubmissionLimiter, validateBody(verificationSubmissionSchema), async (req, res) => {
   try {
     const { role, accountKey, displayName, phone, payload } = req.body;
-
-    if (!role || !accountKey || !displayName || !phone || !payload) {
-      return res.status(400).json({
-        error: 'Champs obligatoires manquants: role, accountKey, displayName, phone, payload.',
-      });
-    }
 
     const normalizedRole = String(role).toLowerCase();
     const normalizedKey = String(accountKey).toLowerCase();
@@ -97,13 +113,9 @@ router.post('/', verificationSubmissionLimiter, async (req, res) => {
 });
 
 // PATCH /api/verifications/:id/review — Decision super admin
-router.patch('/:id/review', requireAdminSession, async (req, res) => {
+router.patch('/:id/review', requireAdminSession, validateParams(verificationReviewParamsSchema), validateBody(verificationReviewSchema), async (req, res) => {
   const id = String(req.params.id);
   const { status, reviewedBy, notes } = req.body;
-
-  if (!status || !['approved', 'rejected'].includes(String(status))) {
-    return res.status(400).json({ error: 'Statut invalide. Valeurs autorisees: approved, rejected.' });
-  }
 
   try {
     const existing = await prisma.verificationSubmission.findUnique({ where: { id } });

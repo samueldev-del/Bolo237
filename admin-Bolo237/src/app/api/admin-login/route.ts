@@ -33,18 +33,33 @@ export async function POST(request: Request) {
       );
     }
 
-    await ensureBackendAdminSession(true);
+    // La session admin locale (cookie) est creee meme si le backend est temporairement
+    // injoignable. La session backend sera re-acquise au prochain appel API via
+    // fetchBackendAsAdmin (qui a deja un retry sur 401/403). Cela evite de bloquer
+    // l'admin sur un cold-start Render ou un incident reseau.
+    let backendSessionWarning: string | null = null;
+    try {
+      await ensureBackendAdminSession(true);
+    } catch (backendErr) {
+      const message = backendErr instanceof Error ? backendErr.message : String(backendErr);
+      console.warn("[admin-login] backend session warmup failed:", message);
+      backendSessionWarning = message;
+    }
+
     await createSession();
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      ...(backendSessionWarning ? { warning: `Session backend differee: ${backendSessionWarning}` } : {}),
+    });
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Erreur de connexion admin.";
     console.error("POST /api/admin-login error:", error);
     return NextResponse.json(
       {
         success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Erreur de connexion admin.",
+        error: message === "fetch failed"
+          ? "Le serveur backend est injoignable. Verifiez NEXT_PUBLIC_API_URL et reessayez."
+          : message,
       },
       { status: 502 }
     );

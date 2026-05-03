@@ -3,6 +3,7 @@ const path = require('node:path');
 const bcrypt = require('bcryptjs');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const { prisma, pool } = require('../lib/db');
+const { generateJobReference } = require('../lib/references');
 
 const SYSTEM_EMAIL = 'system@bolo237.com';
 const LAPAIRE_EMAIL = 'lapaire@bolo237.com';
@@ -10,14 +11,6 @@ const LAPAIRE_NAME = 'Lapaire';
 const LAPAIRE_LOGO_PUBLIC_PATH = '/companies/lapaire.png';
 const EXTERNAL_APPLY_URL = 'https://lapaireglasses.applytojob.com/apply/07VCgsO7M1/Responsable-De-Zone-Douala-Cameroun?source=LILI';
 
-function generateJobReference() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let ref = 'BOLO-';
-  for (let i = 0; i < 5; i += 1) {
-    ref += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return ref;
-}
 
 async function generateUniqueReference() {
   for (let attempt = 0; attempt < 20; attempt += 1) {

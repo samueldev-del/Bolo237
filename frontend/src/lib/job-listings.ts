@@ -45,7 +45,7 @@ export function sanitizeJobDescription(description: string): string {
     .trim();
 }
 
-function inferWorkMode(location: string, description: string): JobListing['workMode'] {
+export function inferWorkMode(location: string, description: string): JobListing['workMode'] {
   const text = `${location} ${description}`.toLowerCase();
 
   if (text.includes('100% teletravail') || text.includes('100% remote') || text.includes('full remote')) {
@@ -65,7 +65,7 @@ function inferWorkMode(location: string, description: string): JobListing['workM
   return 'onsite';
 }
 
-function inferContractType(title: string, description: string): JobListing['contractType'] {
+export function inferContractType(title: string, description: string): JobListing['contractType'] {
   const text = `${title} ${description}`.toLowerCase();
 
   if (text.includes('stage') || text.includes('intern')) return 'stage';
@@ -74,7 +74,7 @@ function inferContractType(title: string, description: string): JobListing['cont
   return 'cdi';
 }
 
-function inferExperienceLevel(title: string, description: string): JobListing['experienceLevel'] {
+export function inferExperienceLevel(title: string, description: string): JobListing['experienceLevel'] {
   const text = `${title} ${description}`.toLowerCase();
 
   if (text.includes('senior') || text.includes('lead') || text.includes('manager') || text.includes('head')) {
@@ -88,7 +88,7 @@ function inferExperienceLevel(title: string, description: string): JobListing['e
   return 'confirmed';
 }
 
-function inferWorkTime(title: string, description: string): JobListing['workTime'] {
+export function inferWorkTime(title: string, description: string): JobListing['workTime'] {
   const text = `${title} ${description}`.toLowerCase();
   if (text.includes('temps partiel') || text.includes('part-time') || text.includes('teilzeit') || text.includes('minijob')) {
     return 'part';
@@ -97,14 +97,14 @@ function inferWorkTime(title: string, description: string): JobListing['workTime
   return 'full';
 }
 
-function inferCity(location: string): string {
+export function inferCity(location: string): string {
   const normalized = String(location || '').trim();
   if (!normalized) return 'Autres';
 
   return normalized.split(/[\/,]/)[0]?.trim() || 'Autres';
 }
 
-function inferRegion(location: string): string {
+export function inferRegion(location: string): string {
   const text = String(location || '').toLowerCase();
 
   if (text.includes('douala') || text.includes('littoral')) return 'Littoral';

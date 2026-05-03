@@ -5,6 +5,7 @@ const { promisify } = require('node:util');
 const bcrypt = require('bcryptjs');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const { prisma, pool } = require('../lib/db');
+const { generateJobReference } = require('../lib/references');
 
 const execFileAsync = promisify(execFile);
 
@@ -38,14 +39,6 @@ const DHL_JOBS = [
   },
 ];
 
-function generateJobReference() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let ref = 'BOLO-';
-  for (let index = 0; index < 5; index += 1) {
-    ref += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return ref;
-}
 
 async function generateUniqueReference() {
   for (let attempt = 0; attempt < 20; attempt += 1) {

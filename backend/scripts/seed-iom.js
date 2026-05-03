@@ -5,6 +5,7 @@ const { promisify } = require('node:util');
 const bcrypt = require('bcryptjs');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const { prisma, pool } = require('../lib/db');
+const { generateJobReference } = require('../lib/references');
 
 const execFileAsync = promisify(execFile);
 
@@ -14,14 +15,6 @@ const IOM_COMPANY = 'OIM - ONU Migration';
 const IOM_LOGO_PUBLIC_PATH = '/companies/iom.png';
 const EXTERNAL_APPLY_URL = 'https://fa-evlj-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/20217?utm_medium=jobboard&utm_source=linkedin';
 
-function generateJobReference() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let ref = 'BOLO-';
-  for (let index = 0; index < 5; index += 1) {
-    ref += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return ref;
-}
 
 async function generateUniqueReference() {
   for (let attempt = 0; attempt < 20; attempt += 1) {

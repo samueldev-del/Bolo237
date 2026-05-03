@@ -53,15 +53,11 @@ async function proxyRequest(request: Request, context: RouteContext) {
     });
   } catch (error) {
     console.error("/api/backend proxy error:", error);
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Connexion au backend admin impossible.",
-      },
-      { status: 502 },
-    );
+    const raw = error instanceof Error ? error.message : "";
+    const friendly = !raw || raw === "fetch failed"
+      ? "Backend injoignable (Render se reveille peut-etre). Reessayez dans 30s."
+      : raw;
+    return NextResponse.json({ error: friendly }, { status: 502 });
   }
 }
 

@@ -44,17 +44,16 @@ async function createAdminNotifications({
     return { sent: 0, emailDelivery: 'skipped', whatsappDelivery: 'skipped' };
   }
 
-  await Promise.all(
-    admins.map((admin) =>
-      createNotification({
-        userId: admin.id,
-        type,
-        title,
-        message,
-        data,
-      }),
-    ),
-  );
+  await prisma.notification.createMany({
+    data: admins.map((admin) => ({
+      userId: admin.id,
+      type,
+      title,
+      message,
+      data: data || undefined,
+    })),
+    skipDuplicates: true,
+  });
 
   const realtimeText = buildInternalAlertText({ title, message, type, data });
   const notificationPreferences = getPlatformSettings()?.notificationPreferences || DEFAULT_NOTIFICATION_PREFERENCES;

@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { z } = require('zod');
 
 const { prisma } = require('../lib/db');
 const { reportError } = require('../lib/observability');
@@ -24,17 +25,40 @@ const {
   forgotPasswordLimiter,
   resetPasswordLimiter,
 } = require('../lib/limiters');
+const { validateBody } = require('../lib/requestValidation');
 
 const router = express.Router();
 
-router.post('/login', loginIpLimiter, loginIdentifierLimiter, async (req, res) => {
+const loginSchema = z.object({
+  identifier: z.string().trim().optional(),
+  email: z.string().trim().optional(),
+  phone: z.string().trim().optional(),
+  password: z.string().min(1, 'Mot de passe requis.'),
+}).superRefine((value, ctx) => {
+  const loginIdentifier = String(value.identifier || value.email || value.phone || '').trim();
+  if (!loginIdentifier) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['identifier'],
+      message: 'Identifiant (email ou telephone) requis.',
+    });
+  }
+});
+
+const forgotPasswordSchema = z.object({
+  phone: z.string().trim().min(1, 'Numero de telephone requis.'),
+});
+
+const resetPasswordSchema = z.object({
+  phone: z.string().trim().min(1, 'Telephone requis.'),
+  code: z.string().trim().min(1, 'Code requis.'),
+  newPassword: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caracteres.'),
+});
+
+router.post('/login', loginIpLimiter, loginIdentifierLimiter, validateBody(loginSchema), async (req, res) => {
   try {
     const { email, phone, identifier, password } = req.body;
     const loginIdentifier = String(identifier || email || phone || '').trim();
-
-    if (!loginIdentifier || !password) {
-      return res.status(400).json({ error: 'Identifiant (email ou telephone) et mot de passe requis.' });
-    }
 
     const user = await prisma.user.findFirst({
       where: {
@@ -128,10 +152,9 @@ router.post('/logout', async (req, res) => {
   res.json({ ok: true });
 });
 
-router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
+router.post('/forgot-password', forgotPasswordLimiter, validateBody(forgotPasswordSchema), async (req, res) => {
   try {
     const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: 'Numéro de téléphone requis.' });
 
     const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
     if (!user) return res.status(404).json({ error: 'Aucun compte associé à ce numéro.' });
@@ -168,15 +191,9 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   }
 });
 
-router.post('/reset-password', resetPasswordLimiter, async (req, res) => {
+router.post('/reset-password', resetPasswordLimiter, validateBody(resetPasswordSchema), async (req, res) => {
   try {
     const { phone, code, newPassword } = req.body;
-    if (!phone || !code || !newPassword) {
-      return res.status(400).json({ error: 'Téléphone, code et nouveau mot de passe requis.' });
-    }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 6 caractères.' });
-    }
 
     const phoneKey = String(phone);
     const record = await prisma.otpCode.findUnique({ where: { phone: phoneKey } });

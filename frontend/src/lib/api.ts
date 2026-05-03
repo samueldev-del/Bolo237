@@ -327,6 +327,56 @@ function buildApiHeaders(headersInit?: HeadersInit, body?: BodyInit | null): Hea
   return headers;
 }
 
+// ── CSRF (synchronisation cookie/header) ──────────────────────────
+const CSRF_COOKIE_NAME = 'bolo237_csrf';
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+let csrfTokenCache: string | null = null;
+let csrfFetchInflight: Promise<string | null> | null = null;
+
+function readCsrfCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([a-fA-F0-9]{64})`));
+  return match ? match[1].toLowerCase() : null;
+}
+
+async function ensureCsrfToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+
+  if (!csrfTokenCache) {
+    csrfTokenCache = readCsrfCookie();
+  }
+  if (csrfTokenCache) return csrfTokenCache;
+
+  if (!csrfFetchInflight) {
+    csrfFetchInflight = (async () => {
+      try {
+        const res = await fetch(buildApiUrl('/api/csrf-token'), {
+          credentials: 'include',
+          cache: 'no-store',
+        });
+        if (!res.ok) return null;
+        const data = (await res.json().catch(() => null)) as { csrfToken?: string } | null;
+        const fromBody = data?.csrfToken && /^[a-fA-F0-9]{64}$/.test(data.csrfToken)
+          ? data.csrfToken.toLowerCase()
+          : null;
+        const fromCookie = readCsrfCookie();
+        csrfTokenCache = fromCookie || fromBody || null;
+        return csrfTokenCache;
+      } catch {
+        return null;
+      } finally {
+        csrfFetchInflight = null;
+      }
+    })();
+  }
+
+  return csrfFetchInflight;
+}
+
+export function invalidateCsrfToken(): void {
+  csrfTokenCache = null;
+}
+
 async function apiFetch<T>(
   path: string,
   options?: ApiFetchOptions & { validate?: (data: unknown) => T },
@@ -340,6 +390,15 @@ async function apiFetch<T>(
     ...requestOptions
   } = options ?? {};
   const method = String(options?.method || 'GET').toUpperCase();
+  const finalHeaders = buildApiHeaders(headers, body);
+
+  if (!SAFE_METHODS.has(method)) {
+    const token = await ensureCsrfToken();
+    if (token && !finalHeaders.has('x-csrf-token')) {
+      finalHeaders.set('x-csrf-token', token);
+    }
+  }
+
   let res: Response;
 
   try {
@@ -347,7 +406,7 @@ async function apiFetch<T>(
       cache: 'no-store',
       credentials: 'include',
       ...requestOptions,
-      headers: buildApiHeaders(headers, body),
+      headers: finalHeaders,
       body,
     });
   } catch (error) {
@@ -358,16 +417,45 @@ async function apiFetch<T>(
   }
 
   if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    if (captureServerErrors && res.status >= 500) {
-      captureApiException(new Error(errBody.error || `API error ${res.status}`), {
-        kind: 'response',
-        method,
-        path,
-        status: res.status,
-      });
+    let errBody: { error?: string; message?: string } = await res.json().catch(() => ({}));
+
+    // Token CSRF rejete -> invalider, recuperer un nouveau token, puis reessayer une fois.
+    if (res.status === 403 && !SAFE_METHODS.has(method) && /csrf/i.test(String(errBody.error || ''))) {
+      invalidateCsrfToken();
+      const fresh = await ensureCsrfToken();
+      if (fresh) {
+        finalHeaders.set('x-csrf-token', fresh);
+        try {
+          res = await fetch(buildApiUrl(path), {
+            cache: 'no-store',
+            credentials: 'include',
+            ...requestOptions,
+            headers: finalHeaders,
+            body,
+          });
+        } catch (error) {
+          if (captureNetworkErrors) {
+            captureApiException(error, { kind: 'network', method, path });
+          }
+          throw error;
+        }
+        if (!res.ok) {
+          errBody = await res.json().catch(() => ({}));
+        }
+      }
     }
-    throw new ApiError(errBody.error || errBody.message || `API error ${res.status}`, res.status, errBody);
+
+    if (!res.ok) {
+      if (captureServerErrors && res.status >= 500) {
+        captureApiException(new Error(errBody.error || `API error ${res.status}`), {
+          kind: 'response',
+          method,
+          path,
+          status: res.status,
+        });
+      }
+      throw new ApiError(errBody.error || errBody.message || `API error ${res.status}`, res.status, errBody);
+    }
   }
 
   const json = (await res.json()) as unknown;
@@ -662,11 +750,15 @@ export async function fetchSessionUser(options?: { captureServerErrors?: boolean
 }
 
 export async function logoutUser(): Promise<void> {
-  await apiFetch('/api/auth/logout', {
-    method: 'POST',
-    captureNetworkErrors: false,
-    captureServerErrors: false,
-  });
+  try {
+    await apiFetch('/api/auth/logout', {
+      method: 'POST',
+      captureNetworkErrors: false,
+      captureServerErrors: false,
+    });
+  } finally {
+    invalidateCsrfToken();
+  }
 }
 
 // ── Reports ──────────────────────────────────────────────────────

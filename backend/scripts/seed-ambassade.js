@@ -3,20 +3,13 @@ const path = require('node:path');
 const bcrypt = require('bcryptjs');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 const { prisma, pool } = require('../lib/db');
+const { generateJobReference } = require('../lib/references');
 
 const AMBASSADE_EMAIL = 'ambassade@bolo237.com';
 const AMBASSADE_NAME = 'Ambassade de France';
 const AMBASSADE_LOGO_PUBLIC_PATH = '/companies/ambassade-france.png';
 const EXTERNAL_APPLY_URL = 'https://emplois.diplomatie.gouv.fr/nos-offres/320cce4a-3f01-401b-b75d-70b463f6e519';
 
-function generateJobReference() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let ref = 'BOLO-';
-  for (let i = 0; i < 5; i += 1) {
-    ref += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return ref;
-}
 
 async function generateUniqueReference() {
   for (let attempt = 0; attempt < 20; attempt += 1) {

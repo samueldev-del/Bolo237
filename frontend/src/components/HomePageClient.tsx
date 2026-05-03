@@ -9,8 +9,17 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { fetchJobs, type ApiJob, type JobsResponse } from '@/lib/api';
+import {
+  inferWorkMode,
+  inferContractType,
+  inferWorkTime,
+  inferExperienceLevel,
+  inferCity,
+  inferRegion,
+} from '@/lib/job-listings';
 import { useApi } from '@/lib/useApi';
 import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
+import { BLUR_DATA_URL_STATIC } from '@/lib/imagePlaceholder';
 
 const HOME_JOBS_PER_PAGE = 10;
 const DEFAULT_HOME_QUERY: HomeQuery = {
@@ -89,79 +98,7 @@ function extractExternalApplyUrl(description: string): string | null {
   return markerMatch?.[2]?.trim() || null;
 }
 
-function inferWorkMode(location: string, description: string): 'onsite' | 'partial' | 'remote' {
-  const text = `${location} ${description}`.toLowerCase();
-
-  if (text.includes('100% teletravail') || text.includes('100% remote') || text.includes('full remote')) {
-    return 'remote';
-  }
-
-  if (
-    text.includes('teletravail partiel') ||
-    text.includes('hybride') ||
-    text.includes('hybrid') ||
-    text.includes('partially remote') ||
-    text.includes('part-time remote') ||
-    text.includes('home-office')
-  ) {
-    return 'partial';
-  }
-
-  return 'onsite';
-}
-
-function inferContractType(title: string, description: string): 'cdi' | 'cdd' | 'stage' | 'freelance' {
-  const text = `${title} ${description}`.toLowerCase();
-
-  if (text.includes('stage') || text.includes('intern')) return 'stage';
-  if (text.includes('freelance') || text.includes('consultant')) return 'freelance';
-  if (text.includes('cdd') || text.includes('contract')) return 'cdd';
-  return 'cdi';
-}
-
-function inferWorkTime(title: string, description: string): 'full' | 'part' {
-  const text = `${title} ${description}`.toLowerCase();
-  if (text.includes('temps partiel') || text.includes('part-time') || text.includes('teilzeit') || text.includes('minijob')) {
-    return 'part';
-  }
-
-  return 'full';
-}
-
-function inferExperienceLevel(title: string, description: string): 'junior' | 'confirmed' | 'senior' {
-  const text = `${title} ${description}`.toLowerCase();
-  if (text.includes('senior') || text.includes('lead') || text.includes('manager') || text.includes('head')) {
-    return 'senior';
-  }
-  if (text.includes('junior') || text.includes('assistant') || text.includes('entry')) {
-    return 'junior';
-  }
-  return 'confirmed';
-}
-
-function inferCity(location: string): string {
-  const normalized = String(location || '').trim();
-  if (!normalized) return 'Autres';
-
-  return normalized.split(/[\/,]/)[0]?.trim() || 'Autres';
-}
-
-function inferRegion(location: string): string {
-  const text = String(location || '').toLowerCase();
-
-  if (text.includes('douala') || text.includes('littoral')) return 'Littoral';
-  if (text.includes('yaound') || text.includes('centre')) return 'Centre';
-  if (text.includes('bafoussam') || text.includes('ouest')) return 'Ouest';
-  if (text.includes('bamenda') || text.includes('nord-ouest')) return 'Nord-Ouest';
-  if (text.includes('buea') || text.includes('limbe') || text.includes('sud-ouest')) return 'Sud-Ouest';
-  if (text.includes('garoua') || text.includes('nord')) return 'Nord';
-  if (text.includes('bertoua') || text.includes('est')) return 'Est';
-  if (text.includes('kribi') || text.includes('sud')) return 'Sud';
-  if (text.includes('maroua') || text.includes('extreme-nord')) return 'Extreme-Nord';
-  if (text.includes('ngaound') || text.includes('adamaoua')) return 'Adamaoua';
-
-  return 'Autres';
-}
+// infer* helpers are imported from '@/lib/job-listings' to avoid duplication.
 
 
 function timeAgo(createdAt: string, isEn: boolean): string {
@@ -889,6 +826,8 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
                             alt={job.entreprise}
                             width={56}
                             height={56}
+                                                        placeholder="blur"
+                                                        blurDataURL={BLUR_DATA_URL_STATIC}
                             sizes="(max-width: 640px) 48px, 56px"
                             className="w-full h-full object-contain"
                           />

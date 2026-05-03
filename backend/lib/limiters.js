@@ -1,41 +1,62 @@
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
+const { RedisStore } = require('rate-limit-redis');
 const { getPositiveIntegerEnv } = require('./env');
 const { getRequestIpKey } = require('./security');
+const { getRedisClient, getRedisUrl } = require('./redis');
 
-const apiGlobalLimiter = rateLimit({
+const redisUrl = getRedisUrl();
+const globalPrefix = String(process.env.RATE_LIMIT_REDIS_PREFIX || 'rl:').trim() || 'rl:';
+
+function makeRedisStore(name) {
+  if (!redisUrl) return undefined;
+  return new RedisStore({
+    prefix: `${globalPrefix}${name}:`,
+    sendCommand: async (...args) => {
+      const client = await getRedisClient();
+      if (!client) {
+        throw new Error('Redis indisponible pour le rate limiting.');
+      }
+      return client.sendCommand(args);
+    },
+  });
+}
+
+function createLimiter(name, config) {
+  const store = makeRedisStore(name);
+  return rateLimit({
+    standardHeaders: true,
+    legacyHeaders: false,
+    ...(store ? { store } : {}),
+    ...config,
+  });
+}
+
+const apiGlobalLimiter = createLimiter('api-global', {
   windowMs: 15 * 60 * 1000,
   max: 300,
-  standardHeaders: true,
-  legacyHeaders: false,
   message: { error: 'Trop de requetes depuis cette IP. Reessayez dans 15 minutes.' },
 });
 
-const signupIpLimiter = rateLimit({
+const signupIpLimiter = createLimiter('signup-ip', {
   windowMs: 24 * 60 * 60 * 1000,
   max: getPositiveIntegerEnv('SIGNUP_IP_DAILY_LIMIT', 3),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => getRequestIpKey(req),
   message: {
     error: 'Trop de creations de compte depuis cette IP aujourd hui. Reessayez demain ou contactez le support.',
   },
 });
 
-const loginIpLimiter = rateLimit({
+const loginIpLimiter = createLimiter('login-ip', {
   windowMs: 15 * 60 * 1000,
   max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
   skipSuccessfulRequests: true,
   keyGenerator: (req) => getRequestIpKey(req),
   message: { error: 'Trop de tentatives de connexion depuis cette IP. Reessayez dans 15 minutes.' },
 });
 
-const loginIdentifierLimiter = rateLimit({
+const loginIdentifierLimiter = createLimiter('login-id', {
   windowMs: 15 * 60 * 1000,
   max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
   skipSuccessfulRequests: true,
   keyGenerator: (req) => {
     const loginIdentifier = String(req.body?.identifier || req.body?.email || req.body?.phone || '')
@@ -47,11 +68,9 @@ const loginIdentifierLimiter = rateLimit({
   message: { error: 'Trop de tentatives de connexion pour cet identifiant. Reessayez dans 15 minutes.' },
 });
 
-const forgotPasswordLimiter = rateLimit({
+const forgotPasswordLimiter = createLimiter('forgot-pwd', {
   windowMs: 15 * 60 * 1000,
   max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const phone = String(req.body?.phone || '').replace(/\D/g, '');
     return phone || getRequestIpKey(req);
@@ -59,11 +78,9 @@ const forgotPasswordLimiter = rateLimit({
   message: { error: 'Trop de demandes de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
 });
 
-const resetPasswordLimiter = rateLimit({
+const resetPasswordLimiter = createLimiter('reset-pwd', {
   windowMs: 15 * 60 * 1000,
   max: 8,
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const phone = String(req.body?.phone || '').replace(/\D/g, '');
     return phone || getRequestIpKey(req);
@@ -71,11 +88,9 @@ const resetPasswordLimiter = rateLimit({
   message: { error: 'Trop de tentatives de reinitialisation pour ce numero. Reessayez dans 15 minutes.' },
 });
 
-const verificationSubmissionLimiter = rateLimit({
+const verificationSubmissionLimiter = createLimiter('verification', {
   windowMs: 24 * 60 * 60 * 1000,
   max: getPositiveIntegerEnv('VERIFICATION_SUBMISSION_DAILY_LIMIT', 6),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const accountKey = String(req.body?.accountKey || '').trim().toLowerCase();
     const phone = String(req.body?.phone || '').replace(/\D/g, '');
@@ -84,11 +99,9 @@ const verificationSubmissionLimiter = rateLimit({
   message: { error: 'Trop de demandes de verification aujourd hui. Reessayez plus tard.' },
 });
 
-const candidateProfileLimiter = rateLimit({
+const candidateProfileLimiter = createLimiter('candidate-profile', {
   windowMs: 60 * 60 * 1000,
   max: getPositiveIntegerEnv('CANDIDATE_PROFILE_HOURLY_LIMIT', 20),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = parseInt(String(req.body?.userId || ''), 10);
     return Number.isFinite(userId) && userId > 0 ? `candidate-profile:${userId}` : getRequestIpKey(req);
@@ -96,11 +109,9 @@ const candidateProfileLimiter = rateLimit({
   message: { error: 'Trop de mises a jour de profil candidat. Reessayez dans une heure.' },
 });
 
-const savedJobsLimiter = rateLimit({
+const savedJobsLimiter = createLimiter('saved-jobs', {
   windowMs: 15 * 60 * 1000,
   max: getPositiveIntegerEnv('SAVED_JOBS_15M_LIMIT', 120),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = parseInt(String(req.params?.id || req.body?.userId || ''), 10);
     return Number.isFinite(userId) && userId > 0 ? `saved-jobs:${userId}` : getRequestIpKey(req);
@@ -108,11 +119,9 @@ const savedJobsLimiter = rateLimit({
   message: { error: 'Trop de modifications sur vos favoris. Reessayez dans 15 minutes.' },
 });
 
-const jobApplicationLimiter = rateLimit({
+const jobApplicationLimiter = createLimiter('job-apply', {
   windowMs: 60 * 60 * 1000,
   max: getPositiveIntegerEnv('JOB_APPLICATION_HOURLY_LIMIT', 30),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const candidateId = parseInt(String(req.body?.candidateId || ''), 10);
     return Number.isFinite(candidateId) && candidateId > 0 ? `job-apply:${candidateId}` : getRequestIpKey(req);
@@ -120,11 +129,9 @@ const jobApplicationLimiter = rateLimit({
   message: { error: 'Trop de candidatures envoyees en une heure. Reessayez plus tard.' },
 });
 
-const jobCreationLimiter = rateLimit({
+const jobCreationLimiter = createLimiter('job-create', {
   windowMs: 24 * 60 * 60 * 1000,
   max: getPositiveIntegerEnv('JOB_CREATION_DAILY_LIMIT', 12),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const authorId = parseInt(String(req.body?.authorId || ''), 10);
     return Number.isFinite(authorId) && authorId > 0 ? `job-create:${authorId}` : getRequestIpKey(req);
@@ -132,11 +139,9 @@ const jobCreationLimiter = rateLimit({
   message: { error: 'Trop d annonces creees aujourd hui. Reessayez demain ou contactez le support.' },
 });
 
-const feedbackSubmissionLimiter = rateLimit({
+const feedbackSubmissionLimiter = createLimiter('feedback', {
   windowMs: 24 * 60 * 60 * 1000,
   max: getPositiveIntegerEnv('APP_FEEDBACK_DAILY_LIMIT', 5),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const userId = parseInt(String(req.body?.userId || ''), 10);
     return Number.isFinite(userId) && userId > 0 ? `app-feedback:${userId}` : getRequestIpKey(req);
@@ -144,11 +149,9 @@ const feedbackSubmissionLimiter = rateLimit({
   message: { error: 'Trop de retours envoyes aujourd hui. Merci de reessayer plus tard.' },
 });
 
-const reviewSubmissionLimiter = rateLimit({
+const reviewSubmissionLimiter = createLimiter('review', {
   windowMs: 24 * 60 * 60 * 1000,
   max: getPositiveIntegerEnv('USER_REVIEW_DAILY_LIMIT', 12),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const reviewerId = parseInt(String(req.body?.reviewerId || ''), 10);
     return Number.isFinite(reviewerId) && reviewerId > 0 ? `user-review:${reviewerId}` : getRequestIpKey(req);
@@ -156,46 +159,36 @@ const reviewSubmissionLimiter = rateLimit({
   message: { error: 'Trop d avis envoyes aujourd hui. Reessayez demain.' },
 });
 
-const uploadIpLimiter = rateLimit({
+const uploadIpLimiter = createLimiter('upload-ip', {
   windowMs: 15 * 60 * 1000,
   max: getPositiveIntegerEnv('UPLOAD_IP_15M_LIMIT', 25),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => getRequestIpKey(req),
   message: { error: 'Trop de televersements depuis cette IP. Reessayez dans 15 minutes.' },
 });
 
-const reportSubmissionLimiter = rateLimit({
+const reportSubmissionLimiter = createLimiter('report', {
   windowMs: 60 * 60 * 1000,
   max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
   message: { error: 'Trop de signalements depuis cette IP. Reessayez plus tard.' },
 });
 
-const privacyRequestLimiter = rateLimit({
+const privacyRequestLimiter = createLimiter('privacy', {
   windowMs: 24 * 60 * 60 * 1000,
   max: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown'),
   message: { error: 'Trop de demandes de confidentialite pour le moment. Reessayez plus tard.' },
 });
 
-const otpIpLimiter = rateLimit({
+const otpIpLimiter = createLimiter('otp-ip', {
   windowMs: 15 * 60 * 1000,
   max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
   message: { error: 'Trop de demandes OTP depuis cette IP. Reessayez dans 15 minutes.' },
 });
 
-const otpPhoneLimiter = rateLimit({
+const otpPhoneLimiter = createLimiter('otp-phone', {
   windowMs: 15 * 60 * 1000,
   max: 3,
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const phone = String(req.body?.phone || '').replace(/\D/g, '');
     return phone || getRequestIpKey(req);
@@ -203,11 +196,9 @@ const otpPhoneLimiter = rateLimit({
   message: { error: 'Trop de demandes OTP pour ce numero. Reessayez dans 15 minutes.' },
 });
 
-const otpVerifyLimiter = rateLimit({
+const otpVerifyLimiter = createLimiter('otp-verify', {
   windowMs: 15 * 60 * 1000,
   max: getPositiveIntegerEnv('OTP_VERIFY_15M_LIMIT', 10),
-  standardHeaders: true,
-  legacyHeaders: false,
   keyGenerator: (req) => {
     const phone = String(req.body?.phone || '').replace(/\D/g, '');
     return phone || getRequestIpKey(req);

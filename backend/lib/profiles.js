@@ -1,16 +1,33 @@
+const MAX = {
+  fullName: 120,
+  title: 120,
+  location: 120,
+  phone: 32,
+  email: 254,
+  profile: 5000,
+  experience: 10000,
+  education: 5000,
+  skillsText: 2000,
+  languagesText: 500,
+};
+
+function clip(value, max) {
+  return String(value || '').slice(0, max);
+}
+
 function profileFromBody(userId, body) {
   return {
     userId,
-    fullName: String(body.fullName || ''),
-    title: String(body.title || ''),
-    location: String(body.location || ''),
-    phone: String(body.phone || ''),
-    email: String(body.email || ''),
-    profile: String(body.profile || ''),
-    experience: String(body.experience || ''),
-    education: String(body.education || ''),
-    skillsText: String(body.skillsText || ''),
-    languagesText: String(body.languagesText || ''),
+    fullName: clip(body.fullName, MAX.fullName),
+    title: clip(body.title, MAX.title),
+    location: clip(body.location, MAX.location),
+    phone: clip(body.phone, MAX.phone),
+    email: clip(body.email, MAX.email),
+    profile: clip(body.profile, MAX.profile),
+    experience: clip(body.experience, MAX.experience),
+    education: clip(body.education, MAX.education),
+    skillsText: clip(body.skillsText, MAX.skillsText),
+    languagesText: clip(body.languagesText, MAX.languagesText),
     updatedAt: new Date().toISOString(),
   };
 }

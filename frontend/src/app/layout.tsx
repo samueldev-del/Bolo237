@@ -7,6 +7,7 @@ import CookieConsentBanner from "@/components/CookieConsentBanner";
 import { LocaleProvider } from "@/components/LocaleProvider";
 import AppFeedbackWidget from "@/components/AppFeedbackWidget";
 import { buildLocalizedMetadata, SITE_URL } from "@/lib/seo";
+import { safeJsonLd } from "@/lib/jsonLd";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -182,14 +183,14 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
           type="application/ld+json"
           nonce={nonce}
           suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(websiteSchema) }}
         />
         <script
           id="schema-organization"
           type="application/ld+json"
           nonce={nonce}
           suppressHydrationWarning
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(organizationSchema) }}
         />
         <Script
           id="sw-register"

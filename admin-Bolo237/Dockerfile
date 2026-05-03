@@ -1,55 +1,37 @@
-# ==========================================
-# 1. BASE : On prépare le terrain
-# ==========================================
-# Node 20 est compatible avec Next.js 15 et garde la même base Alpine légère.
 FROM node:20-alpine AS base
-
-# ==========================================
-# 2. DÉPENDANCES : On installe les paquets
-# ==========================================
-FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
+FROM base AS deps
 COPY package.json package-lock.json* ./
 RUN npm ci
 
-# ==========================================
-# 3. BUILDER : On compile le code
-# ==========================================
 FROM base AS builder
-WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-
-ENV NEXT_TELEMETRY_DISABLED=1
-
 RUN npm run build
 
-# ==========================================
-# 4. RUNNER : L'image finale de production
-# ==========================================
-FROM base AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
-
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
+ENV PORT=3000
 
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup -S nodejs -g 1001 \
+	&& adduser -S nextjs -u 1001 -G nodejs \
+	&& mkdir -p /app/.next \
+	&& chown -R nextjs:nodejs /app
 
-COPY --from=builder /app/public ./public
-
-RUN mkdir .next
-RUN chown nextjs:nodejs .next
-
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
 USER nextjs
-
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME=0.0.0.0
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+	CMD wget -qO- http://127.0.0.1:3000/ >/dev/null || exit 1
 
 CMD ["node", "server.js"]

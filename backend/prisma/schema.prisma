@@ -68,6 +68,7 @@ model User {
   services         ArtisanService[]
   portfolio        ArtisanPortfolio[]
   userProfile      UserProfile?
+  savedJobs        SavedJob[]
 
   @@index([createdAt])
   @@index([role, createdAt])
@@ -120,10 +121,11 @@ model Job {
   descriptionEn String?
   salary       String?
   status       JobStatus     @default(PENDING)
-  author       User          @relation(fields: [authorId], references: [id])
+  author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId     Int
   createdAt    DateTime      @default(now())
   applications Application[]
+  savedJobs    SavedJob[]
 
   @@index([createdAt])
   @@index([status, createdAt])
@@ -213,6 +215,7 @@ model AppFeedback {
   createdAt  DateTime @default(now())
 
   @@index([createdAt])
+  @@index([userId, createdAt])
 }
 
 model UserReview {
@@ -290,12 +293,17 @@ model ContactClickEvent {
 }
 
 model SavedJob {
-  id     Int @id @default(autoincrement())
-  userId Int
-  jobId  Int
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  jobId     Int
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  job  Job  @relation(fields: [jobId],  references: [id], onDelete: Cascade)
 
   @@unique([userId, jobId])
-  @@index([userId])
+  @@index([userId, createdAt])
+  @@index([jobId])
 }
 
 model VerificationSubmission {

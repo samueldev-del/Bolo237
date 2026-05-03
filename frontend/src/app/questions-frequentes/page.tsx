@@ -4,6 +4,7 @@ import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
+import { safeJsonLd } from '@/lib/jsonLd';
 
 type FaqItem = {
   question: string;
@@ -95,7 +96,7 @@ export default function QuestionsFrequentesPage() {
         </div>
       </main>
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(faqSchema) }} />
       <Footer />
     </div>
   );

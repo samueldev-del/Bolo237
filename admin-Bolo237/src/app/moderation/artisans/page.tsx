@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
@@ -328,11 +329,13 @@ function SubmissionCard({
               <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
                 {key.replace("Preview", "")}
               </p>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={sub.payload[key] as string}
                 alt={key}
+                width={384}
+                height={128}
                 className="h-32 w-auto rounded-xl border border-zinc-200 object-cover"
+                unoptimized
               />
             </div>
           ))}

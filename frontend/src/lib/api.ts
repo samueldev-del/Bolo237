@@ -1141,8 +1141,6 @@ export async function markAllNotificationsAsRead(userId: number): Promise<void> 
 // ── App feedbacks ────────────────────────────────────────────────
 
 export async function createAppFeedback(data: {
-  userId?: number;
-  authorName?: string;
   rating: number;
   comment: string;
 }): Promise<AppFeedback> {
@@ -1170,14 +1168,12 @@ export async function fetchUserReviews(userId: number, limit = 20): Promise<{
 
 export async function createUserReview(input: {
   reviewedId: number;
-  reviewerId: number;
   rating: number;
   comment: string;
 }): Promise<UserReview> {
   return apiFetch<UserReview>(`/api/users/${input.reviewedId}/reviews`, {
     method: 'POST',
     body: JSON.stringify({
-      reviewerId: input.reviewerId,
       rating: input.rating,
       comment: input.comment,
     }),

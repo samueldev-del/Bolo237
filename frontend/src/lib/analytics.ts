@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Generic event tracking utility for Bolo237.
  *
@@ -10,24 +9,38 @@
  *
  * This function is a no-op when called server-side (SSR / RSC context).
  */
-export function trackEvent(eventName: string, props?: Record<string, any>): void {
+
+type AnalyticsProps = Record<string, string | number | boolean>;
+
+declare global {
+  interface Window {
+    /** Vercel Analytics — injected by @vercel/analytics */
+    va?: (event: 'event', name: string, props?: AnalyticsProps) => void;
+    /** Google Analytics 4 — gtag.js */
+    gtag?: (command: 'event', name: string, params?: Record<string, unknown>) => void;
+    /** Plausible Analytics */
+    plausible?: (event: string, options?: { props?: AnalyticsProps }) => void;
+  }
+}
+
+export function trackEvent(eventName: string, props?: AnalyticsProps): void {
   if (typeof window === 'undefined') return;
 
   // 1. Vercel Analytics (injected by @vercel/analytics package)
-  if (typeof (window as any).va === 'function') {
-    (window as any).va('event', eventName, props);
+  if (typeof window.va === 'function') {
+    window.va('event', eventName, props);
     return;
   }
 
   // 2. Google Analytics 4 — gtag
-  if (typeof (window as any).gtag === 'function') {
-    (window as any).gtag('event', eventName, props ?? {});
+  if (typeof window.gtag === 'function') {
+    window.gtag('event', eventName, props ?? {});
     return;
   }
 
   // 3. Plausible
-  if (typeof (window as any).plausible === 'function') {
-    (window as any).plausible(eventName, { props });
+  if (typeof window.plausible === 'function') {
+    window.plausible(eventName, { props });
     return;
   }
 

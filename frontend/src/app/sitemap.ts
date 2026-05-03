@@ -5,12 +5,14 @@ const BACKEND_URL =
   process.env.BACKEND_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
   'http://localhost:5000';
+const ENABLE_DYNAMIC_SITEMAP = process.env.SITEMAP_DYNAMIC === '1';
 
 /** Fetch approved job IDs from the backend — fails gracefully. */
 async function fetchApprovedJobIds(): Promise<number[]> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/jobs?limit=500`, {
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -28,6 +30,7 @@ async function fetchVisibleArtisanIds(): Promise<number[]> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/users/artisans?limit=500`, {
       next: { revalidate: 3600 },
+      signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) return [];
     const data = await res.json();
@@ -53,10 +56,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   }));
 
-  const [jobIds, artisanIds] = await Promise.all([
-    fetchApprovedJobIds(),
-    fetchVisibleArtisanIds(),
-  ]);
+  const [jobIds, artisanIds] = ENABLE_DYNAMIC_SITEMAP
+    ? await Promise.all([fetchApprovedJobIds(), fetchVisibleArtisanIds()])
+    : [[], []];
 
   const jobEntries: MetadataRoute.Sitemap = jobIds.map((id) => ({
     url: `${SITE_URL}/fr/annonce/${id}`,

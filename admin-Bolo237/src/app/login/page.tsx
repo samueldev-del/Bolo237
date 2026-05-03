@@ -1,13 +1,19 @@
 "use client";
 
+import Image from "next/image";
 import { Lock, ShieldCheck, Eye, EyeOff } from "lucide-react";
-import { useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 
 export default function LoginPage() {
   const [authError, setAuthError] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    // Pre-warm the backend so login isn't blocked by a Render cold start.
+    fetch("/api/wake", { cache: "no-store" }).catch(() => {});
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -55,8 +61,7 @@ export default function LoginPage() {
       <div className="relative w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-white.svg" alt="Bolo237" className="h-10 w-auto mx-auto mb-4" />
+          <Image src="/logo-white.svg" alt="Bolo237" width={160} height={40} className="h-10 w-auto mx-auto mb-4" priority />
           <div className="flex items-center justify-center gap-2">
             <ShieldCheck className="h-4 w-4 text-[#F5C5A3]" />
             <span className="text-sm font-semibold text-[#F5C5A3] uppercase tracking-widest">Admin</span>

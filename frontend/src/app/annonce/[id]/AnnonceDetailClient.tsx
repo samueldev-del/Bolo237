@@ -17,6 +17,8 @@ import {
 } from '@/lib/job-listings';
 import { useApi } from '@/lib/useApi';
 import { trackEvent } from '@/lib/analytics';
+import { safeJsonLd } from '@/lib/jsonLd';
+import { getStoredUser } from '@/lib/session';
 
 type JobParams = {
   params: Promise<{
@@ -135,18 +137,14 @@ export default function AnnonceDetailClient({ params }: JobParams) {
       const loadReviewProfile = async () => {
         setIsLoadingReview(true);
         try {
-          const raw = localStorage.getItem('bolo237-user');
-          if (!raw) return;
+            const user = getStoredUser();
+            if (!user) return;
 
-          const user = JSON.parse(raw);
-          const candidateId = Number(user.id || 0);
-          if (!candidateId) return;
-
-          const profile = await fetchUserProfile(candidateId).catch(() => null);
-          const phoneVerified = localStorage.getItem('bolo237-phone-verified') === 'true' || Boolean(user.phone);
-          const fullName = String(profile?.fullName || user.name || user.fullName || '').trim();
-          const title = String(profile?.title || user.title || user.jobTitle || '').trim();
-          const skills = String(profile?.skillsText || user.skills || '').trim();
+            const profile = await fetchUserProfile(0).catch(() => null);
+            const phoneVerified = localStorage.getItem('bolo237-phone-verified') === 'true';
+            const fullName = String(profile?.fullName || user.name || '').trim();
+            const title = String(profile?.title || '').trim();
+            const skills = String(profile?.skillsText || '').trim();
           const hasNarrative = Boolean(profile?.profile || profile?.experience || profile?.education);
           const profileComplete = Boolean(fullName && title && profile?.phone && profile?.email && (skills || hasNarrative));
           const missingItems = [
@@ -159,7 +157,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
           ].filter(Boolean) as string[];
 
           setUserProfile({
-            id: candidateId,
+              id: 0,
             name: fullName,
             title,
             skills,
@@ -167,7 +165,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
             cvUploaded: Boolean(profileComplete || profile?.defaultCvUrl),
             phoneVerified,
             profileComplete,
-            isVerified: Boolean(user.isVerified),
+              isVerified: Boolean(user?.isVerified),
             missingItems,
           });
         } catch {
@@ -507,12 +505,12 @@ export default function AnnonceDetailClient({ params }: JobParams) {
     <div className="min-h-screen bg-[#F4F7FB] text-slate-950 pb-24 md:pb-10">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbSchema) }}
       />
       {jobPostingSchema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingSchema) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(jobPostingSchema) }}
         />
       )}
       <nav className="border-b border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
@@ -590,13 +588,14 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                   <div className="relative shrink-0">
                     {annonce.listing.logoUrl ? (
                       <div className="flex h-[84px] w-[84px] items-center justify-center overflow-hidden rounded-lg border border-gray-100 bg-white p-2 shadow-sm">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
+                        <Image
                           src={annonce.listing.logoUrl}
                           alt={annonce.company}
+                          width={84}
+                          height={84}
                           className="h-full w-full object-contain"
                           loading="lazy"
-                          decoding="async"
+                          unoptimized
                         />
                       </div>
                     ) : (

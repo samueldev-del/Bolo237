@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
@@ -354,8 +355,7 @@ export default function AdminShell({
         >
           <div className="flex shrink-0 items-center justify-between border-b border-[#A8502F]/50 px-6 py-6 xl:justify-start">
             <div className="inline-flex items-center gap-3 rounded-2xl border border-[#C4623F]/40 bg-[#A8502F]/40 px-4 py-3">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo-white.svg" alt="Bolo237" className="h-7 w-auto" />
+              <Image src="/logo-white.svg" alt="Bolo237" width={112} height={28} className="h-7 w-auto" priority />
               <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#F5C5A3] border-l border-[#A8502F]/50 pl-3">Admin</span>
             </div>
 

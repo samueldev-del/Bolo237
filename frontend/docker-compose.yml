@@ -14,6 +14,11 @@ services:
       - "127.0.0.1:3000:3000"
     # Redémarrage automatique en cas de crash ou de redémarrage du serveur
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
     # SÉCURITÉ : On injecte les variables d'environnement depuis ton fichier .env local
     env_file:
       - .env

@@ -1585,11 +1585,10 @@ export default function DashboardCandidat() {
             <div className="space-y-2">
               {uploadedDocuments.map((doc, index) => {
                 const uploadDate = new Date(doc.uploadedAt).toLocaleDateString(isEn ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-                const icon = doc.type === 'cv' ? '&#128196;' : '&#128196;';
                 return (
                   <div key={index} className="border border-gray-200 rounded-xl p-3 sm:p-4 flex items-center justify-between gap-3 hover:border-gray-300 transition">
                     <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-xl shrink-0" dangerouslySetInnerHTML={{ __html: icon }} />
+                      <span className="text-xl shrink-0">📄</span>
                       <div className="min-w-0">
                         <p className="font-bold text-sm text-black truncate">{doc.name}</p>
                         <p className="text-xs text-gray-500">

@@ -29,23 +29,6 @@ export default function RatingModal({ isOpen, onClose, reviewedId, reviewedName,
       return;
     }
 
-    let reviewerId = 0;
-    try {
-      const raw = localStorage.getItem('bolo237-user');
-      if (raw) {
-        const user = JSON.parse(raw);
-        reviewerId = Number(user?.id || 0);
-      }
-    } catch {
-      // ignore localStorage parse errors
-    }
-
-    if (!reviewerId) {
-      setMessage(isEn ? 'Please sign in to leave a review.' : 'Veuillez vous connecter pour laisser un avis.');
-      setMessageType('error');
-      return;
-    }
-
     setSending(true);
     setMessage('');
     setMessageType('');
@@ -53,7 +36,6 @@ export default function RatingModal({ isOpen, onClose, reviewedId, reviewedName,
     try {
       await createUserReview({
         reviewedId,
-        reviewerId,
         rating,
         comment: comment.trim(),
       });

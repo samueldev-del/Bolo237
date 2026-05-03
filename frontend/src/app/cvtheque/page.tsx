@@ -1,5 +1,6 @@
 "use client";
 
+import Image from 'next/image';
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Header from '@/components/Header';
@@ -321,8 +322,7 @@ export default function CvthequePage() {
               <div className="flex flex-col md:flex-row md:items-start gap-4">
                 <div className="w-16 h-16 rounded-full border border-gray-200 bg-gray-100 flex items-center justify-center overflow-hidden text-xl font-extrabold text-gray-500">
                   {cand.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={cand.photoUrl} alt={cand.nom} className="w-full h-full object-cover" />
+                     <Image src={cand.photoUrl} alt={cand.nom} width={64} height={64} className="w-full h-full object-cover" unoptimized />
                   ) : (
                     cand.nom.charAt(0)
                   )}

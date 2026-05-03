@@ -1,5 +1,3 @@
-"use client";
-
 import FooterResourcePage from "@/components/FooterResourcePage";
 
 export default function ConnaissanceRhPage() {

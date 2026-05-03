@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * AuthGuard simplifie — la protection est geree par le middleware serveur.
  * Ce composant sert uniquement de wrapper transparent.

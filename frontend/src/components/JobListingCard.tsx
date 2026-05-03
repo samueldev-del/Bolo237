@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import type { JobListing } from '@/lib/job-listings';
 import { getContractLabel, getExperienceLabel, getWorkModeLabel, getWorkTimeLabel } from '@/lib/job-listings';
 
@@ -138,15 +139,16 @@ export default function JobListingCard({ offer, isEn, href, isSaved = false, onT
           <div className="relative">
             {offer.logoUrl ? (
               <div className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-[22px] border border-slate-200 bg-white p-2 shadow-sm sm:h-[84px] sm:w-[84px]">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
+                <Image
                   src={offer.logoUrl}
                   alt={offer.company}
+                  width={84}
+                  height={84}
                   className="h-full w-full object-contain"
                   loading="lazy"
-                  decoding="async"
+                  unoptimized
                   onError={(event) => {
-                    const image = event.target as HTMLImageElement;
+                    const image = event.currentTarget as HTMLImageElement;
                     const wrapper = image.parentElement;
                     if (wrapper) wrapper.style.display = 'none';
                     const fallback = wrapper?.nextElementSibling;

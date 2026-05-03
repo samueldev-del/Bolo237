@@ -46,6 +46,8 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true);
 
   const [error, setError] = useState<string | null>(null);
+  const [retryAttempt, setRetryAttempt] = useState(0);
+  const [retryCountdown, setRetryCountdown] = useState(0);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const [actionLoading, setActionLoading] = useState<number | null>(null);
@@ -63,7 +65,36 @@ export default function AdminDashboard() {
       .catch(() => setTrendPoints([]));
   }, [trendDays]);
 
-  async function loadData() {
+  // Auto-retry with exponential backoff while the error state is shown.
+  // Render cold-starts can take 30-60s, so we keep poking with a visible countdown.
+  useEffect(() => {
+    if (!error) return;
+    const delays = [3, 6, 12, 20]; // seconds
+    const idx = Math.min(retryAttempt, delays.length - 1);
+    const wait = delays[idx];
+
+    if (retryAttempt >= delays.length) return; // give up auto, let user click
+
+    setRetryCountdown(wait);
+    const tick = setInterval(() => {
+      setRetryCountdown((c) => (c > 0 ? c - 1 : 0));
+    }, 1000);
+
+    const timer = setTimeout(() => {
+      // Wake the backend before retrying.
+      fetch("/api/wake", { cache: "no-store" })
+        .catch(() => {})
+        .finally(() => loadData(retryAttempt + 1));
+    }, wait * 1000);
+
+    return () => {
+      clearInterval(tick);
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [error, retryAttempt]);
+
+  async function loadData(attempt = 0) {
     setLoading(true);
     setError(null);
     try {
@@ -77,11 +108,19 @@ export default function AdminDashboard() {
       setLatestUsers(usersData.users);
       const trendsData = await fetchAdminTrends(trendDays);
       setTrendPoints(trendsData.points);
+      setRetryAttempt(0);
     } catch (err) {
+      setRetryAttempt(attempt);
       setError(err instanceof Error ? err.message : "Impossible de contacter le serveur");
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleManualRetry() {
+    setRetryAttempt(0);
+    fetch("/api/wake", { cache: "no-store" }).catch(() => {});
+    loadData(0);
   }
 
   async function handleModeration(jobId: number, status: "APPROVED" | "REJECTED") {
@@ -116,17 +155,28 @@ export default function AdminDashboard() {
   }
 
   if (error) {
+    const maxAutoRetries = 4;
+    const willAutoRetry = retryAttempt < maxAutoRetries;
     return (
       <AdminShell title="Tableau de bord" description="Erreur de connexion">
         <div className="flex h-[60vh] flex-col items-center justify-center text-center">
           <WifiOff className="mb-6 h-16 w-16 text-red-400" />
           <h3 className="mb-2 text-xl font-bold text-zinc-900">Connexion au serveur impossible</h3>
-          <p className="mb-8 max-w-md text-zinc-500">{error}</p>
+          <p className="mb-2 max-w-md text-zinc-500">{error}</p>
+          {willAutoRetry ? (
+            <p className="mb-8 max-w-md text-xs font-semibold text-zinc-400">
+              Tentative {retryAttempt + 1}/{maxAutoRetries} — nouvelle tentative dans {retryCountdown}s...
+            </p>
+          ) : (
+            <p className="mb-8 max-w-md text-xs font-semibold text-zinc-400">
+              Le reveil automatique a echoue. Le backend Render est peut-etre hors ligne.
+            </p>
+          )}
           <button
-            onClick={loadData}
+            onClick={handleManualRetry}
             className="rounded-xl bg-[#DA7756] px-8 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#DA7756]/30 transition hover:bg-[#C4623F] hover:shadow-xl"
           >
-            Reessayer
+            Reessayer maintenant
           </button>
         </div>
       </AdminShell>

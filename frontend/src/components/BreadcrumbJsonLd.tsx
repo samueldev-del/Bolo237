@@ -2,6 +2,7 @@
 
 import { useLocale } from '@/components/LocaleProvider';
 import { buildBreadcrumbSchema, type BreadcrumbItem } from '@/lib/seo';
+import { safeJsonLd } from '@/lib/jsonLd';
 
 type BreadcrumbJsonLdProps = {
   items: BreadcrumbItem[];
@@ -14,7 +15,7 @@ export default function BreadcrumbJsonLd({ items }: BreadcrumbJsonLdProps) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      dangerouslySetInnerHTML={{ __html: safeJsonLd(schema) }}
     />
   );
 }

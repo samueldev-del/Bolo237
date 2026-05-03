@@ -164,22 +164,7 @@ export default function AppFeedbackWidget() {
     setMessage('');
 
     try {
-      let userId = 0;
-      let authorName = '';
-      try {
-        const raw = localStorage.getItem('bolo237-user');
-        if (raw) {
-          const user = JSON.parse(raw);
-          userId = Number(user?.id || 0);
-          authorName = String(user?.name || user?.fullName || user?.email || '').trim();
-        }
-      } catch {
-        // ignore local storage parse issues
-      }
-
       await createAppFeedback({
-        userId: userId || undefined,
-        authorName: authorName || undefined,
         rating,
         comment: comment.trim(),
       });

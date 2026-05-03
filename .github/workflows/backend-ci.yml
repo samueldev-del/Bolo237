@@ -1,0 +1,50 @@
+name: Backend Security CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'backend/**'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'backend/**'
+
+# Principe de moindre privilège : lecture seule sur le code source
+permissions:
+  contents: read
+
+jobs:
+  static-security-analysis:
+    name: Route Security Regression Check
+    runs-on: ubuntu-latest
+
+    # Applique par défaut le répertoire backend à toutes les commandes 'run'
+    defaults:
+      run:
+        working-directory: ./backend
+
+    steps:
+      - name: Checkout repository
+        # Fixé à v4.2.2 via SHA immuable
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup Node.js
+        # Fixé à v4.4.0 via SHA immuable
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20' # LTS recommandée (ajuste selon ton moteur local)
+          cache: 'npm'
+          cache-dependency-path: './backend/package-lock.json'
+
+      - name: Install dependencies (Secure Mode)
+        # Évite l'exécution de scripts de post-installation arbitraires
+        run: npm ci --ignore-scripts
+
+      - name: Run static security routes analysis
+        # Exécute le script d'assertion sans nécessiter de base de données
+        run: npm run test:security-routes

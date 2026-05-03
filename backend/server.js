@@ -121,7 +121,9 @@ const {
 const createDashboardArtisanRouter = require('./routes/dashboard-artisan');
 const createDashboardEntrepriseRouter = require('./routes/dashboard-entreprise');
 const adminRouter = require('./routes/admin');
+const authRouter = require('./routes/auth');
 const jobsRouter = require('./routes/jobs');
+const otpRouter = require('./routes/otp');
 const usersRouter = require('./routes/users');
 const { corsOptions, isAllowedOrigin, allowedOrigins } = require('./lib/cors');
 const {
@@ -528,8 +530,10 @@ app.use('/api/admin', requireAdminSession);
 
 app.use('/api/dashboard-artisan', createDashboardArtisanRouter({ prisma, requireUserSession }));
 app.use('/api/dashboard-entreprise', createDashboardEntrepriseRouter({ prisma, requireUserSession }));
+app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/jobs', jobsRouter);
+app.use('/api/otp', otpRouter);
 app.use('/api/users', usersRouter);
 app.get('/api/csrf-token', csrfTokenRoute);
 
@@ -811,8 +815,6 @@ const portfolioCreateBodySchema = z.object({
   title: z.string().trim().max(200).optional().nullable(),
 });
 const feedbackCreateBodySchema = z.object({
-  userId: z.coerce.number().int().positive().optional(),
-  authorName: z.string().trim().max(120).optional().nullable(),
   rating: z.coerce.number().int().min(1).max(5),
   comment: z.string().trim().min(3).max(5000),
 });
@@ -820,7 +822,6 @@ const reviewTargetParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 const reviewCreateBodySchema = z.object({
-  reviewerId: z.coerce.number().int().positive(),
   rating: z.coerce.number().int().min(1).max(5),
   comment: z.string().trim().min(3).max(5000),
 });
@@ -2516,9 +2517,11 @@ app.delete('/api/users/:id/portfolio/:portfolioId', requireUserSession, validate
 // ROUTES: App Feedbacks
 // =============================================
 
-app.post('/api/feedbacks', feedbackSubmissionLimiter, validateBody(feedbackCreateBodySchema), async (req, res) => {
+app.post('/api/feedbacks', requireUserSession, feedbackSubmissionLimiter, validateBody(feedbackCreateBodySchema), async (req, res) => {
   try {
-    const { userId, authorName, rating, comment } = req.body || {};
+    const { rating, comment } = req.body || {};
+    const sessionUserId = Number(req.sessionUser?.id || 0);
+    const sessionAuthorName = String(req.sessionUser?.name || '').trim() || null;
 
     const parsedRating = parseInt(String(rating), 10);
     if (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5) {
@@ -2530,15 +2533,10 @@ app.post('/api/feedbacks', feedbackSubmissionLimiter, validateBody(feedbackCreat
       return res.status(400).json({ error: 'Commentaire trop court (minimum 3 caracteres).' });
     }
 
-    const parsedUserId = userId ? parseInt(String(userId), 10) : null;
-    if (userId && isNaN(parsedUserId)) {
-      return res.status(400).json({ error: 'userId invalide.' });
-    }
-
     const row = await prisma.appFeedback.create({
       data: {
-        userId: parsedUserId || null,
-        authorName: authorName ? String(authorName).trim().slice(0, 120) : null,
+        userId: sessionUserId,
+        authorName: sessionAuthorName,
         rating: parsedRating,
         comment: normalizedComment,
       },
@@ -2618,16 +2616,16 @@ app.get('/api/users/:id/reviews', async (req, res) => {
   }
 });
 
-app.post('/api/users/:id/reviews', reviewSubmissionLimiter, validateParams(reviewTargetParamSchema), validateBody(reviewCreateBodySchema), async (req, res) => {
+app.post('/api/users/:id/reviews', requireUserSession, reviewSubmissionLimiter, validateParams(reviewTargetParamSchema), validateBody(reviewCreateBodySchema), async (req, res) => {
   try {
     const reviewedId = parseInt(req.params.id, 10);
     if (isNaN(reviewedId)) return res.status(400).json({ error: 'ID utilisateur invalide.' });
 
-    const { reviewerId, rating, comment } = req.body || {};
-    const parsedReviewerId = parseInt(String(reviewerId), 10);
+    const { rating, comment } = req.body || {};
+    const parsedReviewerId = Number(req.sessionUser?.id || 0);
     const parsedRating = parseInt(String(rating), 10);
 
-    if (isNaN(parsedReviewerId)) return res.status(400).json({ error: 'reviewerId invalide.' });
+    if (!parsedReviewerId) return res.status(401).json({ error: 'Session requise.' });
     if (isNaN(parsedRating) || parsedRating < 1 || parsedRating > 5) {
       return res.status(400).json({ error: 'La note doit etre comprise entre 1 et 5.' });
     }
@@ -2676,83 +2674,7 @@ app.post('/api/users/:id/reviews', reviewSubmissionLimiter, validateParams(revie
 // =============================================
 // ROUTES: Auth (Authentification)
 // =============================================
-
-// POST /api/auth/login — Connexion utilisateur
-app.post('/api/auth/login', loginIpLimiter, loginIdentifierLimiter, async (req, res) => {
-  try {
-    const { email, phone, identifier, password } = req.body;
-    const loginIdentifier = String(identifier || email || phone || '').trim();
-
-    if (!loginIdentifier || !password) {
-      return res.status(400).json({ error: 'Identifiant (email ou telephone) et mot de passe requis.' });
-    }
-
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { email: loginIdentifier.toLowerCase() },
-          { phone: loginIdentifier },
-        ],
-      },
-    });
-    if (!user) {
-      return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect.' });
-    }
-
-    const valid = bcrypt.compareSync(String(password), user.password);
-    if (!valid) {
-      return res.status(401).json({ error: 'Identifiant ou mot de passe incorrect.' });
-    }
-
-    if (user.isBanned) {
-      return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
-    }
-
-    const token = createSessionToken(user);
-    res.cookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions());
-
-    // Return user data without password
-    const { password: _pw, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
-  } catch (error) {
-    console.error('POST /api/auth/login error:', error);
-    res.status(500).json({ error: 'Erreur lors de la connexion.' });
-  }
-});
-
-// GET /api/auth/me — Retourner l'utilisateur de session
-app.get('/api/auth/me', async (req, res) => {
-  try {
-    const payload = await readSessionToken(req);
-    if (!payload?.userId) return res.status(401).json({ error: 'Session invalide.' });
-
-    const user = await prisma.user.findUnique({
-      where: { id: Number(payload.userId) },
-      select: { id: true, email: true, name: true, role: true, phone: true, photoUrl: true, isVerified: true, isBanned: true, banReason: true, createdAt: true },
-    });
-
-    if (!user) {
-      clearSessionCookie(res);
-      return res.status(401).json({ error: 'Session invalide.' });
-    }
-
-    if (user.isBanned) {
-      clearSessionCookie(res);
-      return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
-    }
-
-    return res.json(user);
-  } catch (error) {
-    console.error('GET /api/auth/me error:', error);
-    return res.status(500).json({ error: 'Erreur lors de la verification de session.' });
-  }
-});
-
-// POST /api/auth/logout — Fermer la session
-app.post('/api/auth/logout', (_req, res) => {
-  clearSessionCookie(res);
-  res.json({ ok: true });
-});
+// Routes /api/auth/* migrees vers backend/routes/auth.js
 
 // =============================================
 // ROUTES: Privacy / Data Rights
@@ -3040,143 +2962,12 @@ app.post('/api/upload', uploadIpLimiter, validateQuery(uploadQuerySchema), uploa
 // =============================================
 // ROUTES: OTP (Verification telephone)
 // =============================================
-
-// Stockage en memoire des codes OTP (en prod : Redis ou DB)
-const otpStore = new Map(); // phone -> { code, expires }
-
-// Route pour ENVOYER le code SMS
-app.post('/api/otp/send', otpIpLimiter, otpPhoneLimiter, validateBody(otpSendBodySchema), async (req, res) => {
-  const { phone } = req.body;
-  if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis" });
-
-  // 1. Générer un vrai code à 6 chiffres (CSPRNG)
-  const otp = crypto.randomInt(100000, 1000000).toString();
-
-  // 2. Sauvegarder en mémoire (expire dans 5 minutes)
-  otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
-
-  try {
-    // 3. Envoyer le vrai SMS via Twilio
-    if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
-      await twilioClient.messages.create({
-        body: `Bienvenue sur Bolo237 ! Votre code de vérification est : ${otp}`,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        to: phone
-      });
-      console.log(`✅ SMS envoyé avec succès à ${phone}`);
-    } else {
-      console.warn(`⚠️ Twilio non configuré pour les SMS. Code généré en local : ${otp}`);
-    }
-    
-    res.json({ success: true, message: "Code envoyé par SMS" });
-  } catch (error) {
-    console.error("❌ Erreur lors de l'envoi du SMS Twilio:", error);
-    res.status(500).json({ error: "Erreur lors de l'envoi du SMS. Veuillez réessayer." });
-  }
-});
-
-// Route pour VÉRIFIER le code SMS
-app.post('/api/otp/verify', otpVerifyLimiter, validateBody(otpVerifyBodySchema), async (req, res) => {
-  const { phone, code } = req.body;
-
-  const record = otpStore.get(phone);
-  if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro" });
-  if (Date.now() > record.expires) {
-    otpStore.delete(phone);
-    return res.status(400).json({ error: "Le code a expiré (5 minutes max)" });
-  }
-  if (record.code !== code) {
-    return res.status(400).json({ error: "Code incorrect" });
-  }
-
-  // Si c'est bon, on supprime le code pour la sécurité
-  otpStore.delete(phone);
-  res.json({ success: true, verified: true, message: "Téléphone vérifié avec succès" });
-});
+// Routes /api/otp/* migrees vers backend/routes/otp.js
 
 // =============================================
 // ROUTES: RESET MOT DE PASSE (via OTP telephone)
 // =============================================
-
-// Etape 1: Demander un reset — envoie un OTP au telephone associé
-app.post('/api/auth/forgot-password', forgotPasswordLimiter, validateBody(forgotPasswordBodySchema), async (req, res) => {
-  try {
-    const { phone } = req.body;
-    if (!phone) return res.status(400).json({ error: "Numéro de téléphone requis." });
-
-    // Vérifier que le téléphone existe dans la base
-    const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
-    if (!user) return res.status(404).json({ error: "Aucun compte associé à ce numéro." });
-
-    // Générer et stocker un OTP (CSPRNG)
-    const otp = crypto.randomInt(100000, 1000000).toString();
-    otpStore.set(phone, { code: otp, expires: Date.now() + 5 * 60000 });
-
-    const deliveryTasks = [];
-
-    // Envoyer par SMS si Twilio configuré
-    if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
-      deliveryTasks.push(
-        twilioClient.messages.create({
-          body: `Bolo237 — Votre code de réinitialisation : ${otp}`,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: phone
-        })
-      );
-    }
-
-    deliveryTasks.push(sendPasswordResetCodeEmail({ transporter, user, code: otp }));
-
-    await Promise.allSettled(deliveryTasks);
-
-    // OTP sent (not logged for security)
-    res.json({ success: true, message: "Code envoye. Verifiez votre SMS ou votre email." });
-  } catch (error) {
-    reportError('forgot-password error', error, { route: '/api/auth/forgot-password' });
-    res.status(500).json({ error: "Erreur serveur." });
-  }
-});
-
-// Etape 2: Vérifier OTP + définir nouveau mot de passe
-app.post('/api/auth/reset-password', resetPasswordLimiter, validateBody(resetPasswordBodySchema), async (req, res) => {
-  try {
-    const { phone, code, newPassword } = req.body;
-    if (!phone || !code || !newPassword) {
-      return res.status(400).json({ error: "Téléphone, code et nouveau mot de passe requis." });
-    }
-    if (newPassword.length < 6) {
-      return res.status(400).json({ error: "Le mot de passe doit contenir au moins 6 caractères." });
-    }
-
-    const record = otpStore.get(phone);
-
-    if (!record) return res.status(400).json({ error: "Aucun code demandé pour ce numéro." });
-    if (Date.now() > record.expires) {
-      otpStore.delete(phone);
-      return res.status(400).json({ error: "Le code a expiré." });
-    }
-    if (record.code !== code) {
-      return res.status(400).json({ error: "Code incorrect." });
-    }
-
-    otpStore.delete(phone);
-
-    // Trouver l'utilisateur et mettre à jour le mot de passe
-    const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
-    if (!user) return res.status(404).json({ error: "Utilisateur introuvable." });
-
-    const hashedPassword = bcrypt.hashSync(String(newPassword), 10);
-    await prisma.user.update({ where: { id: user.id }, data: { password: hashedPassword } });
-
-    await sendPasswordResetConfirmationEmail({ transporter, user });
-
-    console.log(`✅ Mot de passe réinitialisé pour user ${user.id} (${phone})`);
-    res.json({ success: true, message: "Mot de passe réinitialisé avec succès." });
-  } catch (error) {
-    reportError('reset-password error', error, { route: '/api/auth/reset-password' });
-    res.status(500).json({ error: "Erreur serveur." });
-  }
-});
+// Routes /api/auth/forgot-password et /api/auth/reset-password migrees vers backend/routes/auth.js
 
 // =============================================
 // ROUTES: Boite de Reception (Hostinger IMAP + legacy webhook)

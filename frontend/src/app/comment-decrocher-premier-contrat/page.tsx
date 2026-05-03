@@ -4,6 +4,7 @@ import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
+import { safeJsonLd } from '@/lib/jsonLd';
 
 type HowToStep = {
   name: string;
@@ -99,7 +100,7 @@ export default function CommentDecrocherPremierContratPage() {
         </ol>
       </main>
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(howToSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: safeJsonLd(howToSchema) }} />
       <Footer />
     </div>
   );

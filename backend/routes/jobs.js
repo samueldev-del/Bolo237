@@ -1,8 +1,18 @@
 const express = require('express');
+const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const router = express.Router();
 const { z } = require('zod');
 const { prisma } = require('../lib/db');
-const { upload, sniffFileType, ALLOWED_UPLOAD_MIME } = require('../lib/uploads');
+const {
+  cloudinary,
+  upload,
+  uploadsRoot,
+  sniffFileType,
+  safeExtensionForMime,
+  ALLOWED_UPLOAD_MIME,
+} = require('../lib/uploads');
 const { readSessionToken, requireUserSession } = require('../lib/session');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
@@ -462,6 +472,41 @@ const validateApply = async (req, res, next) => {
   }
 };
 
+async function persistUploadedCv(file, req) {
+  const declaredMime = String(file.mimetype || '').toLowerCase();
+  const detectedType = await sniffFileType(file.buffer, declaredMime);
+  if (!detectedType || !ALLOWED_UPLOAD_MIME.has(detectedType)) {
+    throw new Error('INVALID_CV_TYPE');
+  }
+
+  if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    const folder = 'bolo237/cv';
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder, resource_type: 'auto' },
+        (error, uploadResult) => (error ? reject(error) : resolve(uploadResult)),
+      );
+      stream.end(file.buffer);
+    });
+
+    return String(result.secure_url || '').trim();
+  }
+
+  const extension = safeExtensionForMime(detectedType);
+  const fileName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${extension}`;
+  const targetDir = path.join(uploadsRoot, 'cv');
+  if (!targetDir.startsWith(uploadsRoot + path.sep) && targetDir !== uploadsRoot) {
+    throw new Error('INVALID_CV_FOLDER');
+  }
+
+  fs.mkdirSync(targetDir, { recursive: true });
+  fs.writeFileSync(path.join(targetDir, fileName), file.buffer);
+
+  const relativePath = `cv/${fileName}`.replace(/\\/g, '/');
+  const baseUrl = `${req.protocol}://${req.get('host')}`;
+  return `${baseUrl}/uploads/${relativePath}`;
+}
+
 // ==========================================
 // 🚀 ROUTE : POSTULER À UNE OFFRE
 // ==========================================
@@ -474,21 +519,7 @@ router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply
     const candidateId = req.sessionUser.id;
     const { message, cvUrl: bodyCvUrl } = req.body;
 
-    if (req.file) {
-      const declaredMime = String(req.file.mimetype || '').toLowerCase();
-      if (!ALLOWED_UPLOAD_MIME.has(declaredMime)) {
-        return res.status(415).json({ success: false, message: 'Type de fichier CV non supporte.' });
-      }
-
-      const detectedType = await sniffFileType(req.file.buffer, declaredMime);
-      if (!detectedType || !ALLOWED_UPLOAD_MIME.has(detectedType)) {
-        return res.status(415).json({ success: false, message: 'Type de fichier reel invalide pour le CV.' });
-      }
-    }
-
-    // Si un fichier est fourni ici, la route historique tente de lire son URL.
-    // Sinon, on reutilise l'URL d'un CV deja stocke (CV principal).
-    const uploadedCvUrl = req.file?.path || req.file?.secure_url || '';
+    const uploadedCvUrl = req.file ? await persistUploadedCv(req.file, req) : '';
     const cvUrl = String(uploadedCvUrl || bodyCvUrl || '').trim();
 
     if (!cvUrl) {
@@ -535,6 +566,12 @@ router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply
     });
 
   } catch (error) {
+    if (error?.message === 'INVALID_CV_TYPE') {
+      return res.status(415).json({ success: false, message: 'Type de fichier reel invalide pour le CV.' });
+    }
+    if (error?.message === 'INVALID_CV_FOLDER') {
+      return res.status(400).json({ success: false, message: 'Dossier de CV invalide.' });
+    }
     console.error("Erreur lors de la candidature:", error);
     res.status(500).json({ success: false, message: "Erreur interne lors de l'envoi de la candidature." });
   }

@@ -6,7 +6,7 @@ import { createUser, loginUser, ApiError } from '@/lib/api';
 import { trackEvent } from '@/lib/analytics';
 import { markRecentAuthSuccess, storeAuthenticatedUser } from '@/lib/session';
 
-type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
+export type SignupRole = 'chercheur' | 'entreprise' | 'artisan';
 type Role = SignupRole | 'admin';
 
 const SIGNUP_HONEYPOT_FIELD = 'website';
@@ -52,6 +52,8 @@ const COUNTRY_PHONE_OPTIONS: CountryPhoneOption[] = [
 interface SignupFormProps {
   onBack: () => void;
   onSuccess: (email: string) => void;
+  role?: SignupRole;
+  onRoleChange?: (role: SignupRole) => void;
 }
 
 const roleConfig = {
@@ -69,11 +71,16 @@ const roleConfig = {
   },
 };
 
-export default function SignupForm({ onBack, onSuccess }: SignupFormProps) {
+export default function SignupForm({ onBack, onSuccess, role, onRoleChange }: SignupFormProps) {
   const { locale } = useLocale();
   const isEn = locale === 'en';
 
-  const [selectedRole, setSelectedRole] = useState<SignupRole>('chercheur');
+  const [internalRole, setInternalRole] = useState<SignupRole>('chercheur');
+  const selectedRole = role ?? internalRole;
+  const setSelectedRole = (next: SignupRole) => {
+    if (onRoleChange) onRoleChange(next);
+    else setInternalRole(next);
+  };
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [selectedCountryCode, setSelectedCountryCode] = useState<CountryPhoneOption['code']>('CM');
@@ -169,28 +176,38 @@ export default function SignupForm({ onBack, onSuccess }: SignupFormProps) {
       </div>
 
       <div className="space-y-3">
-        <p className="text-xs font-bold text-gray-600">{isEn ? 'Account type' : 'Type de compte'}</p>
-        <div className="grid grid-cols-3 gap-2">
-          {(Object.keys(roleConfig) as SignupRole[]).map((role) => {
-            const cfg = roleConfig[role];
-            const active = selectedRole === role;
+        <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          {isEn ? 'I am a...' : 'Je suis...'}
+        </p>
+        <div role="radiogroup" aria-label={isEn ? 'Account type' : 'Type de compte'} className="grid grid-cols-3 gap-2.5">
+          {(Object.keys(roleConfig) as SignupRole[]).map((roleKey) => {
+            const cfg = roleConfig[roleKey];
+            const active = selectedRole === roleKey;
+            const accent =
+              roleKey === 'entreprise'
+                ? 'border-blue-500 bg-blue-50 ring-blue-200'
+                : roleKey === 'artisan'
+                  ? 'border-amber-500 bg-amber-50 ring-amber-200'
+                  : 'border-[#DA7756] bg-[#FFF5EF] ring-[#F5C5A3]';
             return (
               <button
-                key={role}
+                key={roleKey}
                 type="button"
-                onClick={() => setSelectedRole(role)}
-                className={`rounded-xl border px-2 py-2 text-xs font-bold transition ${
+                role="radio"
+                aria-checked={active}
+                onClick={() => setSelectedRole(roleKey)}
+                className={`group relative flex flex-col items-center gap-1.5 rounded-2xl border-2 px-2 py-3 text-center transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${
                   active
-                    ? role === 'entreprise'
-                      ? 'border-blue-500 bg-blue-50 text-blue-700'
-                      : role === 'artisan'
-                        ? 'border-amber-500 bg-amber-50 text-amber-700'
-                        : 'border-[#DA7756] bg-[#FFF5EF] text-[#8B4332]'
-                    : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                    ? `${accent} shadow-sm ring-4`
+                    : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
                 }`}
               >
-                <span className="mr-1">{cfg.icon}</span>
-                {cfg.subtitle}
+                <span className={`text-2xl transition-transform duration-200 ${active ? 'scale-110' : 'group-hover:scale-105'}`} aria-hidden="true">
+                  {cfg.icon}
+                </span>
+                <span className={`text-xs font-bold ${active ? 'text-gray-900' : 'text-gray-700'}`}>
+                  {cfg.subtitle}
+                </span>
               </button>
             );
           })}

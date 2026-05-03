@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:clean": "pkill -f \"next dev\" || true; sleep 1; rm -rf .next || true; next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "node .next/standalone/server.js",
     "lint": "eslint",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",

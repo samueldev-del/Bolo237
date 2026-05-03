@@ -18,6 +18,7 @@
     "seed:telcovas": "node scripts/seed-telcovas.js",
     "seed:gozem": "node scripts/seed-gozem.js",
     "seed:trusted": "node scripts/seedTrustedCompaniesJobs.js",
+    "admin:ensure-user": "node scripts/ensure-admin-user.js",
     "admin:reset-password": "node scripts/reset-admin-password.js",
     "test:e2e": "node scripts/test-e2e.js",
     "db:clean": "node prisma/clean.js",

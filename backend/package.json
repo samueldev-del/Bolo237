@@ -12,6 +12,7 @@
     "seed": "node prisma/seed.js",
     "seed:flex-living": "node scripts/seed-flex-living.js",
     "seed:ambassade": "node scripts/seed-ambassade.js",
+    "seed:ambassade:ts": "node --experimental-strip-types scripts/seed-ambassade.ts",
     "seed:dhl": "node scripts/seed-dhl.js",
     "seed:iom": "node scripts/seed-iom.js",
     "seed:lapaire": "node scripts/seed-lapaire.js",

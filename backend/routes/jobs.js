@@ -18,6 +18,7 @@ const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
 const { TranslationServiceError, buildBilingualJobContent } = require('../lib/translation.service');
 const { generateJobReference } = require('../lib/references');
+const { generateSlug } = require('../lib/jobSlug');
 const { validateBody } = require('../lib/requestValidation');
 
 // 🛡️ 1. LE SCHÉMA ZOD : Le plan strict de ce qu'on accepte
@@ -160,8 +161,11 @@ router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) =
     const newJob = await (async () => {
       for (let attempt = 0; attempt < 5; attempt++) {
         try {
+          const reference = generateJobReference();
           return await prisma.job.create({
             data: {
+              reference,
+              slug: generateSlug(localizedFields.title_fr, location, reference),
               title: localizedFields.title_fr,
               titleFr: localizedFields.titleFr,
               titleEn: localizedFields.titleEn,
@@ -177,7 +181,6 @@ router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) =
               salary,
               externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
               authorId,
-              reference: generateJobReference(),
               status: 'PENDING', // Toujours en attente pour modération admin
             }
           });
@@ -253,6 +256,7 @@ router.put('/:id', requireUserSession, validateBody(jobSchema), async (req, res)
     const updatedJob = await prisma.job.update({
       where: { id: jobId },
       data: {
+        slug: generateSlug(localizedFields.title_fr, location, existingJob.reference),
         title: localizedFields.title_fr,
         titleFr: localizedFields.titleFr,
         titleEn: localizedFields.titleEn,

@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { VerifiedBadge } from '@/components/VerifiedBadge';
 import { fetchJobs, type ApiJob, type JobsResponse } from '@/lib/api';
+import { buildJobDetailPath } from '@/lib/jobSlug';
 import {
   inferWorkMode,
   inferContractType,
@@ -816,7 +817,7 @@ function HomePageContent({ initialJobsData, initialQuery }: HomePageContentProps
           {searchMode === 'emploi' && visibleJobs.length > 0 && (
             <div className="space-y-3">
               {visibleJobs.map((job) => (
-                <Link key={job.id} href={localizePath(`/annonce/${job.id}`)} className="block group">
+                <Link key={job.id} href={localizePath(buildJobDetailPath(job))} className="block group">
                   <article className="bg-white p-5 rounded-2xl border border-gray-200 hover:border-[#DA7756] hover:shadow-lg hover:shadow-[#FFF5EF] transition-all duration-200">
                     <div className="flex items-start gap-4">
                       <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg border border-gray-100 overflow-hidden flex-shrink-0 bg-white p-1.5 flex items-center justify-center shadow-sm">

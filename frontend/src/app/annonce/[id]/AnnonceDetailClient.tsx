@@ -3,8 +3,10 @@
 import { use, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import Script from 'next/script';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
+import ApplyButton from '@/components/ApplyButton';
 import { fetchJob, fetchUserProfile, submitJobApplication, ApiError } from '@/lib/api';
 import {
   extractExternalApplyUrl,
@@ -19,6 +21,7 @@ import { useApi } from '@/lib/useApi';
 import { trackEvent } from '@/lib/analytics';
 import { safeJsonLd } from '@/lib/jsonLd';
 import { getStoredUser } from '@/lib/session';
+import { buildJobDetailSegment, parseJobIdFromSegment } from '@/lib/jobSlug';
 
 type JobParams = {
   params: Promise<{
@@ -95,6 +98,68 @@ function getLocalizedJobDescriptionLocal(
     : pickLocalizedText(job.descriptionFr, job.descriptionEn, job.description);
 }
 
+function mapCameroonLocations(location: string) {
+  const normalized = String(location || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[./]/g, ',')
+    .split(/,|\/|;|\band\b|\bet\b/gi)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  const cityMap = new Map([
+    ['douala', 'Douala'],
+    ['yaounde', 'Yaounde'],
+    ['yaoundé', 'Yaounde'],
+    ['bafoussam', 'Bafoussam'],
+    ['bertoua', 'Bertoua'],
+    ['garoua', 'Garoua'],
+    ['maroua', 'Maroua'],
+    ['kaele', 'Kaele'],
+    ['kaélé', 'Kaele'],
+    ['limbe', 'Limbe'],
+    ['buea', 'Buea'],
+    ['bamenda', 'Bamenda'],
+    ['kribi', 'Kribi'],
+    ['ngaoundere', 'Ngaoundere'],
+    ['ngaoundéré', 'Ngaoundere'],
+  ]);
+
+  const cities = normalized
+    .map((part) => cityMap.get(part.toLowerCase()))
+    .filter((value, index, array) => Boolean(value) && array.indexOf(value) === index);
+
+  if (cities.length > 0) {
+    return cities.map((city) => ({
+      '@type': 'Place',
+      address: {
+        '@type': 'PostalAddress',
+        addressLocality: city,
+        addressCountry: 'CM',
+      },
+    }));
+  }
+
+  return [
+    {
+      '@type': 'Place',
+      address: {
+        '@type': 'PostalAddress',
+        addressLocality: String(location || '').trim() || 'Cameroon',
+        addressCountry: 'CM',
+      },
+    },
+  ];
+}
+
+function mapEmploymentType(value: string | null | undefined) {
+  const normalized = String(value || '').toLowerCase();
+  if (normalized.includes('freelance') || normalized.includes('contract')) return 'CONTRACTOR';
+  if (normalized.includes('part time')) return 'PART_TIME';
+  if (normalized.includes('intern')) return 'INTERN';
+  if (normalized.includes('temporary') || normalized.includes('short term')) return 'TEMPORARY';
+  return 'FULL_TIME';
+}
+
 type UserProfile = {
   id: number;
   name: string;
@@ -110,7 +175,7 @@ type UserProfile = {
 
 export default function AnnonceDetailClient({ params }: JobParams) {
   const { id } = use(params);
-  const numericId = parseInt(id, 10);
+  const numericId = parseJobIdFromSegment(id);
   const { t, localizePath, locale } = useLocale();
   const isEn = locale === 'en';
   const [maskedByReports, setMaskedByReports] = useState(false);
@@ -126,7 +191,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
 
   // Fetch le détail de l'offre depuis le backend
   const { data: apiJob, loading } = useApi(
-    () => (isNaN(numericId) ? Promise.reject(new Error('Invalid ID')) : fetchJob(numericId)),
+    () => (numericId === null ? Promise.reject(new Error('Invalid ID')) : fetchJob(numericId)),
     null,
     [numericId]
   );
@@ -252,7 +317,8 @@ export default function AnnonceDetailClient({ params }: JobParams) {
     );
   }
 
-  const canonicalJobUrl = `https://www.bolo237.com/${locale}/annonce/${id}`;
+  const canonicalJobSegment = apiJob ? buildJobDetailSegment(apiJob) : id;
+  const canonicalJobUrl = `https://www.bolo237.com/${locale}/annonce/${canonicalJobSegment}`;
   const externalApplyUrl = apiJob
     ? (
         String(apiJob.externalApplyUrl || '').trim() ||
@@ -270,25 +336,30 @@ export default function AnnonceDetailClient({ params }: JobParams) {
         '@type': 'JobPosting',
         title: annonce.title,
         description: annonce.description,
+        identifier: apiJob.reference
+          ? {
+              '@type': 'PropertyValue',
+              name: 'Bolo237',
+              value: apiJob.reference,
+            }
+          : undefined,
         datePosted: apiJob.createdAt,
-        employmentType: 'FULL_TIME',
+        employmentType: mapEmploymentType(apiJob.salary),
         hiringOrganization: {
           '@type': 'Organization',
           name: apiJob.company,
           sameAs: 'https://www.bolo237.com',
-          logo: 'https://www.bolo237.com/icon.svg',
+          logo: (() => {
+            const photoUrl = String(apiJob.author?.photoUrl || '').trim();
+            if (!photoUrl) return 'https://www.bolo237.com/icon.svg';
+            return /^https?:\/\//i.test(photoUrl) ? photoUrl : `https://www.bolo237.com${photoUrl}`;
+          })(),
         },
-        jobLocation: {
-          '@type': 'Place',
-          address: {
-            '@type': 'PostalAddress',
-            addressLocality: apiJob.location,
-            addressCountry: 'CM',
-          },
-        },
+        jobLocation: mapCameroonLocations(apiJob.location),
         applicantLocationRequirements: {
           '@type': 'Country',
           name: 'Cameroon',
+          sameAs: 'https://www.wikidata.org/wiki/Q1009',
         },
         directApply: !externalApplyUrl,
         url: canonicalJobUrl,
@@ -503,12 +574,14 @@ export default function AnnonceDetailClient({ params }: JobParams) {
 
   return (
     <div className="min-h-screen bg-[#F4F7FB] text-slate-950 pb-24 md:pb-10">
-      <script
+      <Script
+        id="job-breadcrumb-jsonld"
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: safeJsonLd(breadcrumbSchema) }}
       />
       {jobPostingSchema && (
-        <script
+        <Script
+          id="job-posting-jsonld"
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: safeJsonLd(jobPostingSchema) }}
         />
@@ -626,30 +699,20 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                 </div>
 
                 <div className="mt-5 grid gap-3">
-                  {externalApplyUrl ? (
-                    <a
-                      href={externalApplyUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-slate-800"
-                    >
-                      <span>{isEn ? 'Apply' : 'Postuler'}</span>
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h8v8" />
-                      </svg>
-                    </a>
-                  ) : null}
-
-                  {!isExternalOnlyApplication ? (
-                    <button
-                      onClick={handleApplyClick}
-                      disabled={maskedByReports || isSubmitting}
-                      className="inline-flex items-center justify-center rounded-2xl bg-[#0F4C81] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#0C3E69] disabled:cursor-not-allowed disabled:bg-slate-300"
-                    >
-                      {maskedByReports ? t.security.adMaskedCta : isSubmitting ? (isEn ? 'Sending...' : 'Envoi...') : t.security.applyNow}
-                    </button>
-                  ) : null}
+                  <ApplyButton
+                    externalApplyUrl={externalApplyUrl}
+                    onInternalApply={handleApplyClick}
+                    disabled={maskedByReports}
+                    loading={isSubmitting}
+                    disabledLabel={maskedByReports ? t.security.adMaskedCta : undefined}
+                    className={
+                      externalApplyUrl
+                        ? 'inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-extrabold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300'
+                        : 'inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#0F4C81] px-5 py-3 text-sm font-extrabold text-white transition hover:bg-[#0C3E69] disabled:cursor-not-allowed disabled:bg-slate-300'
+                    }
+                  >
+                    {externalApplyUrl ? (isEn ? 'Apply' : 'Postuler') : t.security.applyNow}
+                  </ApplyButton>
                 </div>
 
                 {isExternalOnlyApplication ? (
@@ -761,29 +824,20 @@ export default function AnnonceDetailClient({ params }: JobParams) {
       {/* Mobile fixed apply button */}
       <div className="fixed md:hidden bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-3 z-50">
         <div className="grid grid-cols-1 gap-2">
-          {externalApplyUrl && (
-            <a
-              href={externalApplyUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black py-3 text-center font-extrabold text-white transition hover:bg-zinc-800"
-            >
-              <span>{isEn ? 'Apply' : 'Postuler'}</span>
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 17L17 7" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 7h8v8" />
-              </svg>
-            </a>
-          )}
-          {!isExternalOnlyApplication && (
-            <button
-              onClick={handleApplyClick}
-              disabled={maskedByReports || isSubmitting}
-              className="w-full bg-[#C4623F] disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-[#A8502F] text-white font-extrabold py-3 rounded-xl transition"
-            >
-              {maskedByReports ? t.security.adMaskedCta : isSubmitting ? (isEn ? 'Sending...' : 'Envoi...') : t.security.applyNow}
-            </button>
-          )}
+          <ApplyButton
+            externalApplyUrl={externalApplyUrl}
+            onInternalApply={handleApplyClick}
+            disabled={maskedByReports}
+            loading={isSubmitting}
+            disabledLabel={maskedByReports ? t.security.adMaskedCta : undefined}
+            className={
+              externalApplyUrl
+                ? 'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black py-3 text-center font-extrabold text-white transition hover:bg-zinc-800 disabled:bg-gray-300 disabled:cursor-not-allowed'
+                : 'inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#C4623F] py-3 text-center font-extrabold text-white transition hover:bg-[#A8502F] disabled:bg-gray-300 disabled:cursor-not-allowed'
+            }
+          >
+            {externalApplyUrl ? (isEn ? 'Apply' : 'Postuler') : t.security.applyNow}
+          </ApplyButton>
         </div>
       </div>
 

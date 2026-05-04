@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import AnnonceDetailClient from './AnnonceDetailClient';
+import { buildAlternates, SITE_URL, truncateText } from '@/lib/seo';
+import { buildJobDetailSegment, parseJobIdFromSegment } from '@/lib/jobSlug';
 
 type Props = { params: Promise<{ id: string }> };
-
-const SITE_URL = 'https://www.bolo237.com';
 const BACKEND_URL =
   process.env.BACKEND_INTERNAL_URL ||
   process.env.NEXT_PUBLIC_API_URL ||
@@ -11,8 +11,8 @@ const BACKEND_URL =
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
-  const numericId = parseInt(id, 10);
-  if (isNaN(numericId) || numericId <= 0) {
+  const numericId = parseJobIdFromSegment(id);
+  if (!numericId) {
     return { title: "Offre d'emploi | Bolo237" };
   }
 
@@ -23,22 +23,26 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     if (!res.ok) return { title: "Offre d'emploi | Bolo237" };
 
     const job = await res.json();
-    const rawDesc = String(job.description || '').replace(/\s+/g, ' ').trim();
-    const title = `${job.title} – ${job.company} | Bolo237`;
-    const description = rawDesc.slice(0, 160) ||
-      `Postulez à cette offre chez ${job.company} sur Bolo237 au Cameroun.`;
+    const path = `/annonce/${buildJobDetailSegment(job)}`;
+    const title = `${job.title} à ${job.location} | ${job.company} | Bolo237`;
+    const description = truncateText(
+      String(job.descriptionFr || job.description || '').replace(/\s+/g, ' ').trim() ||
+        `Postulez à cette offre chez ${job.company} à ${job.location} sur Bolo237.`,
+      160
+    );
     const ogImage = job.logoUrl || `${SITE_URL}/og-image.png`;
 
     return {
       title,
       description,
+      alternates: buildAlternates(path, 'fr'),
       openGraph: {
         title,
         description,
         type: 'article',
         siteName: 'Bolo237',
         locale: 'fr_CM',
-        url: `${SITE_URL}/fr/annonce/${numericId}`,
+        url: `${SITE_URL}/fr${path}`,
         images: [
           {
             url: ogImage,

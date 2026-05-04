@@ -112,6 +112,7 @@ model ArtisanPortfolio {
 model Job {
   id           Int           @id @default(autoincrement())
   reference    String?       @unique
+  slug         String?       @unique
   externalApplyUrl String?
   title        String
   titleFr      String?
@@ -136,6 +137,7 @@ model Job {
   @@index([createdAt])
   @@index([status, createdAt])
   @@index([authorId, createdAt])
+  @@index([slug])
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_title_trgm_idx")
   @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_company_trgm_idx")
   @@index([location(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_location_trgm_idx")

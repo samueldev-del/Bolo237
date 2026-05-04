@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 import JobListingCard from '@/components/JobListingCard';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchJobs, type ApiJob } from '@/lib/api';
+import { buildJobDetailPath } from '@/lib/jobSlug';
 import { getContractLabel, getWorkModeLabel, getWorkTimeLabel, mapApiJobToListing, type JobListing } from '@/lib/job-listings';
 import { useApi } from '@/lib/useApi';
 
@@ -508,7 +509,7 @@ function RechercheContent() {
                   key={annonce.id}
                   offer={annonce}
                   isEn={isEn}
-                  href={localizePath(`/annonce/${annonce.id}`)}
+                  href={localizePath(buildJobDetailPath(annonce))}
                 />
               ))}
             </div>

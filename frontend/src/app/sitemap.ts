@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { SITEMAP_SECTIONS, buildAlternates, localizedUrl, SITE_URL } from '@/lib/seo';
+import { buildJobDetailSegment } from '@/lib/jobSlug';
 
 const BACKEND_URL =
   process.env.BACKEND_INTERNAL_URL ||
@@ -8,7 +9,7 @@ const BACKEND_URL =
 const ENABLE_DYNAMIC_SITEMAP = process.env.SITEMAP_DYNAMIC === '1';
 
 /** Fetch approved job IDs from the backend — fails gracefully. */
-async function fetchApprovedJobIds(): Promise<number[]> {
+async function fetchApprovedJobs(): Promise<Array<{ id: number; slug?: string | null; title: string; titleFr?: string | null; titleEn?: string | null; location: string; reference?: string | null }>> {
   try {
     const res = await fetch(`${BACKEND_URL}/api/jobs?limit=500`, {
       next: { revalidate: 3600 },
@@ -16,10 +17,10 @@ async function fetchApprovedJobIds(): Promise<number[]> {
     });
     if (!res.ok) return [];
     const data = await res.json();
-    const jobs: Array<{ id: number }> = Array.isArray(data)
+    const jobs: Array<{ id: number; slug?: string | null; title: string; titleFr?: string | null; titleEn?: string | null; location: string; reference?: string | null }> = Array.isArray(data)
       ? data
       : (data.jobs ?? data.data ?? []);
-    return jobs.map((j) => j.id).filter((id) => typeof id === 'number' && id > 0);
+    return jobs.filter((job) => typeof job.id === 'number' && job.id > 0);
   } catch {
     return [];
   }
@@ -56,23 +57,27 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   }));
 
-  const [jobIds, artisanIds] = ENABLE_DYNAMIC_SITEMAP
-    ? await Promise.all([fetchApprovedJobIds(), fetchVisibleArtisanIds()])
+  const [jobs, artisanIds] = ENABLE_DYNAMIC_SITEMAP
+    ? await Promise.all([fetchApprovedJobs(), fetchVisibleArtisanIds()])
     : [[], []];
 
-  const jobEntries: MetadataRoute.Sitemap = jobIds.map((id) => ({
-    url: `${SITE_URL}/fr/annonce/${id}`,
-    lastModified,
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-    alternates: {
-      languages: {
-        fr: `${SITE_URL}/fr/annonce/${id}`,
-        en: `${SITE_URL}/en/annonce/${id}`,
-        'x-default': `${SITE_URL}/fr/annonce/${id}`,
+  const jobEntries: MetadataRoute.Sitemap = jobs.map((job) => {
+    const segment = buildJobDetailSegment(job);
+
+    return {
+      url: `${SITE_URL}/fr/annonce/${segment}`,
+      lastModified,
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+      alternates: {
+        languages: {
+          fr: `${SITE_URL}/fr/annonce/${segment}`,
+          en: `${SITE_URL}/en/annonce/${segment}`,
+          'x-default': `${SITE_URL}/fr/annonce/${segment}`,
+        },
       },
-    },
-  }));
+    };
+  });
 
   const artisanEntries: MetadataRoute.Sitemap = artisanIds.map((id) => ({
     url: `${SITE_URL}/fr/artisan/${id}`,

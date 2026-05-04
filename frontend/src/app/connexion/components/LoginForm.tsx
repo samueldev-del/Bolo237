@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useLocale } from '@/components/LocaleProvider';
 import { loginUser, ApiError } from '@/lib/api';
 import { markRecentAuthSuccess, storeAuthenticatedUser } from '@/lib/session';
@@ -27,9 +28,17 @@ interface LoginFormProps {
   onRequireOtp: (email: string) => void;
 }
 
+function isSafeRedirect(target: string | null): target is string {
+  if (!target) return false;
+  // Only accept same-origin paths (must start with "/" but not "//" or "/\\").
+  return target.startsWith('/') && !target.startsWith('//') && !target.startsWith('/\\');
+}
+
 export default function LoginForm({ onForgot, onSignup, onRequireOtp }: LoginFormProps) {
   const { locale, localizePath } = useLocale();
   const isEn = locale === 'en';
+  const searchParams = useSearchParams();
+  const redirectParam = searchParams?.get('redirect') ?? null;
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -63,7 +72,8 @@ export default function LoginForm({ onForgot, onSignup, onRequireOtp }: LoginFor
         markRecentAuthSuccess();
         // Full page reload so the session cookie is properly sent on
         // the very first request the dashboard makes to /api/auth/me.
-        window.location.href = getDashboardRoute(localRole);
+        const fallback = getDashboardRoute(localRole);
+        window.location.href = isSafeRedirect(redirectParam) ? redirectParam : fallback;
         return;
       }
     } catch (err: unknown) {

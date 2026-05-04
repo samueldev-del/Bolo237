@@ -7,6 +7,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, updateUserPhoto, uploadFile, upsertUserProfile, ApiError, type ApiJob, type CandidateProfile, type UserApplication, type UserProfile } from '@/lib/api';
+import { buildJobDetailPath } from '@/lib/jobSlug';
 import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser, persistPhotoUrl } from '@/lib/session';
 import { useRequireRole } from '@/lib/useRequireRole';
 
@@ -1534,7 +1535,7 @@ export default function DashboardCandidat() {
                     <span className="rounded-full border border-amber-100 bg-amber-50 px-3 py-1 text-[11px] font-extrabold text-amber-700">
                       {isEn ? 'Saved' : 'Sauvegarde'}
                     </span>
-                    <Link href={localizePath(`/annonce/${job.id}`)} className="text-xs font-bold text-gray-400 opacity-0 transition hover:text-amber-700 group-hover:opacity-100">
+                    <Link href={localizePath(buildJobDetailPath(job))} className="text-xs font-bold text-gray-400 opacity-0 transition hover:text-amber-700 group-hover:opacity-100">
                       {isEn ? 'View offer →' : 'Voir l offre →'}
                     </Link>
                   </div>

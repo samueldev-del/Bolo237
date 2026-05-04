@@ -21,6 +21,7 @@ function buildApiUrl(path: string): string {
 export type ApiJob = {
   id: number;
   reference?: string | null;
+  slug?: string | null;
   externalApplyUrl?: string | null;
   title: string;
   titleFr?: string | null;

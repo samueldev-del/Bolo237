@@ -10,6 +10,7 @@ import { JobCardSkeletonList } from '@/components/JobCardSkeleton';
 import { useLocale } from '@/components/LocaleProvider';
 import { fetchJobs, fetchUserSavedJobs, removeUserSavedJob, saveUserJob } from '@/lib/api';
 import type { JobsResponse } from '@/lib/api';
+import { buildJobDetailPath } from '@/lib/jobSlug';
 import { mapApiJobToListing, type JobListing } from '@/lib/job-listings';
 import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 import { useApi } from '@/lib/useApi';
@@ -590,7 +591,7 @@ export default function EmploisFormels({ initialJobs }: { initialJobs?: JobsResp
                     key={offre.id}
                     offer={offre}
                     isEn={isEn}
-                    href={localizePath(`/annonce/${offre.id}`)}
+                    href={localizePath(buildJobDetailPath(offre))}
                     isSaved={isSaved}
                     onToggleSave={() => toggleSave(offre.id)}
                   />

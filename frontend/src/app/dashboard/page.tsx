@@ -288,7 +288,7 @@ export default function DashboardCandidat() {
     ensureActiveUser();
   }, [userId, localizePath]);
 
-  const emploisSauvegardes = useMemo<{ id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string }[]>(
+  const emploisSauvegardes = useMemo<{ id: number; titre: string; entreprise: string; lieu: string; type: string; temps: string; title: string; location: string; reference: string | null | undefined; slug: string | null | undefined; titleFr: string | null | undefined; titleEn: string | null | undefined }[]>(
     () => savedJobs.map((job) => {
       const diff = Date.now() - new Date(job.createdAt).getTime();
       const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -305,6 +305,12 @@ export default function DashboardCandidat() {
         lieu: job.location,
         type: 'CDI',
         temps,
+        title: job.title,
+        location: job.location,
+        reference: job.reference,
+        slug: job.slug,
+        titleFr: job.titleFr,
+        titleEn: job.titleEn,
       };
     }),
     [savedJobs],

@@ -18,6 +18,8 @@
     "seed:dhl": "node scripts/seed-dhl.js",
     "seed:dhl:ts": "node --experimental-strip-types scripts/seed-dhl.ts",
     "seed:dhl-2:ts": "node --experimental-strip-types scripts/seed-dhl-2.ts",
+    "seed:it-iom:ts": "node --experimental-strip-types scripts/seed-it-iom.ts",
+    "seed:institutions:ts": "node --experimental-strip-types scripts/seed-institutions.ts",
     "seed:iom": "node scripts/seed-iom.js",
     "seed:lapaire": "node scripts/seed-lapaire.js",
     "seed:telcovas": "node scripts/seed-telcovas.js",

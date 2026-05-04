@@ -49,6 +49,12 @@ type LocalJob = {
   titre: string;
   entreprise: string;
   lieu: string;
+  title: string;
+  location: string;
+  reference: string | null;
+  slug: string | null;
+  titleFr: string | null;
+  titleEn: string | null;
   authorPhoto: string | null;
   authorVerified: boolean;
   publishedHours: number;
@@ -120,6 +126,12 @@ function apiJobToLocal(job: ApiJob, isEn: boolean): LocalJob {
     titre: job.title,
     entreprise: job.company,
     lieu: job.location,
+    title: job.title,
+    location: job.location,
+    reference: job.reference ?? null,
+    slug: job.slug ?? null,
+    titleFr: job.titleFr ?? null,
+    titleEn: job.titleEn ?? null,
     authorPhoto: job.author?.photoUrl || null,
     authorVerified: Boolean(job.author?.isVerified),
     publishedHours: hours,

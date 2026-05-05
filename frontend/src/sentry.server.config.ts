@@ -15,7 +15,7 @@ Sentry.init({
   enabled: Boolean(dsn),
   dsn: dsn || undefined,
   sendDefaultPii: true,
-  includeLocalVariables: true,
+  includeLocalVariables: process.env.NODE_ENV !== 'production',
   environment:
     process.env.SENTRY_ENVIRONMENT ||
     process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT ||

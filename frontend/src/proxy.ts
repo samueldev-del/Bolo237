@@ -82,6 +82,7 @@ export async function proxy(request: NextRequest) {
 	if (
 		pathname.startsWith('/_next') ||
 		pathname.startsWith('/api') ||
+		pathname.startsWith('/monitoring') ||
 		pathname.startsWith('/favicon') ||
 		PUBLIC_FILE.test(pathname)
 	) {
@@ -161,5 +162,5 @@ function buildCspHeader(nonce: string, isProd: boolean): string {
 }
 
 export const config = {
-	matcher: ['/((?!_next|.*\\..*).*)'],
+	matcher: ['/((?!monitoring|_next|.*\\..*).*)'],
 };

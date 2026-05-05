@@ -18,6 +18,7 @@ import {
   Building2,
 } from "lucide-react";
 import AdminShell from "@/components/admin/admin-shell";
+import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
 import {
   AreaChart,
   Area,
@@ -340,6 +341,8 @@ export default function AdminDashboard() {
           </ResponsiveContainer>
         )}
       </div>
+
+      <AnalyticsDashboard />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         {/* Latest Users */}

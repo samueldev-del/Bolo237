@@ -4,6 +4,7 @@ import { useMemo, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams, ReadonlyURLSearchParams } from 'next/navigation';
 import BreadcrumbJsonLd from '@/components/BreadcrumbJsonLd';
+import CreateJobAlertCard from '@/components/CreateJobAlertCard';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import JobListingCard from '@/components/JobListingCard';
@@ -315,6 +316,12 @@ function RechercheContent() {
           
         </div>
       </div>
+
+      {(urlState.search || urlState.location) ? (
+        <div className="max-w-7xl mx-auto px-4 pt-6">
+          <CreateJobAlertCard keywords={urlState.search} location={urlState.location} />
+        </div>
+      ) : null}
 
       {/* CONTENU PRINCIPAL */}
       <main className="max-w-7xl mx-auto mt-8 px-4 flex flex-col md:flex-row gap-8">

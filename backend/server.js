@@ -91,6 +91,7 @@ Sentry.init({
 
 const express = require('express');
 const startJobArchiver = require('./cron/jobArchiver');
+const startJobAlertsCron = require('./cron/jobAlerts');
 const cors = require('cors');
 const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
@@ -123,6 +124,7 @@ const createDashboardEntrepriseRouter = require('./routes/dashboard-entreprise')
 const adminRouter = require('./routes/admin');
 const authRouter = require('./routes/auth');
 const jobsRouter = require('./routes/jobs');
+const jobAlertsRouter = require('./routes/job-alerts');
 const otpRouter = require('./routes/otp');
 const usersRouter = require('./routes/users');
 const { corsOptions, isAllowedOrigin, allowedOrigins } = require('./lib/cors');
@@ -533,6 +535,7 @@ app.use('/api/dashboard-entreprise', createDashboardEntrepriseRouter({ prisma, r
 app.use('/api/auth', authRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/jobs', jobsRouter);
+app.use('/api/job-alerts', jobAlertsRouter);
 app.use('/api/otp', otpRouter);
 app.use('/api/users', usersRouter);
 app.get('/api/csrf-token', csrfTokenRoute);
@@ -2292,10 +2295,14 @@ app.get('/api/users/:id/applications', requireUserSession, async (req, res) => {
     });
 
     const statusLabelMap = {
-      PENDING: 'En attente',
-      REVIEWED: 'Vue par l employeur',
-      ACCEPTED: 'Acceptee',
-      REJECTED: 'Refusee',
+      APPLIED: 'Candidature envoyée',
+      PENDING: 'Candidature envoyée',
+      REVIEWING: 'En cours d’étude',
+      REVIEWED: 'En cours d’étude',
+      INTERVIEW: 'Entretien',
+      HIRED: 'Retenu',
+      ACCEPTED: 'Retenu',
+      REJECTED: 'Non retenu',
     };
 
     const applications = applicationsRows.map((row) => {
@@ -3033,6 +3040,7 @@ app.use((err, req, res, next) => {
 
 // Démarrage des tâches automatisées
 startJobArchiver(prisma);
+startJobAlertsCron(prisma);
 
 // --- Start server ---
 const PORT = process.env.PORT || 5000;

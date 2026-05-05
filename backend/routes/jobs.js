@@ -341,7 +341,63 @@ router.get('/:id/applications', requireUserSession, async (req, res) => {
 });
 
 const applicationStatusSchema = z.object({
-  status: z.enum(['REVIEWED', 'ACCEPTED', 'REJECTED']),
+  status: z.enum(['REVIEWING', 'INTERVIEW', 'REJECTED', 'HIRED']),
+});
+
+router.post('/:id/view', async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(jobId) || jobId <= 0) {
+      return res.status(400).json({ success: false, message: 'ID annonce invalide.' });
+    }
+
+    const updated = await prisma.job.updateMany({
+      where: {
+        id: jobId,
+        status: { in: ['APPROVED', 'ACTIVE'] },
+      },
+      data: {
+        viewCount: { increment: 1 },
+      },
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ success: false, message: 'Offre introuvable.' });
+    }
+
+    return res.status(202).json({ success: true });
+  } catch (error) {
+    console.error('Erreur tracking vue annonce:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur lors du tracking.' });
+  }
+});
+
+router.post('/:id/apply-click', async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(jobId) || jobId <= 0) {
+      return res.status(400).json({ success: false, message: 'ID annonce invalide.' });
+    }
+
+    const updated = await prisma.job.updateMany({
+      where: {
+        id: jobId,
+        status: { in: ['APPROVED', 'ACTIVE'] },
+      },
+      data: {
+        applyClickCount: { increment: 1 },
+      },
+    });
+
+    if (updated.count === 0) {
+      return res.status(404).json({ success: false, message: 'Offre introuvable.' });
+    }
+
+    return res.status(202).json({ success: true });
+  } catch (error) {
+    console.error('Erreur tracking clic candidature:', error);
+    return res.status(500).json({ success: false, message: 'Erreur serveur lors du tracking.' });
+  }
 });
 
 // PATCH /jobs/applications/:id/status (Changer le statut d'une candidature)
@@ -403,9 +459,11 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
     });
 
     const statusLabelMap = {
-      REVIEWED: 'Vue par l employeur',
-      ACCEPTED: 'Acceptee',
-      REJECTED: 'Refusee',
+      APPLIED: 'Candidature envoyee',
+      REVIEWING: 'En cours d etude',
+      INTERVIEW: 'Entretien propose',
+      REJECTED: 'Non retenue',
+      HIRED: 'Retenu',
     };
 
     try {
@@ -413,7 +471,7 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
         userId: existingApplication.candidate.id,
         type: 'application_status_updated',
         title: 'Mise a jour de votre candidature',
-        message: `Votre candidature pour \"${existingApplication.job.title}\" est maintenant: ${statusLabelMap[parsed.status]}.`,
+        message: `Votre candidature pour \"${existingApplication.job.title}\" est maintenant : ${statusLabelMap[parsed.status]}.`,
         data: {
           applicationId: existingApplication.id,
           jobId: existingApplication.job.id,
@@ -432,7 +490,7 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
           from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
           to: candidateEmail,
           subject: '[Bolo237] Mise a jour de candidature',
-          text: `Bonjour ${existingApplication.candidate?.name || ''},\n\nVotre candidature pour \"${existingApplication.job.title}\" est maintenant: ${statusLabelMap[parsed.status]}.\n\nConnectez-vous a votre dashboard candidat pour suivre les details.\n\nBolo237`,
+          text: `Bonjour ${existingApplication.candidate?.name || ''},\n\nVotre candidature pour \"${existingApplication.job.title}\" est maintenant : ${statusLabelMap[parsed.status]}.\n\nConnectez-vous a votre dashboard candidat pour suivre les details.\n\nBolo237`,
         });
       }
     } catch (emailError) {
@@ -568,7 +626,7 @@ router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply
         candidateId,
         message,
         cvUrl,
-        status: 'PENDING'
+        status: 'APPLIED'
       }
     });
 

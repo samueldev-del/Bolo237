@@ -552,6 +552,45 @@ export async function fetchJob(id: number): Promise<ApiJob> {
   return apiFetch<ApiJob>(`/api/jobs/${id}`);
 }
 
+export async function trackJobView(jobId: number): Promise<void> {
+  await apiFetch(`/api/jobs/${jobId}/view`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+    captureServerErrors: false,
+    captureNetworkErrors: false,
+  });
+}
+
+export async function trackJobApplyClick(jobId: number): Promise<void> {
+  await apiFetch(`/api/jobs/${jobId}/apply-click`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+    captureServerErrors: false,
+    captureNetworkErrors: false,
+  });
+}
+
+export async function createJobAlert(input: {
+  keywords: string;
+  location?: string | null;
+  frequency?: JobAlertFrequency;
+}): Promise<ApiJobAlert> {
+  const response = await apiFetch<{ alert?: ApiJobAlert; message?: string }>('/api/job-alerts', {
+    method: 'POST',
+    body: JSON.stringify({
+      keywords: input.keywords,
+      location: input.location ?? null,
+      frequency: input.frequency ?? 'DAILY',
+    }),
+  });
+
+  if (!response.alert) {
+    throw new Error(response.message || 'Réponse invalide lors de la création de l’alerte.');
+  }
+
+  return response.alert;
+}
+
 export async function createJob(data: {
   title: string;
   company: string;
@@ -587,11 +626,25 @@ export type UserApplication = {
   jobTitle: string;
   company: string;
   date: string;
-  status?: string;
+  status: string;
   statut: string;
 };
 
-export type RecruiterApplicationStatus = 'REVIEWED' | 'ACCEPTED' | 'REJECTED';
+export type RecruiterApplicationStatus = 'REVIEWING' | 'INTERVIEW' | 'REJECTED' | 'HIRED';
+
+export type JobAlertFrequency = 'DAILY' | 'WEEKLY';
+
+export type ApiJobAlert = {
+  id: number;
+  userId: number;
+  keywords: string;
+  location: string | null;
+  frequency: JobAlertFrequency;
+  isActive: boolean;
+  lastSentAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type ApiApplication = {
   id: number;

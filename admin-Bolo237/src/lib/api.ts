@@ -108,6 +108,29 @@ export type AdminStats = {
   enterprisePending: number;
 };
 
+export type AdminJobAnalyticsSummary = {
+  totalViews: number;
+  totalApplyClicks: number;
+  totalApplications: number;
+  listingsTracked: number;
+  overallCtr: number;
+};
+
+export type AdminJobAnalyticsRow = {
+  id: number;
+  title: string;
+  company: string;
+  viewCount: number;
+  applyClickCount: number;
+  applicationCount: number;
+  ctr: number;
+};
+
+export type AdminJobAnalyticsResponse = {
+  summary: AdminJobAnalyticsSummary;
+  jobs: AdminJobAnalyticsRow[];
+};
+
 export type VerificationSubmission = {
   id: string;
   role: 'entreprise' | 'artisan';
@@ -402,6 +425,10 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 
 export function fetchAdminStats(): Promise<AdminStats> {
   return apiFetch<AdminStats>('/api/admin/stats');
+}
+
+export function fetchJobAnalytics(): Promise<AdminJobAnalyticsResponse> {
+  return apiFetch<AdminJobAnalyticsResponse>('/api/admin/analytics/jobs');
 }
 
 // ── Jobs ─────────────────────────────────────────────────────────

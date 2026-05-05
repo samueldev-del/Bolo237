@@ -281,6 +281,7 @@ module.exports = {
   buildPublicUrl,
   getDashboardPathForRole,
   isDeliverableUserEmail,
+  sendTransactionalEmail,
   sendAccountVerifiedEmail,
   sendApplicationReceivedEmail,
   sendApplicationSentEmail,

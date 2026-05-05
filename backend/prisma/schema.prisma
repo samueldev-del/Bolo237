@@ -41,6 +41,11 @@ enum ReportTargetType {
   OTHER
 }
 
+enum JobAlertFrequency {
+  DAILY
+  WEEKLY
+}
+
 // 1. Table des Utilisateurs
 model User {
   id               Int                 @id @default(autoincrement())
@@ -71,6 +76,7 @@ model User {
   portfolio        ArtisanPortfolio[]
   userProfile      UserProfile?
   savedJobs        SavedJob[]
+  jobAlerts        JobAlert[]
 
   @@index([createdAt])
   @@index([role, createdAt])
@@ -80,6 +86,25 @@ model User {
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_name_trgm_idx")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_email_trgm_idx")
   @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_phone_trgm_idx")
+}
+
+model JobAlert {
+  id         Int               @id @default(autoincrement())
+  userId     Int
+  keywords   String
+  location   String?
+  frequency  JobAlertFrequency @default(DAILY)
+  isActive   Boolean           @default(true)
+  lastSentAt DateTime?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive, frequency])
+  @@index([createdAt])
+  @@index([keywords(ops: raw("gin_trgm_ops"))], type: Gin, map: "JobAlert_keywords_trgm_idx")
+  @@index([location(ops: raw("gin_trgm_ops"))], type: Gin, map: "JobAlert_location_trgm_idx")
 }
 
 model ArtisanService {
@@ -131,6 +156,8 @@ model Job {
   author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId     Int
   createdAt    DateTime      @default(now())
+  viewCount    Int           @default(0)
+  applyClickCount Int       @default(0)
   applications Application[]
   savedJobs    SavedJob[]
 
@@ -375,7 +402,7 @@ model Application {
   candidateId Int
   message     String   @db.Text
   cvUrl       String
-  status      String   @default("PENDING") // Ex: PENDING, REVIEWED, REJECTED, HIRED
+  status      String   @default("APPLIED") // Ex: APPLIED, REVIEWING, INTERVIEW, REJECTED, HIRED
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

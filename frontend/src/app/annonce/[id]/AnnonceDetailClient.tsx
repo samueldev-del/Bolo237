@@ -1,13 +1,13 @@
 "use client";
 
-import { use, useEffect, useMemo, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
+import { use, useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import Script from 'next/script';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
 import ApplyButton from '@/components/ApplyButton';
-import { fetchJob, fetchUserProfile, submitJobApplication, ApiError } from '@/lib/api';
+import { fetchJob, fetchUserProfile, submitJobApplication, trackJobApplyClick, trackJobView, ApiError } from '@/lib/api';
 import {
   extractExternalApplyUrl,
   getContractLabel,
@@ -188,6 +188,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
   const [cvFile, setCvFile] = useState<File | null>(null);
   const [useDefaultCv, setUseDefaultCv] = useState(true);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const trackedViewJobIdRef = useRef<number | null>(null);
 
   // Fetch le détail de l'offre depuis le backend
   const { data: apiJob, loading } = useApi(
@@ -195,6 +196,12 @@ export default function AnnonceDetailClient({ params }: JobParams) {
     null,
     [numericId]
   );
+
+  useEffect(() => {
+    if (!apiJob?.id || trackedViewJobIdRef.current === apiJob.id) return;
+    trackedViewJobIdRef.current = apiJob.id;
+    void trackJobView(apiJob.id).catch(() => {});
+  }, [apiJob?.id]);
 
   // Load user profile from localStorage when review panel opens
   useEffect(() => {
@@ -392,6 +399,10 @@ export default function AnnonceDetailClient({ params }: JobParams) {
   };
 
   const handleApplyClick = () => {
+    if (apiJob?.id) {
+      void trackJobApplyClick(apiJob.id).catch(() => {});
+    }
+
     if (externalApplyUrl) {
       window.open(externalApplyUrl, '_blank', 'noopener,noreferrer');
       return;

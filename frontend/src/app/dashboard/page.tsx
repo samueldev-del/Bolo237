@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import CandidateApplicationsKanban from '@/components/CandidateApplicationsKanban';
 import { useLocale } from '@/components/LocaleProvider';
 import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, updateUserPhoto, uploadFile, upsertUserProfile, ApiError, type ApiJob, type CandidateProfile, type UserApplication, type UserProfile } from '@/lib/api';
 import { buildJobDetailPath } from '@/lib/jobSlug';
@@ -326,15 +327,6 @@ export default function DashboardCandidat() {
 
   const removeSkill = (skill: string) => {
     updateCvData('skillsText', skills.filter((item) => item !== skill).join(', '));
-  };
-
-  const statusClass = (status: string) => {
-    if (status === 'En attente') return 'bg-blue-50 text-blue-700 border-blue-200';
-    if (status === 'Vue par l employeur') return 'bg-amber-50 text-amber-700 border-amber-200';
-    if (status === 'Refusee') return 'bg-red-50 text-red-700 border-red-200';
-    if (status === 'Acceptee') return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (status === 'En attente d entretien') return 'bg-blue-50 text-blue-700 border-blue-200';
-    return 'bg-green-50 text-green-700 border-green-200';
   };
 
   const templates = [
@@ -1444,59 +1436,15 @@ export default function DashboardCandidat() {
               <h2 className="flex items-center gap-2 text-lg font-extrabold text-gray-900">
                 <span>📨</span> {isEn ? 'My Applications' : 'Mes Candidatures'}
               </h2>
-              <p className="mt-0.5 text-xs text-gray-500">{isEn ? 'Track the status of your applications.' : 'Suivez l evolution de vos candidatures.'}</p>
+              <p className="mt-0.5 text-xs text-gray-500">{isEn ? 'Track the status of your applications.' : 'Suivez l’évolution de vos candidatures.'}</p>
             </div>
           </div>
 
-          {candidatures.length > 0 ? (
-            <div className="divide-y divide-gray-100">
-              {candidatures.map((item) => {
-                const dateStr = new Date(item.date).toLocaleDateString(isEn ? 'en-US' : 'fr-FR', { day: 'numeric', month: 'short', year: 'numeric' });
-                return (
-                  <div key={item.id} className="group flex flex-col justify-between px-5 py-4 transition-all duration-200 hover:bg-blue-50/30 sm:flex-row sm:items-center sm:px-6">
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-100 text-gray-500 shadow-sm transition-colors group-hover:bg-blue-100 group-hover:text-blue-600">
-                        💼
-                      </div>
-                      <div>
-                        <h3 className="cursor-pointer text-[15px] font-extrabold text-gray-900 transition-colors group-hover:text-blue-700">
-                          {item.jobTitle}
-                        </h3>
-                        <div className="mt-1 flex items-center gap-2 text-xs font-medium text-gray-500">
-                          <span className="font-bold text-gray-700">{item.company}</span>
-                          <span>•</span>
-                          <span>{isEn ? `Applied ${dateStr}` : `Postule le ${dateStr}`}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex w-full items-center justify-between gap-4 sm:mt-0 sm:w-auto sm:justify-end">
-                      <span className={`rounded-full border px-3 py-1 text-[11px] font-extrabold ${statusClass(item.statut)}`}>
-                        {item.statut}
-                      </span>
-                      {item.jobId ? (
-                        <Link href={localizePath(`/annonce/${item.jobId}`)} className="text-xs font-bold text-gray-400 opacity-0 transition hover:text-blue-600 group-hover:opacity-100">
-                          {isEn ? 'View offer →' : 'Voir l offre →'}
-                        </Link>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="bg-white py-10 text-center sm:py-14">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 sm:h-20 sm:w-20">
-                <span className="text-3xl sm:text-4xl">📨</span>
-              </div>
-              <h4 className="mb-2 text-sm font-bold text-gray-900 sm:text-[15px]">{isEn ? 'No applications yet' : 'Aucune candidature'}</h4>
-              <p className="mx-auto max-w-sm text-xs font-medium text-gray-500 sm:text-sm">
-                {isEn ? 'Your applications will appear here once you apply to job listings.' : 'Vos candidatures apparaitront ici une fois que vous postulerez a des offres.'}
-              </p>
-              <Link href={localizePath('/emplois')} className="mt-4 inline-block text-sm font-bold text-blue-600 transition hover:text-blue-700">
-                {isEn ? 'Browse jobs' : 'Parcourir les offres'} &rarr;
-              </Link>
-            </div>
-          )}
+          <CandidateApplicationsKanban
+            applications={candidatures}
+            isEn={isEn}
+            localizePath={localizePath}
+          />
         </section>
 
         <section className="mb-8 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">

@@ -157,6 +157,70 @@ router.get('/stats', requireAdminSession, async (_req, res) => {
   }
 });
 
+router.get('/analytics/jobs', requireAdminSession, async (_req, res) => {
+  try {
+    const [jobAggregates, totalApplications, topJobs] = await Promise.all([
+      prisma.job.aggregate({
+        _sum: {
+          viewCount: true,
+          applyClickCount: true,
+        },
+        _count: {
+          id: true,
+        },
+      }),
+      prisma.application.count(),
+      prisma.job.findMany({
+        orderBy: [
+          { viewCount: 'desc' },
+          { applyClickCount: 'desc' },
+          { createdAt: 'desc' },
+        ],
+        take: 8,
+        select: {
+          id: true,
+          title: true,
+          company: true,
+          viewCount: true,
+          applyClickCount: true,
+          _count: {
+            select: {
+              applications: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const totalViews = Number(jobAggregates._sum.viewCount || 0);
+    const totalApplyClicks = Number(jobAggregates._sum.applyClickCount || 0);
+    const listingsTracked = Number(jobAggregates._count.id || 0);
+    const overallCtr = totalViews > 0 ? Number(((totalApplyClicks / totalViews) * 100).toFixed(1)) : 0;
+
+    return res.json({
+      summary: {
+        totalViews,
+        totalApplyClicks,
+        totalApplications,
+        listingsTracked,
+        overallCtr,
+      },
+      jobs: topJobs.map((job) => ({
+        id: job.id,
+        title: job.title,
+        company: job.company,
+        viewCount: job.viewCount,
+        applyClickCount: job.applyClickCount,
+        applicationCount: job._count.applications,
+        ctr: job.viewCount > 0 ? Number(((job.applyClickCount / job.viewCount) * 100).toFixed(1)) : 0,
+      })),
+    });
+  } catch (error) {
+    console.error('GET /api/admin/analytics/jobs error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la lecture des analytics.' });
+  }
+});
+
 // GET /privacy-requests
 router.get('/privacy-requests', requireAdminSession, validateQuery(adminPrivacyRequestsQuerySchema), async (req, res) => {
   try {

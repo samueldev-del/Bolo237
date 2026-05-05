@@ -57,7 +57,7 @@ type CandidateMatchResult = {
   gaps: string[];
 };
 
-type ApplicationStatusFilter = 'ALL' | 'PENDING' | 'REVIEWED' | 'ACCEPTED' | 'REJECTED';
+type ApplicationStatusFilter = 'ALL' | 'APPLIED' | 'REVIEWING' | 'INTERVIEW' | 'HIRED' | 'REJECTED';
 
 type SidebarSection = 'dashboard' | 'post' | 'listings' | 'applications' | 'interviews' | 'cvtheque' | 'profile' | 'billing';
 
@@ -913,36 +913,43 @@ function DashboardEntrepriseContent() {
 
   const applicationStatusUi = (status: string) => {
     const normalized = String(status || '').toUpperCase();
-    if (normalized === 'ACCEPTED') {
+    if (normalized === 'HIRED' || normalized === 'ACCEPTED') {
       return {
-        label: isEn ? 'Accepted' : 'Acceptee',
+        label: isEn ? 'Hired' : 'Retenu',
         className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
       };
     }
 
     if (normalized === 'REJECTED') {
       return {
-        label: isEn ? 'Rejected' : 'Refusee',
+        label: isEn ? 'Rejected' : 'Non retenu',
         className: 'bg-red-50 text-red-700 border-red-200',
       };
     }
 
-    if (normalized === 'REVIEWED') {
+    if (normalized === 'INTERVIEW') {
       return {
-        label: isEn ? 'Reviewed' : 'Vue',
+        label: isEn ? 'Interview' : 'Entretien',
+        className: 'bg-violet-50 text-violet-700 border-violet-200',
+      };
+    }
+
+    if (normalized === 'REVIEWING' || normalized === 'REVIEWED') {
+      return {
+        label: isEn ? 'Reviewing' : 'À l’étude',
         className: 'bg-amber-50 text-amber-700 border-amber-200',
       };
     }
 
     return {
-      label: isEn ? 'Pending' : 'En attente',
+      label: isEn ? 'Applied' : 'Envoyée',
       className: 'bg-blue-50 text-blue-700 border-blue-200',
     };
   };
 
   const handleApplicationStatusUpdate = async (
     applicationId: number,
-    status: 'REVIEWED' | 'ACCEPTED' | 'REJECTED'
+    status: 'REVIEWING' | 'INTERVIEW' | 'HIRED' | 'REJECTED'
   ) => {
     if (!selectedMatchJobId) return;
 
@@ -979,35 +986,46 @@ function DashboardEntrepriseContent() {
 
   const applicationStatusCounts: Record<ApplicationStatusFilter, number> = {
     ALL: jobApplications.length,
-    PENDING: 0,
-    REVIEWED: 0,
-    ACCEPTED: 0,
+    APPLIED: 0,
+    REVIEWING: 0,
+    INTERVIEW: 0,
+    HIRED: 0,
     REJECTED: 0,
   };
 
   jobApplications.forEach((application) => {
-    const normalized = String(application.status || 'PENDING').toUpperCase();
-    if (normalized === 'REVIEWED' || normalized === 'ACCEPTED' || normalized === 'REJECTED') {
+    const normalized = String(application.status || 'APPLIED').toUpperCase();
+    if (normalized === 'REVIEWING' || normalized === 'INTERVIEW' || normalized === 'HIRED' || normalized === 'REJECTED') {
       applicationStatusCounts[normalized] += 1;
       return;
     }
-    applicationStatusCounts.PENDING += 1;
+    if (normalized === 'REVIEWED') {
+      applicationStatusCounts.REVIEWING += 1;
+      return;
+    }
+    if (normalized === 'ACCEPTED') {
+      applicationStatusCounts.HIRED += 1;
+      return;
+    }
+    applicationStatusCounts.APPLIED += 1;
   });
 
   const applicationStatusChipClass: Record<ApplicationStatusFilter, string> = {
     ALL: 'border-gray-200 bg-gray-50 text-gray-700',
-    PENDING: 'border-blue-200 bg-blue-50 text-blue-700',
-    REVIEWED: 'border-amber-200 bg-amber-50 text-amber-700',
-    ACCEPTED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    APPLIED: 'border-blue-200 bg-blue-50 text-blue-700',
+    REVIEWING: 'border-amber-200 bg-amber-50 text-amber-700',
+    INTERVIEW: 'border-violet-200 bg-violet-50 text-violet-700',
+    HIRED: 'border-emerald-200 bg-emerald-50 text-emerald-700',
     REJECTED: 'border-red-200 bg-red-50 text-red-700',
   };
 
   const applyStatusFilterOptions: Array<{ value: ApplicationStatusFilter; label: string }> = [
     { value: 'ALL', label: isEn ? 'All statuses' : 'Tous les statuts' },
-    { value: 'PENDING', label: isEn ? 'Pending' : 'En attente' },
-    { value: 'REVIEWED', label: isEn ? 'Reviewed' : 'Vue' },
-    { value: 'ACCEPTED', label: isEn ? 'Accepted' : 'Acceptée' },
-    { value: 'REJECTED', label: isEn ? 'Rejected' : 'Refusée' },
+    { value: 'APPLIED', label: isEn ? 'Applied' : 'Envoyées' },
+    { value: 'REVIEWING', label: isEn ? 'Reviewing' : 'À l’étude' },
+    { value: 'INTERVIEW', label: isEn ? 'Interview' : 'Entretien' },
+    { value: 'HIRED', label: isEn ? 'Hired' : 'Retenu' },
+    { value: 'REJECTED', label: isEn ? 'Rejected' : 'Non retenu' },
   ];
 
   /* ── Status badge helper ── */
@@ -2489,19 +2507,28 @@ function DashboardEntrepriseContent() {
                                   <div className="flex flex-wrap items-center gap-2 self-start">
                                     <button
                                       type="button"
-                                      onClick={() => handleApplicationStatusUpdate(app.id, 'REVIEWED')}
-                                      disabled={applicationActionBusyId === app.id || app.status === 'REVIEWED'}
+                                      onClick={() => handleApplicationStatusUpdate(app.id, 'REVIEWING')}
+                                      disabled={applicationActionBusyId === app.id || app.status === 'REVIEWING'}
                                       className="inline-flex items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-extrabold text-amber-700 transition hover:bg-amber-100 disabled:opacity-50"
-                                      title={isEn ? 'Mark as reviewed' : 'Marquer comme vue'}
+                                      title={isEn ? 'Move to reviewing' : 'Passer en étude'}
                                     >
                                       {'\u{1F441}\uFE0F'}
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => handleApplicationStatusUpdate(app.id, 'ACCEPTED')}
-                                      disabled={applicationActionBusyId === app.id || app.status === 'ACCEPTED'}
+                                      onClick={() => handleApplicationStatusUpdate(app.id, 'INTERVIEW')}
+                                      disabled={applicationActionBusyId === app.id || app.status === 'INTERVIEW'}
+                                      className="inline-flex items-center justify-center rounded-lg border border-violet-200 bg-violet-50 px-2.5 py-2 text-xs font-extrabold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
+                                      title={isEn ? 'Move to interview' : 'Passer en entretien'}
+                                    >
+                                      {'\u{1F4DE}'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleApplicationStatusUpdate(app.id, 'HIRED')}
+                                      disabled={applicationActionBusyId === app.id || app.status === 'HIRED'}
                                       className="inline-flex items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-extrabold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
-                                      title={isEn ? 'Accept candidate' : 'Accepter le candidat'}
+                                      title={isEn ? 'Mark as hired' : 'Marquer comme retenu'}
                                     >
                                       {'\u2705'}
                                     </button>

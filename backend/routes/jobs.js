@@ -68,8 +68,10 @@ router.get('/', async (req, res) => {
         where.status = status;
       }
     } else {
-      // Route publique (ou auteur different): uniquement APPROVED.
-      where.status = 'APPROVED';
+      const normalizedStatus = typeof status === 'string' ? status.trim().toUpperCase() : '';
+
+      // Route publique: seules les annonces visibles restent exposées.
+      where.status = { in: ['APPROVED', 'ACTIVE'] };
     }
 
     // Recherche plein-texte (insensible à la casse) sur titre, description, entreprise
@@ -606,7 +608,7 @@ router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply
       select: { id: true, status: true, title: true, company: true }
     });
 
-    if (!job || job.status !== 'APPROVED') {
+    if (!job || !['APPROVED', 'ACTIVE'].includes(String(job.status || '').toUpperCase())) {
       return res.status(404).json({ success: false, message: "Cette offre n'est plus disponible." });
     }
 

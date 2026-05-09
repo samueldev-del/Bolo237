@@ -14,16 +14,16 @@ Use that file as the single source of truth for:
 ```bash
 cp .env.example .env
 npm install
-npm run dev -- -p 3001
+npm run dev
 ```
 
-Local URL: http://localhost:3001/login
+Local URL: `http://localhost:3000/login`
 
 ## Production Check
 
 ```bash
 npm run build
-npm run start -- -p 3200
+npm run start
 ```
 
 ## Docker (admin only)

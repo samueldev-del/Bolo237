@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/nextjs';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 const FRONTEND_PROXY_BASE = '/api/backend';
+const FRONTEND_UPLOAD_PROXY_BASE = '/api/uploads';
 
 function buildApiUrl(path: string): string {
   if (typeof window === 'undefined') {
@@ -14,6 +15,32 @@ function buildApiUrl(path: string): string {
     : normalizedPath;
 
   return `${FRONTEND_PROXY_BASE}/${strippedApiPath}`;
+}
+
+export function buildFirstPartyUploadUrl(url: string): string {
+  const normalized = String(url || '').trim();
+  if (!normalized) return '';
+
+  try {
+    const parsed = new URL(normalized, API_BASE);
+    if (parsed.pathname.startsWith(`${FRONTEND_UPLOAD_PROXY_BASE}/`)) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+    if (!parsed.pathname.startsWith('/uploads/')) {
+      return normalized;
+    }
+
+    return `${FRONTEND_UPLOAD_PROXY_BASE}${parsed.pathname.slice('/uploads'.length)}${parsed.search}${parsed.hash}`;
+  } catch {
+    if (normalized.startsWith(`${FRONTEND_UPLOAD_PROXY_BASE}/`)) {
+      return normalized;
+    }
+    if (!normalized.startsWith('/uploads/')) {
+      return normalized;
+    }
+
+    return `${FRONTEND_UPLOAD_PROXY_BASE}${normalized.slice('/uploads'.length)}`;
+  }
 }
 
 // ── Types partagées ──────────────────────────────────────────────
@@ -598,26 +625,17 @@ export async function createJob(data: {
   description: string;
   salary?: string;
   externalApplyUrl?: string | null;
-  authorId: number;
 }): Promise<ApiJob> {
-  return apiFetch<ApiJob>('/api/jobs', {
+  const response = await apiFetch<{ job?: ApiJob; message?: string }>('/api/jobs', {
     method: 'POST',
     body: JSON.stringify(data),
   });
-}
 
-export async function applyToJob(input: {
-  jobId: number;
-  candidateId: number;
-  candidateName?: string;
-}): Promise<void> {
-  await apiFetch(`/api/jobs/${input.jobId}/apply`, {
-    method: 'POST',
-    body: JSON.stringify({
-      candidateId: input.candidateId,
-      candidateName: input.candidateName,
-    }),
-  });
+  if (!response.job) {
+    throw new Error(response.message || 'Réponse invalide lors de la création de l’offre.');
+  }
+
+  return response.job;
 }
 
 export type UserApplication = {
@@ -743,10 +761,16 @@ export async function updateJob(
   id: number,
   data: Partial<Pick<ApiJob, 'title' | 'company' | 'location' | 'description' | 'salary' | 'status'>>
 ): Promise<ApiJob> {
-  return apiFetch<ApiJob>(`/api/jobs/${id}`, {
+  const response = await apiFetch<{ job?: ApiJob; message?: string }>(`/api/jobs/${id}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
+
+  if (!response.job) {
+    throw new Error(response.message || 'Réponse invalide lors de la mise à jour de l’offre.');
+  }
+
+  return response.job;
 }
 
 export async function deleteJob(id: number): Promise<void> {
@@ -953,22 +977,6 @@ export async function createVerificationSubmission(data: {
 export async function fetchVerificationSubmissions(): Promise<VerificationSubmission[]> {
   const res = await apiFetch<{ items: VerificationSubmission[] }>('/api/verifications');
   return res.items;
-}
-
-export async function reviewVerificationSubmission(input: {
-  id: string;
-  status: 'approved' | 'rejected';
-  reviewedBy: string;
-  notes?: string;
-}): Promise<VerificationSubmission> {
-  return apiFetch<VerificationSubmission>(`/api/verifications/${input.id}/review`, {
-    method: 'PATCH',
-    body: JSON.stringify({
-      status: input.status,
-      reviewedBy: input.reviewedBy,
-      notes: input.notes,
-    }),
-  });
 }
 
 // ── Candidate profiles / CVtheque ────────────────────────────────

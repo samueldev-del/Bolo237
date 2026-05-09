@@ -42,13 +42,57 @@ export function getAdminSessionSecret() {
   return DEVELOPMENT_FALLBACK_SECRET;
 }
 
+// Vérifie le secret de session (throw en prod si invalide), puis enchaîne les
+// vérifications auth (username/password) et IP allowlist. Retourne le premier
+// message d'erreur rencontré ou null si tout est conforme.
 export function getAdminSessionConfigurationError(): string | null {
   try {
     getAdminSessionSecret();
-    return null;
   } catch (error) {
     return error instanceof Error ? error.message : "Configuration admin invalide.";
   }
+  return getAdminAuthConfigurationError() || getAdminIpRestrictionConfigurationError();
+}
+
+export function getAdminLoginUsername() {
+  const configuredUsername = String(process.env.ADMIN_USERNAME || "").trim();
+  if (configuredUsername) {
+    return configuredUsername;
+  }
+
+  if (process.env.NODE_ENV !== "production") {
+    return "admin";
+  }
+
+  return "";
+}
+
+export function getAdminAuthConfigurationError() {
+  const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
+  const backendPassword = String(process.env.ADMIN_BACKEND_PASSWORD || "").trim();
+  const adminUsername = getAdminLoginUsername();
+
+  if (!adminPassword) {
+    return "ADMIN_PASSWORD doit etre defini pour securiser le back-office.";
+  }
+
+  if (backendPassword && adminPassword === backendPassword) {
+    return "ADMIN_PASSWORD doit etre distinct de ADMIN_BACKEND_PASSWORD.";
+  }
+
+  if (!adminUsername) {
+    return "ADMIN_USERNAME doit etre defini en production.";
+  }
+
+  return null;
+}
+
+export function getAdminIpRestrictionConfigurationError() {
+  if (process.env.NODE_ENV === "production" && getAdminAllowedIps().length === 0) {
+    return "ADMIN_ALLOWED_IPS ou ADMIN_IP_ALLOWLIST doit etre defini en production pour le back-office.";
+  }
+
+  return null;
 }
 
 type ParsedAdminSessionToken = {

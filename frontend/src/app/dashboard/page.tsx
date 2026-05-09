@@ -7,7 +7,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import CandidateApplicationsKanban from '@/components/CandidateApplicationsKanban';
 import { useLocale } from '@/components/LocaleProvider';
-import { createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, updateUserPhoto, uploadFile, upsertUserProfile, ApiError, type ApiJob, type CandidateProfile, type UserApplication, type UserProfile } from '@/lib/api';
+import { buildFirstPartyUploadUrl, createCandidateProfile, fetchSessionUser, fetchUserSavedJobs, fetchUserApplications, fetchUserProfile, logoutUser, updateUserPhoto, uploadFile, upsertUserProfile, ApiError, type ApiJob, type CandidateProfile, type UserApplication, type UserProfile } from '@/lib/api';
 import { buildJobDetailPath } from '@/lib/jobSlug';
 import { clearStoredSession, getStoredUser, hasRecentAuthSuccess, mergeStoredUser, persistPhotoUrl } from '@/lib/session';
 import { useRequireRole } from '@/lib/useRequireRole';
@@ -1084,7 +1084,7 @@ export default function DashboardCandidat() {
               )}
               {defaultCvUrl ? (
                 <a
-                  href={defaultCvUrl}
+                  href={buildFirstPartyUploadUrl(defaultCvUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-1 inline-block text-[11px] font-bold text-green-700 underline"
@@ -1553,7 +1553,7 @@ export default function DashboardCandidat() {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <a
-                        href={doc.url}
+                        href={buildFirstPartyUploadUrl(doc.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-3 py-1.5 rounded-lg text-xs font-bold bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100 transition"
@@ -1561,7 +1561,7 @@ export default function DashboardCandidat() {
                         {isEn ? 'View' : 'Voir'}
                       </a>
                       <a
-                        href={doc.url}
+                        href={buildFirstPartyUploadUrl(doc.url)}
                         download={doc.name}
                         className="px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-50 border border-blue-100 text-blue-700 hover:bg-blue-100 transition"
                       >

@@ -3,6 +3,8 @@ import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import {
   ADMIN_SESSION_COOKIE_NAME,
   ADMIN_SESSION_MAX_AGE,
+  getAdminAuthConfigurationError,
+  getAdminLoginUsername,
   getAdminSessionSecret,
   parseAdminSessionToken,
   isAdminSessionExpired,
@@ -63,29 +65,31 @@ function isValidToken(token: string): boolean {
 }
 
 /**
- * Verifie le mot de passe admin.
+ * Verifie les identifiants admin locaux.
  */
-export function verifyPassword(password: string): boolean {
-  const candidates = [
-    String(process.env.ADMIN_PASSWORD || ''),
-    String(process.env.ADMIN_BACKEND_PASSWORD || ''),
-  ].map((v) => v.trim()).filter(Boolean);
-
-  if (candidates.length === 0) {
-    console.error("[Auth] ADMIN_PASSWORD / ADMIN_BACKEND_PASSWORD non definis dans l'environnement");
+function safeEqualStrings(left: string, right: string) {
+  const leftBuf = Buffer.from(left);
+  const rightBuf = Buffer.from(right);
+  if (leftBuf.length !== rightBuf.length) {
     return false;
   }
 
-  const normalizedInput = String(password || '').trim();
-  const inputBuf = Buffer.from(normalizedInput);
+  return timingSafeEqual(leftBuf, rightBuf);
+}
 
-  for (const expected of candidates) {
-    const expectedBuf = Buffer.from(expected);
-    if (inputBuf.length !== expectedBuf.length) continue;
-    if (timingSafeEqual(inputBuf, expectedBuf)) return true;
+export function verifyCredentials(username: string, password: string): boolean {
+  const configurationError = getAdminAuthConfigurationError();
+  if (configurationError) {
+    console.error(`[Auth] ${configurationError}`);
+    return false;
   }
 
-  return false;
+  const expectedUsername = getAdminLoginUsername().toLowerCase();
+  const expectedPassword = String(process.env.ADMIN_PASSWORD || "").trim();
+  const normalizedUsername = String(username || "").trim().toLowerCase();
+  const normalizedPassword = String(password || "").trim();
+
+  return safeEqualStrings(normalizedUsername, expectedUsername) && safeEqualStrings(normalizedPassword, expectedPassword);
 }
 
 /**

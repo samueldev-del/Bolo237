@@ -1,4 +1,8 @@
-require('dotenv').config();
+const path = require('path');
+const dotenv = require('dotenv');
+
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.resolve(__dirname, '.env.local'), override: true });
 const Sentry = require('@sentry/node');
 
 function getSampleRateFromEnv(name, fallbackValue) {
@@ -136,6 +140,14 @@ const {
   uploadsRoot,
   sniffFileType,
   safeExtensionForMime,
+  normalizeUploadFolder,
+  isPrivateUploadFolder,
+  isUploadMimeAllowedForFolder,
+  buildUploadUrl,
+  buildPrivateFileName,
+  buildPrivateRemoteUploadUrl,
+  extractPrivateUploadOwnerId,
+  extractRemoteUploadUrl,
 } = require('./lib/uploads');
 const {
   apiGlobalLimiter,
@@ -226,7 +238,6 @@ process.on('unhandledRejection', async (reason) => {
 });
 
 const fs = require('fs');
-const path = require('path');
 const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('@prisma/client');
@@ -522,12 +533,154 @@ app.use(express.urlencoded({ limit: '1mb', extended: true }));
 app.use('/api', csrfOriginGuard);
 app.use('/api', ensureCsrfCookie);
 app.use('/api', verifyCsrfToken);
-app.use('/uploads', express.static(uploadsRoot, {
+const PRIVATE_UPLOAD_ADMIN_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
+
+function setUploadSecurityHeaders(res) {
+  res.setHeader('Content-Disposition', 'attachment');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+  res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+}
+
+function buildStoredUploadUrlCandidates(req, folder, fileName) {
+  const pathOnly = `/uploads/${folder}/${fileName}`;
+  const absoluteUrl = `${req.protocol}://${req.get('host')}${pathOnly}`;
+  return Array.from(new Set([pathOnly, absoluteUrl]));
+}
+
+async function resolvePrivateUploadUser(req) {
+  const payload = await readSessionToken(req);
+  if (!payload?.userId) {
+    return null;
+  }
+
+  return prisma.user.findUnique({
+    where: { id: Number(payload.userId) },
+    select: {
+      id: true,
+      role: true,
+      isBanned: true,
+    },
+  });
+}
+
+async function authorizePrivateUploadAccess(req, user, folder, fileName) {
+  if (!user) {
+    return { allowed: false, status: 401, message: 'Session requise.' };
+  }
+
+  if (user.isBanned) {
+    return { allowed: false, status: 403, message: 'Compte banni.' };
+  }
+
+  const role = String(user.role || '').toUpperCase();
+  if (PRIVATE_UPLOAD_ADMIN_ROLES.has(role)) {
+    return { allowed: true };
+  }
+
+  const ownerId = extractPrivateUploadOwnerId(fileName);
+  if (ownerId && ownerId === user.id) {
+    return { allowed: true };
+  }
+
+  if (folder === 'candidate-documents') {
+    return { allowed: false, status: 403, message: 'Acces refuse.' };
+  }
+
+  const urlCandidates = buildStoredUploadUrlCandidates(req, folder, fileName);
+  const [matchedApplication, matchedProfile] = await Promise.all([
+    prisma.application.findFirst({
+      where: {
+        OR: urlCandidates.map((url) => ({ cvUrl: url })),
+      },
+      select: {
+        candidateId: true,
+        job: {
+          select: {
+            authorId: true,
+          },
+        },
+      },
+    }),
+    prisma.userProfile.findFirst({
+      where: {
+        OR: urlCandidates.map((url) => ({ defaultCvUrl: url })),
+      },
+      select: {
+        userId: true,
+        profileVisible: true,
+      },
+    }),
+  ]);
+
+  if (matchedApplication && (matchedApplication.candidateId === user.id || matchedApplication.job?.authorId === user.id)) {
+    return { allowed: true };
+  }
+
+  if (matchedProfile) {
+    if (matchedProfile.userId === user.id) {
+      return { allowed: true };
+    }
+
+    if (isRecruiterRole(role) && matchedProfile.profileVisible !== false) {
+      return { allowed: true };
+    }
+  }
+
+  return { allowed: false, status: 403, message: 'Acces refuse.' };
+}
+
+async function handlePrivateUploadRequest(req, res, next) {
+  try {
+    const folder = normalizeUploadFolder(req.params.folder);
+    if (!folder || !isPrivateUploadFolder(folder)) {
+      return next();
+    }
+
+    const fileName = String(req.params.file || '').trim();
+    if (!fileName) {
+      return res.status(404).json({ error: 'Fichier introuvable.' });
+    }
+
+    const user = await resolvePrivateUploadUser(req);
+    const authorization = await authorizePrivateUploadAccess(req, user, folder, fileName);
+    if (!authorization.allowed) {
+      return res.status(authorization.status).json({ error: authorization.message });
+    }
+
+    const remoteUrl = extractRemoteUploadUrl(fileName);
+    if (remoteUrl) {
+      return res.redirect(302, remoteUrl);
+    }
+
+    const fullPath = path.join(uploadsRoot, folder, fileName);
+    if (!fullPath.startsWith(uploadsRoot + path.sep) && fullPath !== uploadsRoot) {
+      return res.status(400).json({ error: 'Chemin de fichier invalide.' });
+    }
+
+    if (!fs.existsSync(fullPath)) {
+      return res.status(404).json({ error: 'Fichier introuvable.' });
+    }
+
+    setUploadSecurityHeaders(res);
+    return res.sendFile(fullPath);
+  } catch (error) {
+    console.error('GET private upload error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la lecture du document.' });
+  }
+}
+
+app.get('/uploads/:folder/:file', handlePrivateUploadRequest);
+app.head('/uploads/:folder/:file', handlePrivateUploadRequest);
+app.use('/uploads', (req, res, next) => {
+  const [folder] = String(req.path || '').split('/').filter(Boolean);
+  if (folder && isPrivateUploadFolder(folder)) {
+    return res.status(404).end();
+  }
+  return next();
+}, express.static(uploadsRoot, {
   setHeaders: (res) => {
-    res.setHeader('Content-Disposition', 'attachment');
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
-    res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    setUploadSecurityHeaders(res);
   },
 }));
 app.use('/api/admin', requireAdminSession);
@@ -1220,6 +1373,7 @@ function isRecruiterRole(role) {
 app.get('/api/candidates', requireUserSession, async (req, res) => {
   try {
     const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
+    const isAdmin = sessionRole === 'ADMIN' || sessionRole === 'SUPER_ADMIN';
     if (!isRecruiterRole(sessionRole)) {
       return res.status(403).json({ error: 'Acces CVtheque reserve aux recruteurs.' });
     }
@@ -1240,6 +1394,22 @@ app.get('/api/candidates', requireUserSession, async (req, res) => {
     const onlyWithCv = String(req.query.onlyWithCv || '').toLowerCase() === 'true';
 
     const where = { AND: [] };
+
+    if (!isAdmin) {
+      where.AND.push({
+        NOT: {
+          user: {
+            is: {
+              userProfile: {
+                is: {
+                  profileVisible: false,
+                },
+              },
+            },
+          },
+        },
+      });
+    }
 
     if (search) {
       where.AND.push({
@@ -1449,6 +1619,10 @@ app.get('/api/candidates/:id', requireUserSession, async (req, res) => {
         ? prisma.userProfile.findUnique({ where: { userId: candidate.userId } })
         : Promise.resolve(null),
     ]);
+
+    if (!isAdmin && isRecruiter && Number(candidate.userId || 0) !== sessionUserId && userProfile?.profileVisible === false) {
+      return res.status(404).json({ error: 'Profil candidat non trouve.' });
+    }
 
     res.json({
       id: candidate.id,
@@ -1673,25 +1847,6 @@ app.delete('/api/users/:id/saved-jobs/:jobId', requireUserSession, validateParam
   }
 });
 
-// GET /api/jobs/:id — Détail d'une offre
-app.get('/api/jobs/:id', async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
-
-    const job = await prisma.job.findUnique({
-      where: { id },
-      include: { author: { select: { id: true, name: true, email: true, role: true, isVerified: true, photoUrl: true } } },
-    });
-
-    if (!job) return res.status(404).json({ error: 'Offre non trouvée.' });
-    res.json(job);
-  } catch (error) {
-    console.error('GET /api/jobs/:id error:', error);
-    res.status(500).json({ error: 'Erreur serveur.' });
-  }
-});
-
 // POST /api/jobs/:id/apply — Simuler une candidature et notifier l'entreprise
 /*
 app.post('/api/jobs/:id/apply', jobApplicationLimiter, async (req, res) => {
@@ -1901,39 +2056,6 @@ app.put('/api/jobs/:id', async (req, res) => {
   }
 });
 */
-
-// DELETE /api/jobs/:id — Supprimer une offre
-app.delete(
-  '/api/jobs/:id',
-  requireUserSession,
-  validateParams(idParamSchema),
-  requireSelfOrAdmin({
-    resolveOwnerId: async (req) => {
-      const jobId = parseInt(req.params.id, 10);
-      if (!Number.isInteger(jobId) || jobId <= 0) return Number.NaN;
-
-      const job = await prisma.job.findUnique({
-        where: { id: jobId },
-        select: { authorId: true },
-      });
-
-      return job?.authorId ?? null;
-    },
-    notFoundMessage: 'Offre non trouvée.',
-  }),
-  async (req, res) => {
-  try {
-    const id = parseInt(req.params.id, 10);
-    if (isNaN(id)) return res.status(400).json({ error: 'ID invalide.' });
-
-    await prisma.job.delete({ where: { id } });
-    res.json({ message: 'Offre supprimée.' });
-  } catch (error) {
-    if (error.code === 'P2025') return res.status(404).json({ error: 'Offre non trouvée.' });
-    console.error('DELETE /api/jobs/:id error:', error);
-    res.status(500).json({ error: 'Erreur lors de la suppression.' });
-  }
-});
 
 // =============================================
 // ROUTES: Users
@@ -2607,7 +2729,7 @@ app.get('/api/users/:id/reviews', async (req, res) => {
         take: limit,
         include: {
           reviewer: {
-            select: { id: true, name: true, email: true },
+            select: { id: true, name: true },
           },
         },
       }),
@@ -2662,6 +2784,33 @@ app.post('/api/users/:id/reviews', requireUserSession, reviewSubmissionLimiter, 
       return res.status(404).json({ error: 'Utilisateur evaluateur/evalue introuvable.' });
     }
 
+    const interactionCount = await prisma.application.count({
+      where: {
+        OR: [
+          {
+            candidateId: parsedReviewerId,
+            job: {
+              is: {
+                authorId: reviewedId,
+              },
+            },
+          },
+          {
+            candidateId: reviewedId,
+            job: {
+              is: {
+                authorId: parsedReviewerId,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    if (interactionCount === 0) {
+      return res.status(403).json({ error: 'Un avis ne peut etre depose qu apres une interaction verifiable sur la plateforme.' });
+    }
+
     const row = await prisma.userReview.create({
       data: {
         reviewerId: parsedReviewerId,
@@ -2671,7 +2820,7 @@ app.post('/api/users/:id/reviews', requireUserSession, reviewSubmissionLimiter, 
       },
       include: {
         reviewer: {
-          select: { id: true, name: true, email: true },
+          select: { id: true, name: true },
         },
       },
     });
@@ -2914,20 +3063,20 @@ app.post('/api/reports', reportSubmissionLimiter, validateBody(reportCreateBodyS
 // ROUTES: File Upload (Cloudinary)
 // =============================================
 
-app.post('/api/upload', uploadIpLimiter, validateQuery(uploadQuerySchema), upload.single('file'), async (req, res) => {
+app.post('/api/upload', requireUserSession, uploadIpLimiter, validateQuery(uploadQuerySchema), upload.single('file'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file provided' });
-    if (!ALLOWED_UPLOAD_MIME.has(String(req.file.mimetype || '').toLowerCase())) {
-      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp, pdf, doc, docx.' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'Aucun fichier fourni.' });
     }
 
-    const safeFolder = String(req.query.folder || 'general')
-      .replace(/[^a-zA-Z0-9_-]/g, '')
-      .slice(0, 32) || 'general';
+    const safeFolder = normalizeUploadFolder(req.query.folder);
+    if (!safeFolder) {
+      return res.status(400).json({ error: 'Dossier de televersement invalide.' });
+    }
 
     const detectedType = await sniffFileType(req.file.buffer, req.file.mimetype);
-    if (!detectedType || !ALLOWED_UPLOAD_MIME.has(detectedType)) {
-      return res.status(415).json({ error: 'Type de fichier reel invalide.' });
+    if (!detectedType || !isUploadMimeAllowedForFolder(safeFolder, detectedType)) {
+      return res.status(415).json({ error: 'Type de fichier reel invalide pour ce dossier.' });
     }
 
     if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
@@ -2941,11 +3090,22 @@ app.post('/api/upload', uploadIpLimiter, validateQuery(uploadQuerySchema), uploa
         stream.end(req.file.buffer);
       });
 
-      return res.json({ url: result.secure_url, publicId: result.public_id });
+      const remoteUrl = String(result?.secure_url || '').trim();
+      if (!remoteUrl) {
+        return res.status(502).json({ error: 'Le stockage distant a echoue.' });
+      }
+
+      const url = isPrivateUploadFolder(safeFolder)
+        ? buildPrivateRemoteUploadUrl(req, safeFolder, req.sessionUser.id, remoteUrl)
+        : remoteUrl;
+
+      return res.json({ url, publicId: result.public_id });
     }
 
     const extension = safeExtensionForMime(detectedType);
-    const fileName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${extension}`;
+    const fileName = isPrivateUploadFolder(safeFolder)
+      ? buildPrivateFileName(req.sessionUser.id, extension)
+      : `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${extension}`;
     const targetDir = path.join(uploadsRoot, safeFolder);
     if (!targetDir.startsWith(uploadsRoot + path.sep) && targetDir !== uploadsRoot) {
       return res.status(400).json({ error: 'Folder invalide.' });
@@ -2956,17 +3116,13 @@ app.post('/api/upload', uploadIpLimiter, validateQuery(uploadQuerySchema), uploa
     fs.writeFileSync(fullPath, req.file.buffer);
 
     const relativePath = `${safeFolder}/${fileName}`.replace(/\\/g, '/');
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
 
-    res.json({ url: `${baseUrl}/uploads/${relativePath}`, publicId: relativePath });
+    res.json({ url: buildUploadUrl(req, safeFolder, fileName), publicId: relativePath });
   } catch (error) {
     reportError('Upload error', error, {
       route: '/api/upload',
       folder: req.query?.folder,
     });
-    if (error?.message === 'Invalid file type') {
-      return res.status(400).json({ error: 'Type de fichier non autorise. Formats acceptes: jpeg, png, webp, pdf, doc, docx.' });
-    }
     if (error?.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'Fichier trop volumineux. Taille maximale: 10 Mo.' });
     }

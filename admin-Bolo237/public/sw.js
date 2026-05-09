@@ -1,4 +1,4 @@
-const CACHE_NAME = "bolo237-admin-v1";
+const CACHE_NAME = "bolo237-admin-v2";
 const OFFLINE_URL = "/offline.html";
 
 const PRECACHE_URLS = [
@@ -30,6 +30,11 @@ function canHandle(request) {
   return request.method === "GET" && url.origin === self.location.origin && !url.pathname.startsWith("/api/");
 }
 
+function isStaticAssetRequest(request) {
+  const destination = request.destination;
+  return destination === "script" || destination === "style" || destination === "image" || destination === "font";
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
 
@@ -44,6 +49,10 @@ self.addEventListener("fetch", (event) => {
         return offline || Response.error();
       }),
     );
+    return;
+  }
+
+  if (!isStaticAssetRequest(request)) {
     return;
   }
 

@@ -7,7 +7,7 @@ import Script from 'next/script';
 import { useLocale } from '@/components/LocaleProvider';
 import FraudReportButton from '@/components/FraudReportButton';
 import ApplyButton from '@/components/ApplyButton';
-import { fetchJob, fetchUserProfile, submitJobApplication, trackJobApplyClick, trackJobView, ApiError } from '@/lib/api';
+import { buildFirstPartyUploadUrl, fetchJob, fetchSessionUser, fetchUserProfile, submitJobApplication, trackJobApplyClick, trackJobView, ApiError } from '@/lib/api';
 import {
   extractExternalApplyUrl,
   getContractLabel,
@@ -209,14 +209,16 @@ export default function AnnonceDetailClient({ params }: JobParams) {
       const loadReviewProfile = async () => {
         setIsLoadingReview(true);
         try {
-            const user = getStoredUser();
-            if (!user) return;
+          const user = getStoredUser();
+          const sessionUser = await fetchSessionUser({ captureServerErrors: false }).catch(() => null);
+          const profileUserId = Number(sessionUser?.id || 0);
+          if (!profileUserId && !user) return;
 
-            const profile = await fetchUserProfile(0).catch(() => null);
-            const phoneVerified = localStorage.getItem('bolo237-phone-verified') === 'true';
-            const fullName = String(profile?.fullName || user.name || '').trim();
-            const title = String(profile?.title || '').trim();
-            const skills = String(profile?.skillsText || '').trim();
+          const profile = profileUserId > 0 ? await fetchUserProfile(profileUserId).catch(() => null) : null;
+          const phoneVerified = localStorage.getItem('bolo237-phone-verified') === 'true';
+          const fullName = String(profile?.fullName || sessionUser?.name || user?.name || '').trim();
+          const title = String(profile?.title || '').trim();
+          const skills = String(profile?.skillsText || '').trim();
           const hasNarrative = Boolean(profile?.profile || profile?.experience || profile?.education);
           const profileComplete = Boolean(fullName && title && profile?.phone && profile?.email && (skills || hasNarrative));
           const missingItems = [
@@ -229,7 +231,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
           ].filter(Boolean) as string[];
 
           setUserProfile({
-              id: 0,
+            id: profileUserId,
             name: fullName,
             title,
             skills,
@@ -237,7 +239,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
             cvUploaded: Boolean(profileComplete || profile?.defaultCvUrl),
             phoneVerified,
             profileComplete,
-              isVerified: Boolean(user?.isVerified),
+            isVerified: Boolean(sessionUser?.isVerified ?? user?.isVerified),
             missingItems,
           });
         } catch {
@@ -1009,7 +1011,7 @@ export default function AnnonceDetailClient({ params }: JobParams) {
                       />
                       {isEn ? 'Use my default CV for this application' : 'Utiliser mon CV principal pour cette candidature'}
                       <a
-                        href={userProfile.defaultCvUrl}
+                        href={buildFirstPartyUploadUrl(userProfile.defaultCvUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="ml-auto text-emerald-700 underline"

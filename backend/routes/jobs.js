@@ -1,5 +1,4 @@
 const express = require('express');
-const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const router = express.Router();
@@ -13,9 +12,12 @@ const {
   safeExtensionForMime,
   ALLOWED_UPLOAD_MIME,
   withAvScan,
+  isUploadMimeAllowedForFolder,
+  buildUploadUrl,
+  buildPrivateFileName,
+  buildPrivateRemoteUploadUrl,
 } = require('../lib/uploads');
 const { readSessionToken, requireUserSession } = require('../lib/session');
-const { jobApplicationLimiter } = require('../lib/limiters');
 const { isPublicHttpsUrl } = require('../lib/urlGuard');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
@@ -23,96 +25,177 @@ const { TranslationServiceError, buildBilingualJobContent } = require('../lib/tr
 const { generateJobReference } = require('../lib/references');
 const { generateSlug } = require('../lib/jobSlug');
 const { validateBody } = require('../lib/requestValidation');
+const { jobApplicationLimiter, jobCreationLimiter } = require('../lib/limiters');
 
-// 🛡️ 1. LE SCHÉMA ZOD : Le plan strict de ce qu'on accepte
+const PUBLIC_JOB_STATUSES = new Set(['APPROVED', 'ACTIVE']);
+const PRIVATE_JOB_STATUSES = new Set(['PENDING', 'ACTIVE', 'APPROVED', 'REJECTED', 'CLOSED', 'ARCHIVED']);
+const ADMIN_ROLES = new Set(['ADMIN', 'SUPER_ADMIN']);
+const RECRUITER_ROLES = new Set(['ENTREPRISE', 'ARTISAN', 'ADMIN', 'SUPER_ADMIN']);
+const CANDIDATE_ROLES = new Set(['CANDIDAT']);
+
+function isAdminRole(role) {
+  return ADMIN_ROLES.has(String(role || '').toUpperCase());
+}
+
+function isRecruiterRole(role) {
+  return RECRUITER_ROLES.has(String(role || '').toUpperCase());
+}
+
+function isCandidateRole(role) {
+  return CANDIDATE_ROLES.has(String(role || '').toUpperCase());
+}
+
+function buildPublicAuthorSelect() {
+  return {
+    id: true,
+    name: true,
+    role: true,
+    isVerified: true,
+    photoUrl: true,
+  };
+}
+
+function normalizeStatusParam(status) {
+  const normalized = String(status || '').trim().toUpperCase();
+  return PRIVATE_JOB_STATUSES.has(normalized) ? normalized : null;
+}
+
+function canManagePrivateJob(sessionPayload, authorId) {
+  const sessionUserId = Number(sessionPayload?.userId || 0);
+  if (!Number.isFinite(sessionUserId) || sessionUserId <= 0) {
+    return false;
+  }
+
+  return sessionUserId === Number(authorId) || isAdminRole(sessionPayload?.role);
+}
+
+function getRecruiterAccessError(sessionUser) {
+  const role = String(sessionUser?.role || '').toUpperCase();
+  if (!isRecruiterRole(role)) {
+    return 'Seuls les comptes entreprise ou artisan peuvent publier et gerer des offres.';
+  }
+
+  if (!isAdminRole(role) && !sessionUser?.isVerified) {
+    return 'Votre compte doit etre verifie avant de publier ou gerer des offres.';
+  }
+
+  return null;
+}
+
+async function ensureCandidateProfileReady(candidateId) {
+  const profile = await prisma.userProfile.findUnique({
+    where: { userId: candidateId },
+    select: {
+      fullName: true,
+      title: true,
+      phone: true,
+      email: true,
+      profile: true,
+      experience: true,
+      education: true,
+      skillsText: true,
+    },
+  });
+
+  const missingFields = [];
+  if (!String(profile?.fullName || '').trim()) missingFields.push('nom complet');
+  if (!String(profile?.title || '').trim()) missingFields.push('titre');
+  if (!String(profile?.phone || '').trim()) missingFields.push('telephone');
+  if (!String(profile?.email || '').trim()) missingFields.push('email');
+
+  const hasNarrative = Boolean(
+    String(profile?.profile || '').trim() ||
+    String(profile?.experience || '').trim() ||
+    String(profile?.education || '').trim() ||
+    String(profile?.skillsText || '').trim(),
+  );
+
+  if (!hasNarrative) {
+    missingFields.push('resume ou competences');
+  }
+
+  return {
+    ok: missingFields.length === 0,
+    missingFields,
+  };
+}
+
+async function getJobWithAuthor(jobId) {
+  return prisma.job.findUnique({
+    where: { id: jobId },
+    include: {
+      author: {
+        select: buildPublicAuthorSelect(),
+      },
+    },
+  });
+}
+
 const jobSchema = z.object({
-  title: z.string().trim().min(5, "Le titre doit faire au moins 5 caractères").max(100),
-  description: z.string().trim().min(50, "La description doit être détaillée (min 50 caractères)"),
-  location: z.string().trim().min(2, "La localisation est requise"),
+  title: z.string().trim().min(5, 'Le titre doit faire au moins 5 caracteres').max(100),
+  description: z.string().trim().min(50, 'La description doit etre detaillee (min 50 caracteres)'),
+  location: z.string().trim().min(2, 'La localisation est requise'),
   company: z.string().trim().min(2, "Le nom de l'entreprise est requis").max(120).optional(),
   salary: z.string().optional().nullable(),
   externalApplyUrl: z
     .string()
     .trim()
-    .url("URL de candidature externe invalide")
+    .url('URL de candidature externe invalide')
     .refine((value) => isPublicHttpsUrl(value), { message: 'URL externe non autorisee.' })
     .optional()
     .nullable(),
 }).strict();
 
-// ==========================================
-// 🚀 LES ROUTES
-// ==========================================
-
-// GET /jobs (Liste + Recherche)
 router.get('/', async (req, res) => {
   try {
     const { search, location, status, authorId, sort, page, limit } = req.query;
 
-    // ── Pagination ───────────────────────────────────────────────
-    const pageNum  = Math.max(1, parseInt(page,  10) || 1);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
-    const skip     = (pageNum - 1) * limitNum;
+    const skip = (pageNum - 1) * limitNum;
 
-    // ── WHERE clause ─────────────────────────────────────────────
     const where = {};
-
-    // Filtrage status prive uniquement pour l'auteur connecte.
-    const ALLOWED = ['PENDING', 'ACTIVE', 'APPROVED', 'REJECTED', 'CLOSED', 'ARCHIVED'];
     const parsedAuthorId = authorId ? parseInt(authorId, 10) : null;
     const hasValidAuthorId = Number.isInteger(parsedAuthorId) && parsedAuthorId > 0;
+    const sessionPayload = await readSessionToken(req);
 
     if (hasValidAuthorId) {
       where.authorId = parsedAuthorId;
     }
 
-    let canUsePrivateStatusFilter = false;
-    if (hasValidAuthorId) {
-      const sessionPayload = await readSessionToken(req);
-      canUsePrivateStatusFilter = Number(sessionPayload?.userId) === parsedAuthorId;
-    }
-
-    if (canUsePrivateStatusFilter) {
-      if (status && ALLOWED.includes(status)) {
-        where.status = status;
-      }
+    const normalizedStatus = normalizeStatusParam(status);
+    if (normalizedStatus && hasValidAuthorId && canManagePrivateJob(sessionPayload, parsedAuthorId)) {
+      where.status = normalizedStatus;
     } else {
-      const normalizedStatus = typeof status === 'string' ? status.trim().toUpperCase() : '';
-
-      // Route publique: seules les annonces visibles restent exposées.
-      where.status = { in: ['APPROVED', 'ACTIVE'] };
+      where.status = { in: [...PUBLIC_JOB_STATUSES] };
     }
 
-    // Recherche plein-texte (insensible à la casse) sur titre, description, entreprise
     const term = typeof search === 'string' ? search.trim() : '';
     if (term) {
       where.OR = [
-        { title:       { contains: term, mode: 'insensitive' } },
-        { titleFr:     { contains: term, mode: 'insensitive' } },
-        { titleEn:     { contains: term, mode: 'insensitive' } },
-        { title_fr:    { contains: term, mode: 'insensitive' } },
-        { title_en:    { contains: term, mode: 'insensitive' } },
+        { title: { contains: term, mode: 'insensitive' } },
+        { titleFr: { contains: term, mode: 'insensitive' } },
+        { titleEn: { contains: term, mode: 'insensitive' } },
+        { title_fr: { contains: term, mode: 'insensitive' } },
+        { title_en: { contains: term, mode: 'insensitive' } },
         { description: { contains: term, mode: 'insensitive' } },
         { descriptionFr: { contains: term, mode: 'insensitive' } },
         { descriptionEn: { contains: term, mode: 'insensitive' } },
         { description_fr: { contains: term, mode: 'insensitive' } },
         { description_en: { contains: term, mode: 'insensitive' } },
-        { company:     { contains: term, mode: 'insensitive' } },
+        { company: { contains: term, mode: 'insensitive' } },
       ];
     }
 
-    // Filtre lieu (insensible à la casse)
     const loc = typeof location === 'string' ? location.trim() : '';
     if (loc) {
       where.location = { contains: loc, mode: 'insensitive' };
     }
 
-    // ── Tri ───────────────────────────────────────────────────────
     const orderBy = sort === 'oldest'
       ? { createdAt: 'asc' }
       : { createdAt: 'desc' };
 
-    // ── Requête ───────────────────────────────────────────────────
     const [jobs, total] = await Promise.all([
       prisma.job.findMany({
         where,
@@ -121,7 +204,7 @@ router.get('/', async (req, res) => {
         take: limitNum,
         include: {
           author: {
-            select: { photoUrl: true, isVerified: true },
+            select: buildPublicAuthorSelect(),
           },
         },
       }),
@@ -132,7 +215,7 @@ router.get('/', async (req, res) => {
       success: true,
       jobs,
       pagination: {
-        page:  pageNum,
+        page: pageNum,
         limit: limitNum,
         total,
         pages: Math.ceil(total / limitNum),
@@ -144,11 +227,41 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /jobs (Création avec validation Zod)
-// On place `validateRequest(jobSchema)` AVANT la logique de création
-router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    // Si on arrive ici, req.body est 100% garanti valide grâce à Zod !
+    const jobId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(jobId) || jobId <= 0) {
+      return res.status(400).json({ error: 'ID invalide.' });
+    }
+
+    const [job, sessionPayload] = await Promise.all([
+      getJobWithAuthor(jobId),
+      readSessionToken(req),
+    ]);
+
+    if (!job) {
+      return res.status(404).json({ error: 'Offre non trouvee.' });
+    }
+
+    const canReadPrivateJob = canManagePrivateJob(sessionPayload, job.authorId);
+    if (!PUBLIC_JOB_STATUSES.has(String(job.status || '').toUpperCase()) && !canReadPrivateJob) {
+      return res.status(404).json({ error: 'Offre non trouvee.' });
+    }
+
+    return res.json(job);
+  } catch (error) {
+    console.error('GET /jobs/:id error:', error);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+router.post('/', requireUserSession, jobCreationLimiter, validateBody(jobSchema), async (req, res) => {
+  try {
+    const recruiterAccessError = getRecruiterAccessError(req.sessionUser);
+    if (recruiterAccessError) {
+      return res.status(403).json({ success: false, message: recruiterAccessError });
+    }
+
     const {
       title,
       description,
@@ -170,7 +283,7 @@ router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) =
     }
 
     const newJob = await (async () => {
-      for (let attempt = 0; attempt < 5; attempt++) {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
         try {
           const reference = generateJobReference();
           return await prisma.job.create({
@@ -192,59 +305,71 @@ router.post('/', requireUserSession, validateBody(jobSchema), async (req, res) =
               salary,
               externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
               authorId,
-              status: 'PENDING', // Toujours en attente pour modération admin
-            }
+              status: 'PENDING',
+            },
           });
         } catch (err) {
-          // P2002 = violation contrainte unique (collision de référence, très rare)
-          if (err?.code === 'P2002' && attempt < 4) continue;
+          if (err?.code === 'P2002' && attempt < 4) {
+            continue;
+          }
           throw err;
         }
       }
+
+      throw new Error('JOB_REFERENCE_GENERATION_FAILED');
     })();
 
-    res.status(201).json({ 
-      success: true, 
-      message: "Offre soumise avec succès. En attente de validation.",
-      job: newJob 
+    res.status(201).json({
+      success: true,
+      message: 'Offre soumise avec succes. En attente de validation.',
+      job: newJob,
     });
-
   } catch (error) {
     if (error instanceof TranslationServiceError) {
       console.error('Erreur traduction creation job:', error);
       return res.status(502).json({
         success: false,
-        message: "Traduction automatique indisponible. Réessayez dans un instant.",
+        message: 'Traduction automatique indisponible. Reessayez dans un instant.',
       });
     }
 
-    console.error("Erreur création job:", error);
-    res.status(500).json({ success: false, message: "Erreur interne lors de la création de l'offre" });
+    console.error('Erreur creation job:', error);
+    return res.status(500).json({ success: false, message: "Erreur interne lors de la creation de l'offre" });
   }
 });
 
-// PUT /jobs/:id (Modification avec validation Zod)
 router.put('/:id', requireUserSession, validateBody(jobSchema), async (req, res) => {
   try {
+    const recruiterAccessError = getRecruiterAccessError(req.sessionUser);
+    if (recruiterAccessError) {
+      return res.status(403).json({ success: false, message: recruiterAccessError });
+    }
+
     const jobId = parseInt(req.params.id, 10);
     const userId = req.sessionUser.id;
 
-    // 1. Vérifier que l'offre existe
+    if (!Number.isFinite(jobId) || jobId <= 0) {
+      return res.status(400).json({ success: false, message: 'Offre invalide.' });
+    }
+
     const existingJob = await prisma.job.findUnique({
-      where: { id: jobId }
+      where: { id: jobId },
+      select: {
+        id: true,
+        authorId: true,
+        company: true,
+        reference: true,
+      },
     });
 
     if (!existingJob) {
-      return res.status(404).json({ success: false, message: "Offre introuvable." });
+      return res.status(404).json({ success: false, message: 'Offre introuvable.' });
     }
 
-    // 🛡️ SÉCURITÉ : Vérifier que l'utilisateur connecté est bien le propriétaire de l'offre
-    // (Ajuste "authorId" si ta colonne s'appelle différemment dans schema.prisma)
-    if (existingJob.authorId !== userId) {
-      return res.status(403).json({ success: false, message: "Vous n'êtes pas autorisé à modifier cette offre." });
+    if (existingJob.authorId !== userId && !isAdminRole(req.sessionUser.role)) {
+      return res.status(403).json({ success: false, message: "Vous n'etes pas autorise a modifier cette offre." });
     }
 
-    // 2. Si on arrive ici, req.body est validé par Zod ET l'utilisateur est le bon
     const {
       title,
       description,
@@ -282,54 +407,85 @@ router.put('/:id', requireUserSession, validateBody(jobSchema), async (req, res)
         location,
         salary,
         externalApplyUrl: externalApplyUrl ? String(externalApplyUrl).trim() : null,
-        // Tu peux choisir de repasser le statut en 'PENDING' si tu veux remodérer les offres modifiées
-        // status: 'PENDING'
-      }
+      },
     });
 
-    res.json({
+    return res.json({
       success: true,
-      message: "Offre modifiée avec succès.",
-      job: updatedJob
+      message: 'Offre modifiee avec succes.',
+      job: updatedJob,
     });
-
   } catch (error) {
     if (error instanceof TranslationServiceError) {
       console.error('Erreur traduction modification job:', error);
       return res.status(502).json({
         success: false,
-        message: "Traduction automatique indisponible. Réessayez dans un instant.",
+        message: 'Traduction automatique indisponible. Reessayez dans un instant.',
       });
     }
 
-    console.error("Erreur modification job:", error);
-    res.status(500).json({ success: false, message: "Erreur interne lors de la modification de l'offre." });
+    console.error('Erreur modification job:', error);
+    return res.status(500).json({ success: false, message: "Erreur interne lors de la modification de l'offre." });
   }
 });
 
-// 📦 GET /jobs/:id/applications (Récupérer les candidatures d'une offre)
+router.delete('/:id', requireUserSession, async (req, res) => {
+  try {
+    const jobId = parseInt(req.params.id, 10);
+    if (!Number.isFinite(jobId) || jobId <= 0) {
+      return res.status(400).json({ error: 'ID invalide.' });
+    }
+
+    const existingJob = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: { id: true, authorId: true },
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ error: 'Offre non trouvee.' });
+    }
+
+    if (existingJob.authorId !== req.sessionUser.id && !isAdminRole(req.sessionUser.role)) {
+      return res.status(403).json({ error: 'Acces refuse.' });
+    }
+
+    await prisma.job.delete({ where: { id: jobId } });
+    return res.json({ success: true, message: 'Offre supprimee.' });
+  } catch (error) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ error: 'Offre non trouvee.' });
+    }
+
+    console.error('DELETE /jobs/:id error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la suppression.' });
+  }
+});
+
 router.get('/:id/applications', requireUserSession, async (req, res) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const userId = req.sessionUser.id;
+    const isAdmin = isAdminRole(req.sessionUser.role);
 
-    // 1. Vérifier que l'offre existe ET appartient à l'utilisateur connecté
+    if (!Number.isFinite(jobId) || jobId <= 0) {
+      return res.status(400).json({ success: false, message: 'Offre invalide.' });
+    }
+
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      select: { authorId: true }
+      select: { authorId: true },
     });
 
     if (!job) {
       return res.status(404).json({ success: false, message: 'Offre introuvable.' });
     }
 
-    if (job.authorId !== userId) {
+    if (job.authorId !== userId && !isAdmin) {
       return res.status(403).json({ success: false, message: "Acces refuse. Vous n'etes pas l'auteur de cette offre." });
     }
 
-    // 2. Récupérer les candidatures avec les infos du candidat
     const applications = await prisma.application.findMany({
-      where: { jobId: jobId },
+      where: { jobId },
       orderBy: { createdAt: 'desc' },
       include: {
         candidate: {
@@ -338,16 +494,16 @@ router.get('/:id/applications', requireUserSession, async (req, res) => {
             name: true,
             email: true,
             phone: true,
-            photoUrl: true
-          }
-        }
-      }
+            photoUrl: true,
+          },
+        },
+      },
     });
 
-    res.json({ success: true, applications });
+    return res.json({ success: true, applications });
   } catch (error) {
     console.error('Erreur recuperation candidatures:', error);
-    res.status(500).json({ success: false, message: 'Erreur serveur lors de la recuperation des candidatures.' });
+    return res.status(500).json({ success: false, message: 'Erreur serveur lors de la recuperation des candidatures.' });
   }
 });
 
@@ -365,7 +521,7 @@ router.post('/:id/view', async (req, res) => {
     const updated = await prisma.job.updateMany({
       where: {
         id: jobId,
-        status: { in: ['APPROVED', 'ACTIVE'] },
+        status: { in: [...PUBLIC_JOB_STATUSES] },
       },
       data: {
         viewCount: { increment: 1 },
@@ -393,7 +549,7 @@ router.post('/:id/apply-click', async (req, res) => {
     const updated = await prisma.job.updateMany({
       where: {
         id: jobId,
-        status: { in: ['APPROVED', 'ACTIVE'] },
+        status: { in: [...PUBLIC_JOB_STATUSES] },
       },
       data: {
         applyClickCount: { increment: 1 },
@@ -411,9 +567,13 @@ router.post('/:id/apply-click', async (req, res) => {
   }
 });
 
-// PATCH /jobs/applications/:id/status (Changer le statut d'une candidature)
 router.patch('/applications/:id/status', requireUserSession, async (req, res) => {
   try {
+    const recruiterAccessError = getRecruiterAccessError(req.sessionUser);
+    if (recruiterAccessError && !isAdminRole(req.sessionUser.role)) {
+      return res.status(403).json({ success: false, message: recruiterAccessError });
+    }
+
     const applicationId = parseInt(req.params.id, 10);
     if (!Number.isFinite(applicationId) || applicationId <= 0) {
       return res.status(400).json({ success: false, message: 'ID de candidature invalide.' });
@@ -421,6 +581,7 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
 
     const parsed = await applicationStatusSchema.parseAsync(req.body);
     const recruiterId = req.sessionUser.id;
+    const isAdmin = isAdminRole(req.sessionUser.role);
 
     const existingApplication = await prisma.application.findUnique({
       where: { id: applicationId },
@@ -447,7 +608,7 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
       return res.status(404).json({ success: false, message: 'Candidature introuvable.' });
     }
 
-    if (existingApplication.job.authorId !== recruiterId) {
+    if (existingApplication.job.authorId !== recruiterId && !isAdmin) {
       return res.status(403).json({ success: false, message: 'Acces refuse. Vous ne pouvez pas modifier cette candidature.' });
     }
 
@@ -530,11 +691,11 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
   }
 });
 
-// 🛡️ 1. LE SCHÉMA ZOD POUR LA CANDIDATURE
-// Anti-SSRF : cvUrl doit être une URL HTTPS publique (pas localhost ni RFC1918).
-// Cela protège le backend contre l'utilisation d'URLs internes pour pivoter.
+// 🛡️ Schéma Zod pour la candidature.
+// Anti-SSRF : cvUrl doit être une URL HTTPS publique (pas localhost ni RFC1918)
+// pour empêcher le backend de pivoter vers des ressources internes.
 const applySchema = z.object({
-  message: z.string().trim().min(20, "Votre message de motivation doit faire au moins 20 caractères.").max(2000),
+  message: z.string().trim().min(20, 'Votre message de motivation doit faire au moins 20 caracteres.').max(2000),
   cvUrl: z
     .string()
     .trim()
@@ -543,31 +704,28 @@ const applySchema = z.object({
     .optional(),
 });
 
-// 🛑 2. MIDDLEWARE DE VALIDATION POUR LES FORMULAIRES MULTIPART (fichiers)
-// (Légèrement différent du précédent car 'multer' met les textes dans req.body et le fichier dans req.file)
 const validateApply = async (req, res, next) => {
   try {
     req.body = await applySchema.parseAsync(req.body);
 
-    // Accepter soit un fichier, soit une URL de CV principal deja stockee.
     if (!req.file && !req.body?.cvUrl) {
-      return res.status(400).json({ success: false, message: "Vous devez joindre un CV ou utiliser votre CV principal." });
+      return res.status(400).json({ success: false, message: 'Vous devez joindre un CV ou utiliser votre CV principal.' });
     }
 
-    next();
+    return next();
   } catch (error) {
     return res.status(400).json({
       success: false,
-      message: "Données de candidature invalides",
-      errors: error.errors?.map(err => err.message) || [error.message]
+      message: 'Donnees de candidature invalides',
+      errors: error.errors?.map((err) => err.message) || [error.message],
     });
   }
 };
 
-async function persistUploadedCv(file, req) {
+async function persistUploadedCv(file, req, ownerId) {
   const declaredMime = String(file.mimetype || '').toLowerCase();
   const detectedType = await sniffFileType(file.buffer, declaredMime);
-  if (!detectedType || !ALLOWED_UPLOAD_MIME.has(detectedType)) {
+  if (!detectedType || !isUploadMimeAllowedForFolder('cv', detectedType)) {
     throw new Error('INVALID_CV_TYPE');
   }
 
@@ -581,11 +739,16 @@ async function persistUploadedCv(file, req) {
       stream.end(file.buffer);
     });
 
-    return String(result.secure_url || '').trim();
+    const remoteUrl = String(result?.secure_url || '').trim();
+    if (!remoteUrl) {
+      throw new Error('INVALID_CV_REMOTE_URL');
+    }
+
+    return buildPrivateRemoteUploadUrl(req, 'cv', ownerId, remoteUrl);
   }
 
   const extension = safeExtensionForMime(detectedType);
-  const fileName = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${extension}`;
+  const fileName = buildPrivateFileName(ownerId, extension);
   const targetDir = path.join(uploadsRoot, 'cv');
   if (!targetDir.startsWith(uploadsRoot + path.sep) && targetDir !== uploadsRoot) {
     throw new Error('INVALID_CV_FOLDER');
@@ -594,42 +757,65 @@ async function persistUploadedCv(file, req) {
   fs.mkdirSync(targetDir, { recursive: true });
   fs.writeFileSync(path.join(targetDir, fileName), file.buffer);
 
-  const relativePath = `cv/${fileName}`.replace(/\\/g, '/');
-  const baseUrl = `${req.protocol}://${req.get('host')}`;
-  return `${baseUrl}/uploads/${relativePath}`;
+  return buildUploadUrl(req, 'cv', fileName);
 }
 
 // ==========================================
 // 🚀 ROUTE : POSTULER À UNE OFFRE
 // ==========================================
-
-// L'ordre des middlewares est crucial :
-// 1. Authentification -> 2. Rate-limit (avant le coût I/O upload) -> 3. Upload -> 4. Validation -> 5. Logique
+// Ordre des middlewares :
+// 1. Auth → 2. Rate-limit (avant I/O) → 3. Upload + scan antivirus → 4. Validation → 5. Logique.
 router.post('/:id/apply', requireUserSession, jobApplicationLimiter, withAvScan(upload, 'cv'), validateApply, async (req, res) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const candidateId = req.sessionUser.id;
+    const sessionRole = String(req.sessionUser?.role || '').toUpperCase();
     const { message, cvUrl: bodyCvUrl } = req.body;
 
-    const uploadedCvUrl = req.file ? await persistUploadedCv(req.file, req) : '';
+    if (!Number.isFinite(jobId) || jobId <= 0) {
+      return res.status(400).json({ success: false, message: 'ID annonce invalide.' });
+    }
+
+    if (!isCandidateRole(sessionRole)) {
+      return res.status(403).json({ success: false, message: 'Seuls les comptes candidats peuvent postuler a une offre.' });
+    }
+
+    const profileReadiness = await ensureCandidateProfileReady(candidateId);
+    if (!profileReadiness.ok) {
+      return res.status(400).json({
+        success: false,
+        message: `Votre profil candidat est incomplet : ${profileReadiness.missingFields.join(', ')}.`,
+      });
+    }
+
+    const uploadedCvUrl = req.file ? await persistUploadedCv(req.file, req, candidateId) : '';
     const cvUrl = String(uploadedCvUrl || bodyCvUrl || '').trim();
 
     if (!cvUrl) {
-      return res.status(400).json({ success: false, message: "Vous devez joindre un CV valide." });
+      return res.status(400).json({ success: false, message: 'Vous devez joindre un CV valide.' });
     }
 
-    // 1. Vérifier que l'offre existe et est approuvée
     const job = await prisma.job.findUnique({
       where: { id: jobId },
-      select: { id: true, status: true, title: true, company: true }
+      select: {
+        id: true,
+        status: true,
+        title: true,
+        company: true,
+        authorId: true,
+      },
     });
 
-    if (!job || !['APPROVED', 'ACTIVE'].includes(String(job.status || '').toUpperCase())) {
+    if (!job || !PUBLIC_JOB_STATUSES.has(String(job.status || '').toUpperCase())) {
       return res.status(404).json({ success: false, message: "Cette offre n'est plus disponible." });
     }
 
-    // 2. Création atomique — la contrainte @@unique([jobId, candidateId]) (schema.prisma:414)
-    //    garantit l'unicité même en concurrence. On capte P2002 pour rendre le 409 idempotent.
+    if (job.authorId === candidateId) {
+      return res.status(400).json({ success: false, message: 'Vous ne pouvez pas postuler a votre propre offre.' });
+    }
+
+    // Création atomique — la contrainte @@unique([jobId, candidateId]) garantit
+    // l'unicité même en concurrence. On capte P2002 pour rendre le 409 idempotent.
     let application;
     try {
       application = await prisma.application.create({
@@ -640,23 +826,30 @@ router.post('/:id/apply', requireUserSession, jobApplicationLimiter, withAvScan(
           cvUrl,
           status: 'APPLIED',
         },
+        include: {
+          candidate: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              photoUrl: true,
+            },
+          },
+        },
       });
-    } catch (err) {
-      if (err && err.code === 'P2002') {
-        return res.status(409).json({ success: false, message: "Vous avez déjà postulé à cette offre." });
+    } catch (error) {
+      if (error?.code === 'P2002') {
+        return res.status(409).json({ success: false, message: 'Vous avez deja postule a cette offre.' });
       }
-      throw err;
+      throw error;
     }
 
-    // 4. (Optionnel) Envoyer un email à l'entreprise pour la prévenir
-    // sendEmail(job.companyEmail, "Nouvelle candidature !", `Quelqu'un a postulé à ${job.title}...`);
-
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: "Votre candidature a été envoyée avec succès !",
-      applicationId: application.id
+      message: 'Votre candidature a ete envoyee avec succes.',
+      application,
     });
-
   } catch (error) {
     if (error?.message === 'INVALID_CV_TYPE') {
       return res.status(415).json({ success: false, message: 'Type de fichier reel invalide pour le CV.' });
@@ -664,8 +857,11 @@ router.post('/:id/apply', requireUserSession, jobApplicationLimiter, withAvScan(
     if (error?.message === 'INVALID_CV_FOLDER') {
       return res.status(400).json({ success: false, message: 'Dossier de CV invalide.' });
     }
-    console.error("Erreur lors de la candidature:", error);
-    res.status(500).json({ success: false, message: "Erreur interne lors de l'envoi de la candidature." });
+    if (error?.message === 'INVALID_CV_REMOTE_URL') {
+      return res.status(502).json({ success: false, message: 'Le stockage du CV a echoue.' });
+    }
+    console.error('Erreur lors de la candidature:', error);
+    return res.status(500).json({ success: false, message: "Erreur interne lors de l'envoi de la candidature." });
   }
 });
 

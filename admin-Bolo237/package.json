@@ -5,8 +5,9 @@
   "scripts": {
     "dev": "next dev -p ${PORT:-3000}",
     "build": "next build",
-    "start": "node .next/standalone/server.js",
-    "lint": "eslint"
+    "start": "PORT=${PORT:-3000} node .next/standalone/server.js",
+    "lint": "eslint",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.48.0",
@@ -17,6 +18,7 @@
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.51.1",
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

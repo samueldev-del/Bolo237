@@ -6,7 +6,7 @@ import Link from 'next/link';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
-import { type CandidateProfile, fetchCandidateProfiles } from '@/lib/api';
+import { buildFirstPartyUploadUrl, type CandidateProfile, fetchCandidateProfiles } from '@/lib/api';
 import { getSessionStorageValue, subscribeToSessionStorage } from '@/lib/session';
 
 const USER_KEY = 'bolo237-user';
@@ -364,7 +364,7 @@ export default function CvthequePage() {
                     </Link>
                     {cand.defaultCvUrl ? (
                       <a
-                        href={cand.defaultCvUrl}
+                        href={buildFirstPartyUploadUrl(cand.defaultCvUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-4 py-2 rounded-lg text-sm font-extrabold border border-green-200 bg-green-50 text-green-700 hover:bg-green-100 transition"

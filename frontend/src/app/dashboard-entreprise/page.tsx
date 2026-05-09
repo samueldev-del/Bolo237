@@ -8,6 +8,7 @@ import Footer from '@/components/Footer';
 import { useLocale } from '@/components/LocaleProvider';
 import { canPublishUnlimited, containsBlockedKeyword, getModerationStatusForFirstPublications } from '@/lib/trustShield';
 import {
+  buildFirstPartyUploadUrl,
   createJob,
   updateJob,
   updateApplicationStatus,
@@ -590,26 +591,17 @@ function DashboardEntrepriseContent() {
       return;
     }
 
-    // Get user from localStorage for authorId
-    let authorId = 0;
     let authorCompany = companyName || userName || '';
     try {
       const raw = localStorage.getItem('bolo237-user');
       if (raw) {
         const user = JSON.parse(raw);
-        authorId = user.id;
         if (!authorCompany) {
           authorCompany = user.company || user.companyName || user.name || '';
         }
       }
     } catch {
       // ignore parse errors
-    }
-
-    if (!authorId) {
-      setPublishMessage(isEn ? 'User session not found. Please log in again.' : 'Session utilisateur introuvable. Veuillez vous reconnecter.');
-      setPublishMessageType('error');
-      return;
     }
 
     setIsPublishing(true);
@@ -623,7 +615,6 @@ function DashboardEntrepriseContent() {
         location: jobLocation.trim() || 'Cameroun',
         description: jobDescription.trim(),
         salary: jobSalary.trim() || undefined,
-        authorId,
       });
 
       const nextCount = jobsPublishedCount + 1;
@@ -2542,7 +2533,7 @@ function DashboardEntrepriseContent() {
                                       {'\u274C'}
                                     </button>
                                     <a
-                                      href={app.cvUrl}
+                                      href={buildFirstPartyUploadUrl(app.cvUrl)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-blue-600 hover:text-white transition shrink-0 self-start border border-blue-100 hover:border-blue-600"

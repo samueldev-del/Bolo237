@@ -120,12 +120,22 @@ export function storeAuthenticatedUser(
     }
   }
 
-  if (options.phoneVerified) {
-    window.localStorage.setItem(PHONE_VERIFIED_KEY, 'true');
+  if (options.phoneVerified !== undefined) {
+    if (options.phoneVerified) {
+      window.localStorage.setItem(PHONE_VERIFIED_KEY, 'true');
+    } else {
+      window.localStorage.removeItem(PHONE_VERIFIED_KEY);
+    }
   }
 
   notifySessionChange();
   return next;
+}
+
+export function markPhoneVerified(): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(PHONE_VERIFIED_KEY, 'true');
+  notifySessionChange();
 }
 
 export function mergeStoredUser(patch: Partial<StoredUser>): StoredUser | null {

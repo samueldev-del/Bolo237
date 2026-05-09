@@ -1,0 +1,50 @@
+name: Admin Security E2E CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'admin-Bolo237/**'
+      - '.github/workflows/admin-ci.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'admin-Bolo237/**'
+      - '.github/workflows/admin-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  admin-security-e2e:
+    name: Admin Security E2E
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./admin-Bolo237
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './admin-Bolo237/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Run admin security E2E tests
+        run: ./node_modules/.bin/playwright test tests/admin-uploads-proxy.spec.ts tests/admin-inbox-attachments.spec.ts --project=chromium --reporter=line

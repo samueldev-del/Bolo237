@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import AdminShell from "@/components/admin/admin-shell";
 import {
+  buildFirstPartyUploadUrl,
   fetchVerificationSubmissions,
   reviewVerification,
   type VerificationSubmission,
@@ -64,6 +65,31 @@ function formatDate(d: string) {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function isDataUrl(value: unknown): value is string {
+  return typeof value === "string" && value.startsWith("data:");
+}
+
+function isUploadDocumentUrl(value: unknown): value is string {
+  const normalized = String(value || "").trim();
+  if (!normalized || normalized.startsWith("data:")) {
+    return false;
+  }
+
+  if (normalized.startsWith("/uploads/") || normalized.startsWith("/api/uploads/")) {
+    return true;
+  }
+
+  try {
+    return new URL(normalized).pathname.startsWith("/uploads/");
+  } catch {
+    return false;
+  }
+}
+
+function getFirstPartyUploadDocumentUrl(value: unknown) {
+  return isUploadDocumentUrl(value) ? buildFirstPartyUploadUrl(String(value)) : "";
 }
 
 export default function ModerationArtisansPage() {
@@ -263,14 +289,25 @@ function SubmissionCard({
   onReject: () => void;
 }) {
   const isLoading = actionId === sub.id;
-  const images = IMAGE_KEYS.filter(
-    (k) =>
-      sub.payload[k] &&
-      typeof sub.payload[k] === "string" &&
-      (sub.payload[k] as string).startsWith("data:")
-  );
+  const imageEntries = IMAGE_KEYS.flatMap((key) => {
+    const rawValue = sub.payload[key];
+    if (isDataUrl(rawValue)) {
+      return [{ key, src: rawValue }];
+    }
+
+    const proxiedUrl = getFirstPartyUploadDocumentUrl(rawValue);
+    return proxiedUrl ? [{ key, src: proxiedUrl }] : [];
+  });
+  const documentFields = Object.entries(sub.payload).flatMap(([key, value]) => {
+    if (IMAGE_KEYS.includes(key)) {
+      return [];
+    }
+
+    const href = getFirstPartyUploadDocumentUrl(value);
+    return href ? [{ key, href }] : [];
+  });
   const textFields = Object.entries(sub.payload).filter(
-    ([k, v]) => !IMAGE_KEYS.includes(k) && v !== null && v !== ""
+    ([k, v]) => !IMAGE_KEYS.includes(k) && !getFirstPartyUploadDocumentUrl(v) && v !== null && v !== ""
   );
 
   return (
@@ -321,22 +358,44 @@ function SubmissionCard({
         </div>
       )}
 
+      {documentFields.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {documentFields.map(({ key, href }) => (
+            <div key={key} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+                {key}
+              </p>
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100"
+              >
+                Ouvrir le document
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Image previews */}
-      {images.length > 0 && (
+      {imageEntries.length > 0 && (
         <div className="flex flex-wrap gap-3">
-          {images.map((key) => (
+          {imageEntries.map(({ key, src }) => (
             <div key={key} className="space-y-1">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">
                 {key.replace("Preview", "")}
               </p>
-              <Image
-                src={sub.payload[key] as string}
-                alt={key}
-                width={384}
-                height={128}
-                className="h-32 w-auto rounded-xl border border-zinc-200 object-cover"
-                unoptimized
-              />
+              <a href={src} target="_blank" rel="noopener noreferrer" className="block">
+                <Image
+                  src={src}
+                  alt={key}
+                  width={384}
+                  height={128}
+                  className="h-32 w-auto rounded-xl border border-zinc-200 object-cover"
+                  unoptimized
+                />
+              </a>
             </div>
           ))}
         </div>

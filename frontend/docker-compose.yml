@@ -11,7 +11,7 @@ services:
     container_name: bolo237-frontend-public
     # On limite l'exposition au loopback local pour eviter toute exposition LAN inutile
     ports:
-      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:3001:3001"
     # Redémarrage automatique en cas de crash ou de redémarrage du serveur
     restart: unless-stopped
     security_opt:

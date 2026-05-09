@@ -143,7 +143,7 @@ export default function SignupForm({ onBack, onSuccess, role, onRoleChange }: Si
 
       if (typeof window !== 'undefined') {
         const localRole = toLocalRole(loggedUser.role);
-        storeAuthenticatedUser(loggedUser, { role: localRole, phoneVerified: true });
+        storeAuthenticatedUser(loggedUser, { role: localRole });
         markRecentAuthSuccess();
         trackEvent('signup_success', { role: ROLE_MAP[selectedRole] });
         onSuccess(email.trim() || internationalPhone);

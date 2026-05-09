@@ -4,14 +4,26 @@ import { withSentryConfig } from "@sentry/nextjs";
 const isProd = process.env.NODE_ENV === 'production';
 const apiOrigin = process.env.NEXT_PUBLIC_API_URL ?? '';
 const sentryOrigins = 'https://*.sentry.io https://*.ingest.sentry.io';
+const devScriptSrc = "'self' 'unsafe-inline' 'unsafe-eval'";
+const prodScriptSrc = "'self' 'unsafe-inline'";
+const devConnectSrc = [
+  "'self'",
+  apiOrigin,
+  sentryOrigins,
+  'http://localhost:*',
+  'http://127.0.0.1:*',
+  'ws://localhost:*',
+  'ws://127.0.0.1:*',
+].filter(Boolean).join(' ');
+const prodConnectSrc = `connect-src 'self' ${apiOrigin} ${sentryOrigins}`.trim();
 
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
+  `script-src ${isProd ? prodScriptSrc : devScriptSrc}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https://res.cloudinary.com",
   "font-src 'self' data:",
-  `connect-src 'self' ${apiOrigin} ${sentryOrigins}`.trim(),
+  isProd ? prodConnectSrc : `connect-src ${devConnectSrc}`,
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

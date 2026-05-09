@@ -3,6 +3,16 @@ import { ADMIN_SESSION_COOKIE_NAME, createAdminSessionToken } from './utils/admi
 
 test.describe('Admin inbox attachment downloads', () => {
   test('downloads attachments through the admin backend proxy instead of a raw document URL', async ({ context, page }) => {
+    let resolveInboxRequest;
+    const inboxRequest = new Promise((resolve) => {
+      resolveInboxRequest = resolve;
+    });
+
+    let resolveAttachmentDownload;
+    const attachmentDownload = new Promise((resolve) => {
+      resolveAttachmentDownload = resolve;
+    });
+
     await context.addCookies([
       {
         name: ADMIN_SESSION_COOKIE_NAME,
@@ -13,7 +23,7 @@ test.describe('Admin inbox attachment downloads', () => {
       },
     ]);
 
-    await page.route('**/api/backend/admin/me/notifications**', async (route) => {
+    await context.route(/\/api\/backend\/admin\/me\/notifications(?:\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -25,7 +35,7 @@ test.describe('Admin inbox attachment downloads', () => {
       });
     });
 
-    await page.route('**/api/backend/admin/emails/summary**', async (route) => {
+    await context.route(/\/api\/backend\/admin\/emails\/summary(?:\?.*)?$/, async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -51,7 +61,12 @@ test.describe('Admin inbox attachment downloads', () => {
       });
     });
 
-    await page.route('**/api/backend/admin/emails?**', async (route) => {
+    await context.route(/\/api\/backend\/admin\/emails(?:\?.*)?$/, async (route) => {
+      if (resolveInboxRequest) {
+        resolveInboxRequest();
+        resolveInboxRequest = null;
+      }
+
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -102,7 +117,12 @@ test.describe('Admin inbox attachment downloads', () => {
       });
     });
 
-    await page.route('**/api/backend/admin/emails/501/attachments/part-1/download', async (route) => {
+    await context.route(/\/api\/backend\/admin\/emails\/501\/attachments\/part-1\/download$/, async (route) => {
+      if (resolveAttachmentDownload) {
+        resolveAttachmentDownload();
+        resolveAttachmentDownload = null;
+      }
+
       await route.fulfill({
         status: 200,
         contentType: 'application/pdf',
@@ -111,15 +131,13 @@ test.describe('Admin inbox attachment downloads', () => {
     });
 
     await page.goto('/inbox');
+    await inboxRequest;
 
     await expect(page.getByRole('heading', { name: 'Documents de verification' })).toBeVisible();
     await expect(page.getByText('piece-identite.pdf')).toBeVisible();
 
     await Promise.all([
-      page.waitForResponse((response) => {
-        return response.request().method() === 'GET'
-          && response.url().includes('/api/backend/admin/emails/501/attachments/part-1/download');
-      }),
+      attachmentDownload,
       page.getByRole('button', { name: /^Telecharger$/ }).click(),
     ]);
   });

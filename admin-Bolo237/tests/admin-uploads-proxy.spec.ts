@@ -3,6 +3,11 @@ import { ADMIN_SESSION_COOKIE_NAME, createAdminSessionToken } from './utils/admi
 
 test.describe('Admin first-party upload links', () => {
   test('moderation KYC rewrites backend document URLs to the admin upload proxy', async ({ context, page }) => {
+    let resolveVerificationsRequest;
+    const verificationsRequest = new Promise((resolve) => {
+      resolveVerificationsRequest = resolve;
+    });
+
     await context.addCookies([
       {
         name: ADMIN_SESSION_COOKIE_NAME,
@@ -13,7 +18,50 @@ test.describe('Admin first-party upload links', () => {
       },
     ]);
 
-    await page.route('**/api/backend/admin/verifications**', async (route) => {
+    await context.route(/\/api\/backend\/admin\/me\/notifications(?:\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          items: [],
+          unreadCount: 0,
+          pagination: { page: 1, limit: 1, total: 0, totalPages: 1 },
+        }),
+      });
+    });
+
+    await context.route(/\/api\/backend\/admin\/emails\/summary(?:\?.*)?$/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          summary: {
+            totalCount: 0,
+            unreadCount: 0,
+            repliedCount: 0,
+            readCount: 0,
+            lastMessageAt: null,
+          },
+          sync: {
+            enabled: true,
+            mailbox: 'support@bolo237.com',
+            syncing: false,
+            lastSyncedAt: new Date().toISOString(),
+            lastError: null,
+            lastErrorAt: null,
+            totalInMailbox: 0,
+            unreadInMailbox: 0,
+          },
+        }),
+      });
+    });
+
+    await context.route(/\/api\/backend\/admin\/verifications(?:\?.*)?$/, async (route) => {
+      if (resolveVerificationsRequest) {
+        resolveVerificationsRequest();
+        resolveVerificationsRequest = null;
+      }
+
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -39,12 +87,8 @@ test.describe('Admin first-party upload links', () => {
       });
     });
 
-    const verificationsResponse = page.waitForResponse((response) => {
-      return response.request().method() === 'GET' && response.url().includes('/api/backend/admin/verifications');
-    });
-
     await page.goto('/moderation/artisans');
-    await verificationsResponse;
+    await verificationsRequest;
 
     await expect(page.getByRole('heading', { name: /En attente de verification/i })).toBeVisible();
     await expect(page.getByText('Entreprise E2E')).toBeVisible();

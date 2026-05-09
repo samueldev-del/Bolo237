@@ -687,7 +687,6 @@ export default function DashboardArtisan() {
         location: adLocation.trim() || 'Cameroun',
         description: adDescription.trim(),
         salary: adSalary.trim() || undefined,
-        authorId: userId,
       });
 
       const next = servicesPostedCount + 1;

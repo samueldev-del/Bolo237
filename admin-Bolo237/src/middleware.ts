@@ -3,6 +3,8 @@ import type { NextRequest } from "next/server";
 import {
   ADMIN_SESSION_COOKIE_NAME,
   getAdminAllowedIps,
+  getAdminIpRestrictionConfigurationError,
+  getAdminSessionConfigurationError,
   getAdminSessionSecret,
   getClientIpFromHeaders,
   isAdminSessionExpired,
@@ -97,6 +99,33 @@ function redirectToLogin(request: NextRequest, clearSession = false) {
  */
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const accessConfigurationError = getAdminSessionConfigurationError();
+  const ipConfigurationError = getAdminIpRestrictionConfigurationError();
+
+  const shouldCheckIp = pathname === "/login" || (!pathname.startsWith("/api/") && !isPublicAsset(pathname));
+
+  if (!pathname.startsWith("/api/") && !isPublicAsset(pathname) && accessConfigurationError) {
+    return new NextResponse(accessConfigurationError, { status: 503 });
+  }
+
+  if (shouldCheckIp && ipConfigurationError) {
+    return new NextResponse(ipConfigurationError, { status: 503 });
+  }
+
+  if (shouldCheckIp) {
+    const allowedIps = getAdminAllowedIps();
+    if (allowedIps.length > 0) {
+      const clientIp = getClientIpFromHeaders(request.headers, request.nextUrl.hostname);
+      if (!clientIp || !allowedIps.includes(clientIp)) {
+        console.warn('[MIDDLEWARE IP REJECT]', {
+          clientIp,
+          allowedIps,
+          forwardedFor: request.headers.get('x-forwarded-for'),
+        });
+        return notFoundResponse();
+      }
+    }
+  }
 
   const sessionToken = request.cookies.get(ADMIN_SESSION_COOKIE_NAME)?.value;
   const hasValidSession = sessionToken ? await isValidAdminSessionToken(sessionToken) : false;
@@ -115,19 +144,6 @@ export async function middleware(request: NextRequest) {
     }
 
     return NextResponse.next();
-  }
-
-  const allowedIps = getAdminAllowedIps();
-  if (allowedIps.length > 0) {
-    const clientIp = getClientIpFromHeaders(request.headers, request.nextUrl.hostname);
-    if (!clientIp || !allowedIps.includes(clientIp)) {
-      console.warn('[MIDDLEWARE IP REJECT]', {
-        clientIp,
-        allowedIps,
-        forwardedFor: request.headers.get('x-forwarded-for'),
-      });
-      return notFoundResponse();
-    }
   }
 
   // Verifier la session admin

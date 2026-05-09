@@ -3,7 +3,7 @@
 import * as Sentry from "@sentry/nextjs";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { verifyPassword, createSession } from "@/lib/auth";
+import { verifyCredentials, createSession } from "@/lib/auth";
 
 export type LoginState = {
   error?: string;
@@ -23,15 +23,20 @@ export async function loginAction(
       recordResponse: false,
     },
     async () => {
+      const username = formData.get("username");
       const password = formData.get("password");
+
+      if (!username || typeof username !== "string") {
+        return { error: "Veuillez entrer l’identifiant administrateur." };
+      }
 
       if (!password || typeof password !== "string") {
         return { error: "Veuillez entrer le mot de passe." };
       }
 
-      if (!verifyPassword(password)) {
+      if (!verifyCredentials(username, password)) {
         await new Promise((r) => setTimeout(r, 800));
-        return { error: "Mot de passe incorrect." };
+        return { error: "Identifiant ou mot de passe incorrect." };
       }
 
       await createSession();

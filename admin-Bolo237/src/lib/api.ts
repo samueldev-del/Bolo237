@@ -1,6 +1,8 @@
 import * as Sentry from '@sentry/nextjs';
 
 const BACKEND_PROXY_PREFIX = '/api/backend';
+const BACKEND_API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
+const UPLOAD_PROXY_PREFIX = '/api/uploads';
 
 function buildBackendProxyPath(path: string) {
   const normalized = String(path || '').trim();
@@ -10,6 +12,32 @@ function buildBackendProxyPath(path: string) {
   }
 
   return `${BACKEND_PROXY_PREFIX}/${normalized.slice('/api/'.length)}`;
+}
+
+export function buildFirstPartyUploadUrl(url: string): string {
+  const normalized = String(url || '').trim();
+  if (!normalized) return '';
+
+  try {
+    const parsed = new URL(normalized, BACKEND_API_BASE);
+    if (parsed.pathname.startsWith(`${UPLOAD_PROXY_PREFIX}/`)) {
+      return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    }
+    if (!parsed.pathname.startsWith('/uploads/')) {
+      return normalized;
+    }
+
+    return `${UPLOAD_PROXY_PREFIX}${parsed.pathname.slice('/uploads'.length)}${parsed.search}${parsed.hash}`;
+  } catch {
+    if (normalized.startsWith(`${UPLOAD_PROXY_PREFIX}/`)) {
+      return normalized;
+    }
+    if (!normalized.startsWith('/uploads/')) {
+      return normalized;
+    }
+
+    return `${UPLOAD_PROXY_PREFIX}${normalized.slice('/uploads'.length)}`;
+  }
 }
 
 async function readErrorMessage(response: Response) {
@@ -447,11 +475,11 @@ export function fetchJobs(filters: {
   if (filters.page) params.set('page', String(filters.page));
   if (filters.limit) params.set('limit', String(filters.limit));
   const qs = params.toString();
-  return apiFetch<JobsResponse>(`/api/jobs${qs ? `?${qs}` : ''}`);
+  return apiFetch<JobsResponse>(`/api/admin/jobs${qs ? `?${qs}` : ''}`);
 }
 
 export function fetchJob(id: number): Promise<Job> {
-  return apiFetch<Job>(`/api/jobs/${id}`);
+  return apiFetch<Job>(`/api/admin/jobs/${id}`);
 }
 
 export async function updateJob(id: number, data: { status: string }): Promise<Job> {
@@ -468,7 +496,7 @@ export async function updateJob(id: number, data: { status: string }): Promise<J
 }
 
 export function deleteJob(id: number): Promise<void> {
-  return apiFetch(`/api/jobs/${id}`, { method: 'DELETE' });
+  return apiFetch(`/api/admin/jobs/${id}`, { method: 'DELETE' });
 }
 
 // ── Users ────────────────────────────────────────────────────────

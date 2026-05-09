@@ -307,8 +307,13 @@ export function clearBackendAdminSession() {
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
-export async function fetchBackendAsAdmin(path: string, init?: RequestInit) {
-  if (!String(path || "").startsWith("/api/")) {
+function isAllowedBackendPath(path: string) {
+  const normalized = String(path || "").trim();
+  return normalized.startsWith("/api/") || normalized.startsWith("/uploads/");
+}
+
+async function fetchBackendWithAdminSession(path: string, init?: RequestInit) {
+  if (!isAllowedBackendPath(path)) {
     throw new Error("Chemin backend invalide.");
   }
 
@@ -355,4 +360,16 @@ export async function fetchBackendAsAdmin(path: string, init?: RequestInit) {
   }
 
   return response;
+}
+
+export async function fetchBackendAsAdmin(path: string, init?: RequestInit) {
+  if (!String(path || "").startsWith("/api/")) {
+    throw new Error("Chemin backend invalide.");
+  }
+
+  return fetchBackendWithAdminSession(path, init);
+}
+
+export async function fetchBackendPathAsAdmin(path: string, init?: RequestInit) {
+  return fetchBackendWithAdminSession(path, init);
 }

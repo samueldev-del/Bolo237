@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useLocale } from '@/components/LocaleProvider';
+import { markPhoneVerified } from '@/lib/session';
 
 interface OtpFormProps {
   email: string;
@@ -65,6 +66,7 @@ export default function OtpForm({ email, onBack, onSuccess }: OtpFormProps) {
         throw new Error(data.message || 'Invalid code');
       }
 
+      markPhoneVerified();
       setMessage(isEn ? 'Email verified! Redirecting...' : 'Email verifie ! Redirection...');
       setTimeout(onSuccess, 1500);
     } catch (err: unknown) {

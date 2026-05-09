@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Bolo237 Admin - Hors ligne</title>
+    <title>Bolo237 Admin | Hors ligne</title>
     <style>
       :root {
         color-scheme: light;
@@ -35,14 +35,26 @@
         line-height: 1.45;
         color: #5d3a31;
       }
+      button {
+        margin-top: 18px;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        background: #c4623f;
+        color: #fff;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
     <main class="card">
-      <h1>Vous etes hors ligne</h1>
+      <h1>Vous êtes hors ligne</h1>
       <p>
-        La connexion reseau est indisponible. Reessayez des que la tablette retrouve Internet.
+        La connexion internet est indisponible pour le moment. Vérifiez votre réseau puis réessayez.
       </p>
+      <button type="button" onclick="location.reload()">Réessayer</button>
     </main>
   </body>
 </html>

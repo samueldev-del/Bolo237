@@ -8,6 +8,7 @@ export default function LoginPage() {
   const [authError, setAuthError] = useState("");
   const [isPending, setIsPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [username, setUsername] = useState("");
   const formRef = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -19,7 +20,13 @@ export default function LoginPage() {
     e.preventDefault();
     setAuthError("");
     const form = e.currentTarget;
+    const username = new FormData(form).get("username") as string;
     const password = new FormData(form).get("password") as string;
+
+    if (!username?.trim()) {
+      setAuthError("Veuillez entrer l’identifiant administrateur.");
+      return;
+    }
 
     if (!password?.trim()) {
       setAuthError("Veuillez entrer le mot de passe.");
@@ -32,7 +39,7 @@ export default function LoginPage() {
       const localRes = await fetch("/api/admin-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username, password }),
       });
 
       const payload = (await localRes.json().catch(() => ({}))) as {
@@ -77,7 +84,7 @@ export default function LoginPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-zinc-900">Connexion</h2>
-              <p className="text-xs text-zinc-600">Entrez le mot de passe administrateur</p>
+              <p className="text-xs text-zinc-600">Entrez l’identifiant et le mot de passe administrateur</p>
             </div>
           </div>
 
@@ -95,6 +102,24 @@ export default function LoginPage() {
                 {authError}
               </div>
             )}
+
+            <div>
+              <label htmlFor="username" className="block text-sm font-medium text-zinc-700 mb-2">
+                Identifiant administrateur
+              </label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                inputMode="text"
+                autoComplete="username"
+                required
+                value={username}
+                onChange={(event) => setUsername(event.target.value)}
+                placeholder="admin"
+                className="h-12 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm text-zinc-800 outline-none transition placeholder:text-zinc-400 focus:border-[#DA7756] focus:bg-white focus:ring-2 focus:ring-[#FEEBD6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
+              />
+            </div>
 
             {/* Password field */}
             <div>

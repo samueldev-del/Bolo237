@@ -60,6 +60,9 @@ const adminAttachmentParamSchema = z.object({
   ticketId: z.string().trim().min(1),
   part: z.string().trim().min(1),
 });
+const adminJobParamSchema = z.object({
+  id: z.coerce.number().int().positive(),
+});
 const adminPrivacyRequestsQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().optional(),
@@ -91,6 +94,109 @@ const adminTrendsQuerySchema = z.object({
   days: z.coerce.number().int().positive().optional(),
   locale: z.string().trim().max(10).optional(),
 }).passthrough();
+
+router.get('/jobs', requireAdminSession, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
+    const skip = (page - 1) * limit;
+    const status = String(req.query.status || '').trim().toUpperCase();
+    const search = String(req.query.search || '').trim();
+
+    const where = {};
+    if (status) {
+      where.status = status;
+    }
+    if (search) {
+      where.OR = [
+        { title: { contains: search, mode: 'insensitive' } },
+        { company: { contains: search, mode: 'insensitive' } },
+        { location: { contains: search, mode: 'insensitive' } },
+        { reference: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [total, jobs] = await Promise.all([
+      prisma.job.count({ where }),
+      prisma.job.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              role: true,
+              isVerified: true,
+              photoUrl: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    return res.json({
+      jobs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / limit)),
+      },
+    });
+  } catch (error) {
+    console.error('GET /api/admin/jobs error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la lecture des offres admin.' });
+  }
+});
+
+router.get('/jobs/:id', requireAdminSession, validateParams(adminJobParamSchema), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const job = await prisma.job.findUnique({
+      where: { id },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+            isVerified: true,
+            photoUrl: true,
+          },
+        },
+      },
+    });
+
+    if (!job) {
+      return res.status(404).json({ error: 'Offre introuvable.' });
+    }
+
+    return res.json(job);
+  } catch (error) {
+    console.error('GET /api/admin/jobs/:id error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la lecture de cette offre.' });
+  }
+});
+
+router.delete('/jobs/:id', requireAdminSession, validateParams(adminJobParamSchema), async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    await prisma.job.delete({ where: { id } });
+    return res.json({ success: true, message: 'Offre supprimee.' });
+  } catch (error) {
+    if (error?.code === 'P2025') {
+      return res.status(404).json({ error: 'Offre introuvable.' });
+    }
+
+    console.error('DELETE /api/admin/jobs/:id error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la suppression de cette offre.' });
+  }
+});
 
 // ==========================================
 // 🚀 ROUTE ADMIN : MODIFIER LE STATUT D'UNE OFFRE

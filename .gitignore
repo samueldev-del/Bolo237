@@ -25,3 +25,4 @@ build/
 *.swo
 .vercel
 .env*.local
+.claude/

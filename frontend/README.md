@@ -17,13 +17,13 @@ npm install
 npm run dev
 ```
 
-Local URL: http://localhost:3000
+Local URL: `http://localhost:3001`
 
 ## Production Check
 
 ```bash
 npm run build
-npm run start -- -p 3100
+npm run start
 ```
 
 ## Docker (frontend only)

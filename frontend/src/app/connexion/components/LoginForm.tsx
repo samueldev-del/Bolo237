@@ -68,7 +68,7 @@ export default function LoginForm({ onForgot, onSignup, onRequireOtp }: LoginFor
       const user = await loginUser({ identifier: email.trim(), password });
       if (typeof window !== 'undefined') {
         const localRole = toLocalRole(user.role);
-        storeAuthenticatedUser(user, { role: localRole, phoneVerified: true });
+        storeAuthenticatedUser(user, { role: localRole });
         markRecentAuthSuccess();
         // Full page reload so the session cookie is properly sent on
         // the very first request the dashboard makes to /api/auth/me.

@@ -1,8 +1,9 @@
 import { defineConfig } from '@prisma/config';
+import * as path from 'node:path';
 import * as dotenv from 'dotenv';
 
-// Force la lecture du fichier .env
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.resolve(__dirname, '.env.local'), override: true });
 
 export default defineConfig({
   migrations: {

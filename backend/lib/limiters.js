@@ -31,6 +31,11 @@ function createLimiter(name, config) {
   });
 }
 
+function getSessionUserId(req) {
+  const sessionUserId = parseInt(String(req.sessionUser?.id || ''), 10);
+  return Number.isFinite(sessionUserId) && sessionUserId > 0 ? sessionUserId : null;
+}
+
 const apiGlobalLimiter = createLimiter('api-global', {
   windowMs: 15 * 60 * 1000,
   max: 300,
@@ -103,7 +108,7 @@ const candidateProfileLimiter = createLimiter('candidate-profile', {
   windowMs: 60 * 60 * 1000,
   max: getPositiveIntegerEnv('CANDIDATE_PROFILE_HOURLY_LIMIT', 20),
   keyGenerator: (req) => {
-    const userId = parseInt(String(req.body?.userId || ''), 10);
+    const userId = getSessionUserId(req) || parseInt(String(req.body?.userId || ''), 10);
     return Number.isFinite(userId) && userId > 0 ? `candidate-profile:${userId}` : getRequestIpKey(req);
   },
   message: { error: 'Trop de mises a jour de profil candidat. Reessayez dans une heure.' },
@@ -113,7 +118,7 @@ const savedJobsLimiter = createLimiter('saved-jobs', {
   windowMs: 15 * 60 * 1000,
   max: getPositiveIntegerEnv('SAVED_JOBS_15M_LIMIT', 120),
   keyGenerator: (req) => {
-    const userId = parseInt(String(req.params?.id || req.body?.userId || ''), 10);
+    const userId = getSessionUserId(req) || parseInt(String(req.params?.id || req.body?.userId || ''), 10);
     return Number.isFinite(userId) && userId > 0 ? `saved-jobs:${userId}` : getRequestIpKey(req);
   },
   message: { error: 'Trop de modifications sur vos favoris. Reessayez dans 15 minutes.' },
@@ -123,7 +128,7 @@ const jobApplicationLimiter = createLimiter('job-apply', {
   windowMs: 60 * 60 * 1000,
   max: getPositiveIntegerEnv('JOB_APPLICATION_HOURLY_LIMIT', 30),
   keyGenerator: (req) => {
-    const candidateId = parseInt(String(req.body?.candidateId || ''), 10);
+    const candidateId = getSessionUserId(req) || parseInt(String(req.body?.candidateId || ''), 10);
     return Number.isFinite(candidateId) && candidateId > 0 ? `job-apply:${candidateId}` : getRequestIpKey(req);
   },
   message: { error: 'Trop de candidatures envoyees en une heure. Reessayez plus tard.' },
@@ -133,7 +138,7 @@ const jobCreationLimiter = createLimiter('job-create', {
   windowMs: 24 * 60 * 60 * 1000,
   max: getPositiveIntegerEnv('JOB_CREATION_DAILY_LIMIT', 12),
   keyGenerator: (req) => {
-    const authorId = parseInt(String(req.body?.authorId || ''), 10);
+    const authorId = getSessionUserId(req) || parseInt(String(req.body?.authorId || ''), 10);
     return Number.isFinite(authorId) && authorId > 0 ? `job-create:${authorId}` : getRequestIpKey(req);
   },
   message: { error: 'Trop d annonces creees aujourd hui. Reessayez demain ou contactez le support.' },
@@ -143,7 +148,7 @@ const feedbackSubmissionLimiter = createLimiter('feedback', {
   windowMs: 24 * 60 * 60 * 1000,
   max: getPositiveIntegerEnv('APP_FEEDBACK_DAILY_LIMIT', 5),
   keyGenerator: (req) => {
-    const userId = parseInt(String(req.body?.userId || ''), 10);
+    const userId = getSessionUserId(req) || parseInt(String(req.body?.userId || ''), 10);
     return Number.isFinite(userId) && userId > 0 ? `app-feedback:${userId}` : getRequestIpKey(req);
   },
   message: { error: 'Trop de retours envoyes aujourd hui. Merci de reessayer plus tard.' },
@@ -153,7 +158,7 @@ const reviewSubmissionLimiter = createLimiter('review', {
   windowMs: 24 * 60 * 60 * 1000,
   max: getPositiveIntegerEnv('USER_REVIEW_DAILY_LIMIT', 12),
   keyGenerator: (req) => {
-    const reviewerId = parseInt(String(req.body?.reviewerId || ''), 10);
+    const reviewerId = getSessionUserId(req) || parseInt(String(req.body?.reviewerId || ''), 10);
     return Number.isFinite(reviewerId) && reviewerId > 0 ? `user-review:${reviewerId}` : getRequestIpKey(req);
   },
   message: { error: 'Trop d avis envoyes aujourd hui. Reessayez demain.' },

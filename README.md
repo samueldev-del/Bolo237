@@ -92,16 +92,16 @@ cd frontend
 npm run dev
 ```
 
-Site public local: `http://localhost:3000`
+Site public local: `http://localhost:3001`
 
 ### Terminal 3 : admin
 
 ```bash
 cd admin-Bolo237
-npm run dev -- -p 3001
+npm run dev
 ```
 
-Portail admin local: `http://localhost:3001/login`
+Portail admin local: `http://localhost:3000/login`
 
 ## 5. Lancement en mode production local (verification build)
 
@@ -118,7 +118,7 @@ npm run start
 ```bash
 cd frontend
 npm run build
-npm run start -- -p 3100
+npm run start
 ```
 
 ### Admin
@@ -126,7 +126,7 @@ npm run start -- -p 3100
 ```bash
 cd admin-Bolo237
 npm run build
-npm run start -- -p 3200
+npm run start
 ```
 
 ## 6. Docker local

@@ -22,12 +22,53 @@ export function getAdminSessionSecret() {
   return null;
 }
 
-export function getAdminSessionConfigurationError() {
-  if (getAdminSessionSecret()) {
-    return null;
+export function getAdminLoginUsername() {
+  const configuredUsername = String(process.env.ADMIN_USERNAME || "").trim();
+  if (configuredUsername) {
+    return configuredUsername;
   }
 
-  return "ADMIN_SESSION_SECRET doit etre defini en production.";
+  if (process.env.NODE_ENV !== "production") {
+    return "admin";
+  }
+
+  return "";
+}
+
+export function getAdminAuthConfigurationError() {
+  const adminPassword = String(process.env.ADMIN_PASSWORD || "").trim();
+  const backendPassword = String(process.env.ADMIN_BACKEND_PASSWORD || "").trim();
+  const adminUsername = getAdminLoginUsername();
+
+  if (!adminPassword) {
+    return "ADMIN_PASSWORD doit etre defini pour securiser le back-office.";
+  }
+
+  if (backendPassword && adminPassword === backendPassword) {
+    return "ADMIN_PASSWORD doit etre distinct de ADMIN_BACKEND_PASSWORD.";
+  }
+
+  if (!adminUsername) {
+    return "ADMIN_USERNAME doit etre defini en production.";
+  }
+
+  return null;
+}
+
+export function getAdminIpRestrictionConfigurationError() {
+  if (process.env.NODE_ENV === "production" && getAdminAllowedIps().length === 0) {
+    return "ADMIN_ALLOWED_IPS ou ADMIN_IP_ALLOWLIST doit etre defini en production pour le back-office.";
+  }
+
+  return null;
+}
+
+export function getAdminSessionConfigurationError() {
+  if (!getAdminSessionSecret()) {
+    return "ADMIN_SESSION_SECRET doit etre defini en production.";
+  }
+
+  return getAdminAuthConfigurationError() || getAdminIpRestrictionConfigurationError();
 }
 
 export function parseAdminSessionToken(token: string): ParsedAdminSessionToken | null {

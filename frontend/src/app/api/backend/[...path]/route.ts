@@ -4,6 +4,7 @@ const BACKEND_BASE = String(
   process.env.BACKEND_INTERNAL_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
 ).replace(/\/+$/, '');
 const SESSION_COOKIE_NAME = 'bolo237_session';
+const CSRF_COOKIE_NAME = 'bolo237_csrf';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -77,6 +78,7 @@ function parseSetCookie(cookieHeader: string) {
     secure?: boolean;
     sameSite?: 'lax' | 'strict' | 'none';
     path?: string;
+    domain?: string;
     maxAge?: number;
     expires?: Date;
   } = {};
@@ -96,6 +98,10 @@ function parseSetCookie(cookieHeader: string) {
     }
     if (key === 'path' && rawValue) {
       options.path = rawValue;
+      continue;
+    }
+    if (key === 'domain' && rawValue) {
+      options.domain = rawValue;
       continue;
     }
     if (key === 'max-age' && rawValue) {
@@ -122,21 +128,22 @@ function parseSetCookie(cookieHeader: string) {
 function applyUpstreamCookies(response: NextResponse, upstream: Response) {
   for (const cookieHeader of getSetCookieHeaders(upstream.headers)) {
     const parsed = parseSetCookie(cookieHeader);
-    if (!parsed || parsed.name !== SESSION_COOKIE_NAME) {
+    if (!parsed || (parsed.name !== SESSION_COOKIE_NAME && parsed.name !== CSRF_COOKIE_NAME)) {
       continue;
     }
 
     const cookieOptions = {
       path: parsed.options.path || '/',
-      httpOnly: parsed.options.httpOnly ?? true,
+      httpOnly: parsed.options.httpOnly ?? false,
       secure: parsed.options.secure ?? process.env.NODE_ENV === 'production',
       sameSite: parsed.options.sameSite || 'lax',
+      domain: parsed.options.domain,
       maxAge: parsed.options.maxAge,
       expires: parsed.options.expires,
     } as const;
 
     if (!parsed.value || parsed.options.maxAge === 0) {
-      response.cookies.set(SESSION_COOKIE_NAME, '', {
+      response.cookies.set(parsed.name, '', {
         ...cookieOptions,
         maxAge: 0,
         expires: new Date(0),
@@ -144,7 +151,7 @@ function applyUpstreamCookies(response: NextResponse, upstream: Response) {
       continue;
     }
 
-    response.cookies.set(SESSION_COOKIE_NAME, parsed.value, cookieOptions);
+    response.cookies.set(parsed.name, parsed.value, cookieOptions);
   }
 }
 

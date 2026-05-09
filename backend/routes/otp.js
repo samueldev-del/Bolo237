@@ -1,11 +1,10 @@
 const express = require('express');
-const crypto = require('crypto');
 const { z } = require('zod');
 
-const { prisma } = require('../lib/db');
 const { twilioClient } = require('../lib/twilioService');
 const { otpIpLimiter, otpPhoneLimiter, otpVerifyLimiter } = require('../lib/limiters');
 const { validateBody } = require('../lib/requestValidation');
+const { issueOtp, verifyOtp } = require('../lib/otp');
 
 const router = express.Router();
 
@@ -21,16 +20,8 @@ const verifyOtpSchema = z.object({
 router.post('/send', otpIpLimiter, otpPhoneLimiter, validateBody(sendOtpSchema), async (req, res) => {
   const { phone } = req.body;
 
-  const otp = crypto.randomInt(100000, 1000000).toString();
-  const expiresAt = new Date(Date.now() + 5 * 60000);
-  const phoneKey = String(phone);
-
   try {
-    await prisma.otpCode.upsert({
-      where: { phone: phoneKey },
-      update: { code: otp, expiresAt },
-      create: { phone: phoneKey, code: otp, expiresAt },
-    });
+    const otp = await issueOtp(phone);
 
     if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
       await twilioClient.messages.create({
@@ -39,8 +30,11 @@ router.post('/send', otpIpLimiter, otpPhoneLimiter, validateBody(sendOtpSchema),
         to: phone,
       });
       console.log(`✅ SMS envoyé avec succès à ${phone}`);
+    } else if (process.env.NODE_ENV === 'development') {
+      // OTP affiché UNIQUEMENT en environnement de développement local.
+      console.warn(`[DEV ONLY] OTP ${phone} -> ${otp}`);
     } else {
-      console.warn(`⚠️ Twilio non configuré pour les SMS. Code généré en local : ${otp}`);
+      console.warn('⚠️ Twilio non configuré : OTP non envoyé. Vérifiez TWILIO_* en env.');
     }
 
     res.json({ success: true, message: 'Code envoyé par SMS' });
@@ -52,19 +46,12 @@ router.post('/send', otpIpLimiter, otpPhoneLimiter, validateBody(sendOtpSchema),
 
 router.post('/verify', otpVerifyLimiter, validateBody(verifyOtpSchema), async (req, res) => {
   const { phone, code } = req.body;
+  const result = await verifyOtp(phone, code);
 
-  const phoneKey = String(phone);
-  const record = await prisma.otpCode.findUnique({ where: { phone: phoneKey } });
-  if (!record) return res.status(400).json({ error: 'Aucun code demandé pour ce numéro' });
-  if (record.expiresAt <= new Date()) {
-    await prisma.otpCode.deleteMany({ where: { phone: phoneKey } });
-    return res.status(400).json({ error: 'Le code a expiré (5 minutes max)' });
-  }
-  if (record.code !== code) {
-    return res.status(400).json({ error: 'Code incorrect' });
+  if (!result.ok) {
+    return res.status(result.status || 400).json({ error: result.message });
   }
 
-  await prisma.otpCode.deleteMany({ where: { phone: phoneKey } });
   res.json({ success: true, verified: true, message: 'Téléphone vérifié avec succès' });
 });
 

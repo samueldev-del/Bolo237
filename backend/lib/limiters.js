@@ -123,8 +123,12 @@ const jobApplicationLimiter = createLimiter('job-apply', {
   windowMs: 60 * 60 * 1000,
   max: getPositiveIntegerEnv('JOB_APPLICATION_HOURLY_LIMIT', 30),
   keyGenerator: (req) => {
+    // Priorité à la session (route /:id/apply), fallback sur le body legacy, puis IP.
+    const sessionId = parseInt(String(req.sessionUser?.id || ''), 10);
+    if (Number.isFinite(sessionId) && sessionId > 0) return `job-apply:${sessionId}`;
     const candidateId = parseInt(String(req.body?.candidateId || ''), 10);
-    return Number.isFinite(candidateId) && candidateId > 0 ? `job-apply:${candidateId}` : getRequestIpKey(req);
+    if (Number.isFinite(candidateId) && candidateId > 0) return `job-apply:${candidateId}`;
+    return getRequestIpKey(req);
   },
   message: { error: 'Trop de candidatures envoyees en une heure. Reessayez plus tard.' },
 });

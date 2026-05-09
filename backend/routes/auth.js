@@ -1,10 +1,10 @@
 const express = require('express');
-const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 
 const { prisma } = require('../lib/db');
+const { issueOtp, verifyOtp } = require('../lib/otp');
 const { reportError } = require('../lib/observability');
 const { twilioClient } = require('../lib/twilioService');
 const { transporter } = require('../lib/emailService');
@@ -152,42 +152,46 @@ router.post('/logout', async (req, res) => {
   res.json({ ok: true });
 });
 
+// Réponse uniforme pour empêcher l'énumération de comptes (CWE-204).
+const GENERIC_FORGOT_RESPONSE = {
+  success: true,
+  message: 'Si ce numero est enregistre, un code a ete envoye par SMS ou email.',
+};
+
 router.post('/forgot-password', forgotPasswordLimiter, validateBody(forgotPasswordSchema), async (req, res) => {
+  const startedAt = Date.now();
   try {
     const { phone } = req.body;
-
-    const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
-    if (!user) return res.status(404).json({ error: 'Aucun compte associé à ce numéro.' });
-
-    const otp = crypto.randomInt(100000, 1000000).toString();
-    const expiresAt = new Date(Date.now() + 5 * 60000);
     const phoneKey = String(phone);
-    await prisma.otpCode.upsert({
-      where: { phone: phoneKey },
-      update: { code: otp, expiresAt },
-      create: { phone: phoneKey, code: otp, expiresAt },
-    });
 
-    const deliveryTasks = [];
+    const user = await prisma.user.findUnique({ where: { phone: phoneKey } });
 
-    if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
-      deliveryTasks.push(
-        twilioClient.messages.create({
-          body: `Bolo237 — Votre code de réinitialisation : ${otp}`,
-          from: process.env.TWILIO_PHONE_NUMBER,
-          to: phone,
-        }),
-      );
+    if (user) {
+      const otp = await issueOtp(phoneKey);
+
+      const deliveryTasks = [];
+      if (twilioClient && process.env.TWILIO_PHONE_NUMBER) {
+        deliveryTasks.push(
+          twilioClient.messages.create({
+            body: `Bolo237 — Votre code de réinitialisation : ${otp}`,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            to: phone,
+          }),
+        );
+      }
+      deliveryTasks.push(sendPasswordResetCodeEmail({ transporter, user, code: otp }));
+      await Promise.allSettled(deliveryTasks);
     }
 
-    deliveryTasks.push(sendPasswordResetCodeEmail({ transporter, user, code: otp }));
+    // Égalise la durée de traitement (~600ms) que l'utilisateur existe ou non.
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < 600) await new Promise((r) => setTimeout(r, 600 - elapsed));
 
-    await Promise.allSettled(deliveryTasks);
-
-    res.json({ success: true, message: 'Code envoye. Verifiez votre SMS ou votre email.' });
+    return res.json(GENERIC_FORGOT_RESPONSE);
   } catch (error) {
     reportError('forgot-password error', error, { route: '/api/auth/forgot-password' });
-    res.status(500).json({ error: 'Erreur serveur.' });
+    // Réponse identique en cas d'erreur interne pour éviter de révéler la cause.
+    return res.json(GENERIC_FORGOT_RESPONSE);
   }
 });
 
@@ -196,21 +200,14 @@ router.post('/reset-password', resetPasswordLimiter, validateBody(resetPasswordS
     const { phone, code, newPassword } = req.body;
 
     const phoneKey = String(phone);
-    const record = await prisma.otpCode.findUnique({ where: { phone: phoneKey } });
-
-    if (!record) return res.status(400).json({ error: 'Aucun code demandé pour ce numéro.' });
-    if (record.expiresAt <= new Date()) {
-      await prisma.otpCode.deleteMany({ where: { phone: phoneKey } });
-      return res.status(400).json({ error: 'Le code a expiré.' });
-    }
-    if (record.code !== code) {
-      return res.status(400).json({ error: 'Code incorrect.' });
+    const otpResult = await verifyOtp(phoneKey, code);
+    if (!otpResult.ok) {
+      return res.status(otpResult.status || 400).json({ error: otpResult.message });
     }
 
-    await prisma.otpCode.deleteMany({ where: { phone: phoneKey } });
-
-    const user = await prisma.user.findUnique({ where: { phone: String(phone) } });
-    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    const user = await prisma.user.findUnique({ where: { phone: phoneKey } });
+    // OTP validé mais user disparu : message générique pour ne pas confirmer l'existence.
+    if (!user) return res.status(400).json({ error: 'Code invalide ou expire.' });
 
     const hashedPassword = await bcrypt.hash(String(newPassword), 10);
     await prisma.user.update({ where: { id: user.id }, data: { password: hashedPassword } });

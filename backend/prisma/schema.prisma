@@ -363,7 +363,12 @@ model VerificationSubmission {
 model OtpCode {
   id        Int      @id @default(autoincrement())
   phone     String   @unique
-  code      String
+  // PHASE A transitoire : `code` reste rempli en parallèle de `codeHash` pour
+  // permettre un rollback rapide. À supprimer en phase B après bascule complète.
+  code      String?
+  codeHash  String?
+  attempts  Int      @default(0)
+  consumed  Boolean  @default(false)
   expiresAt DateTime
   createdAt DateTime @default(now())
 

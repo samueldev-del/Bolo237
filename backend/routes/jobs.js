@@ -14,6 +14,7 @@ const {
   ALLOWED_UPLOAD_MIME,
 } = require('../lib/uploads');
 const { readSessionToken, requireUserSession } = require('../lib/session');
+const { jobApplicationLimiter } = require('../lib/limiters');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
 const { TranslationServiceError, buildBilingualJobContent } = require('../lib/translation.service');
@@ -588,8 +589,8 @@ async function persistUploadedCv(file, req) {
 // ==========================================
 
 // L'ordre des middlewares est crucial :
-// 1. Authentification -> 2. Upload du fichier -> 3. Validation Zod -> 4. Logique métier
-router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply, async (req, res) => {
+// 1. Authentification -> 2. Rate-limit (avant le coût I/O upload) -> 3. Upload -> 4. Validation -> 5. Logique
+router.post('/:id/apply', requireUserSession, jobApplicationLimiter, upload.single('cv'), validateApply, async (req, res) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const candidateId = req.sessionUser.id;
@@ -612,25 +613,25 @@ router.post('/:id/apply', requireUserSession, upload.single('cv'), validateApply
       return res.status(404).json({ success: false, message: "Cette offre n'est plus disponible." });
     }
 
-    // 2. Vérifier si le candidat n'a pas DÉJÀ postulé à cette offre (Anti-spam)
-    const existingApplication = await prisma.application.findFirst({
-      where: { jobId: jobId, candidateId: candidateId }
-    });
-
-    if (existingApplication) {
-      return res.status(400).json({ success: false, message: "Vous avez déjà postulé à cette offre." });
-    }
-
-    // 3. Créer la candidature dans la base de données
-    const application = await prisma.application.create({
-      data: {
-        jobId,
-        candidateId,
-        message,
-        cvUrl,
-        status: 'APPLIED'
+    // 2. Création atomique — la contrainte @@unique([jobId, candidateId]) (schema.prisma:414)
+    //    garantit l'unicité même en concurrence. On capte P2002 pour rendre le 409 idempotent.
+    let application;
+    try {
+      application = await prisma.application.create({
+        data: {
+          jobId,
+          candidateId,
+          message,
+          cvUrl,
+          status: 'APPLIED',
+        },
+      });
+    } catch (err) {
+      if (err && err.code === 'P2002') {
+        return res.status(409).json({ success: false, message: "Vous avez déjà postulé à cette offre." });
       }
-    });
+      throw err;
+    }
 
     // 4. (Optionnel) Envoyer un email à l'entreprise pour la prévenir
     // sendEmail(job.companyEmail, "Nouvelle candidature !", `Quelqu'un a postulé à ${job.title}...`);

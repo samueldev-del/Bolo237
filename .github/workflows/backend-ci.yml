@@ -7,12 +7,14 @@ on:
       - master
     paths:
       - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
   pull_request:
     branches:
       - main
       - master
     paths:
       - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
 
 # Principe de moindre privilège : lecture seule sur le code source
 permissions:
@@ -22,6 +24,13 @@ jobs:
   static-security-analysis:
     name: Route Security Regression Check
     runs-on: ubuntu-latest
+    env:
+      DATA_ENCRYPTION_KEY: "111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000"
+      DATA_LOOKUP_HMAC_KEY: "0000ffffeeeeccccbbbbaaaa9999888877776666555544443333222211110000"
+      ADMIN_SESSION_SECRET: "ceci_est_un_secret_de_test_pour_la_ci_github_uniquement_32_chars"
+      SESSION_JWT_SECRET: "ci_test_session_secret_for_backend_security_checks_only_123456"
+      DATABASE_URL: "postgresql://ci:ci@127.0.0.1:5432/bolo237_ci?sslmode=require"
+      JOB_SCRAPER_ENABLED: "false"
 
     # Applique par défaut le répertoire backend à toutes les commandes 'run'
     defaults:

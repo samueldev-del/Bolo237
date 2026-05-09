@@ -24,6 +24,16 @@ jobs:
   admin-security-e2e:
     name: Admin Security E2E
     runs-on: ubuntu-latest
+    env:
+      DATA_ENCRYPTION_KEY: "111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000"
+      DATA_LOOKUP_HMAC_KEY: "0000ffffeeeeccccbbbbaaaa9999888877776666555544443333222211110000"
+      ADMIN_SESSION_SECRET: "ceci_est_un_secret_de_test_pour_la_ci_github_uniquement_32_chars"
+      SESSION_JWT_SECRET: "ci_test_session_secret_for_admin_e2e_checks_only_1234567890"
+      ADMIN_PASSWORD: "ci-admin-password"
+      ADMIN_BACKEND_EMAIL: "ci-admin@bolo237.test"
+      ADMIN_BACKEND_PASSWORD: "ci-backend-password"
+      NEXT_PUBLIC_API_URL: "http://127.0.0.1:5001"
+      JOB_SCRAPER_ENABLED: "false"
 
     defaults:
       run:

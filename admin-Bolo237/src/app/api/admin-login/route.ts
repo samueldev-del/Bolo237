@@ -7,6 +7,7 @@ import {
   getClientIpFromHeaders,
 } from "@/lib/admin-session";
 import { ensureBackendAdminSession } from "@/lib/backend-admin";
+import { clearFailures, getBackoffDelay, registerFailure } from "@/lib/admin-login-backoff";
 
 export const maxDuration = 60;
 
@@ -139,8 +140,12 @@ export async function POST(request: Request) {
     }
 
     if (!verifyCredentials(username, password)) {
+      // Backoff exponentiel par IP (800ms → 8s) AVANT d'incrémenter le compteur,
+      // pour que la première frappe soit déjà ralentie.
+      const delay = getBackoffDelay(clientIp);
+      registerFailure(clientIp);
       const failedAttempt = registerFailedAttempt(attemptKey);
-      await new Promise((r) => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, delay));
       if (failedAttempt.count >= LOGIN_MAX_ATTEMPTS) {
         return tooManyAttemptsResponse(failedAttempt);
       }
@@ -150,6 +155,7 @@ export async function POST(request: Request) {
       );
     }
 
+    clearFailures(clientIp);
     clearAttempts(attemptKey);
 
     // La session admin locale (cookie) est creee meme si le backend est temporairement

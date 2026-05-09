@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import {
+  PROMPT_INJECTION_GUARD,
+  checkAiRateLimit,
+  rateLimitResponse,
+  wrapUserContent,
+} from '../_lib/guard';
 
 type JobInput = {
   title: string;
@@ -23,6 +29,9 @@ function extractJson(raw: string): string {
 
 export async function POST(request: Request) {
   try {
+    const limit = checkAiRateLimit(request, 'job-optimize');
+    if (!limit.ok) return rateLimitResponse(limit.retryAfterSec);
+
     const body = (await request.json()) as OptimizePayload;
 
     if (!body?.jobData?.title?.trim() || !body?.jobData?.description?.trim()) {
@@ -49,9 +58,10 @@ export async function POST(request: Request) {
       'gemini-1.5-flash',
     ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i);
 
-    const systemInstruction = body.language === 'EN'
+    const baseSystem = body.language === 'EN'
       ? 'You optimize job and service listings. Return ONLY valid JSON. Keep factual information and improve clarity and trust. No hallucinations.'
       : 'Tu optimises des annonces emploi et services. Retourne UNIQUEMENT du JSON valide. Conserve les faits et ameliore clarte et confiance. Aucune hallucination.';
+    const systemInstruction = `${baseSystem}\n\n${PROMPT_INJECTION_GUARD}`;
 
     const prompt = {
       task: body.language === 'EN' ? 'Optimize this listing.' : 'Optimise cette annonce.',
@@ -73,7 +83,13 @@ export async function POST(request: Request) {
         companyName: body.companyName || '',
         specialty: body.specialty || '',
       },
-      input: body.jobData,
+      input: {
+        title: wrapUserContent(body.jobData.title),
+        description: wrapUserContent(body.jobData.description),
+        location: wrapUserContent(body.jobData.location),
+        contract: wrapUserContent(body.jobData.contract ?? ''),
+        salary: wrapUserContent(body.jobData.salary ?? ''),
+      },
       outputShape: {
         title: 'string',
         description: 'string',

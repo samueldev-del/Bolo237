@@ -331,7 +331,7 @@ router.get('/analytics/jobs', requireAdminSession, async (_req, res) => {
 router.get('/privacy-requests', requireAdminSession, validateQuery(adminPrivacyRequestsQuerySchema), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
     const skip = (page - 1) * limit;
     const rawStatus = req.query.status ? String(req.query.status).trim() : '';
     const rawKind = req.query.kind ? String(req.query.kind).trim() : '';
@@ -512,7 +512,7 @@ router.patch('/privacy-requests/:reference', requireAdminSession, validateParams
 // GET /reviews
 router.get('/reviews', requireAdminSession, async (req, res) => {
   try {
-    const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
+    const limit = Math.min(100, parseInt(String(req.query.limit || '50'), 10) || 50);
     const reviews = await prisma.userReview.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -551,7 +551,7 @@ router.get('/reviews', requireAdminSession, async (req, res) => {
 // GET /users
 router.get('/users', requireAdminSession, async (req, res) => {
   try {
-    const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
+    const limit = Math.min(100, parseInt(String(req.query.limit || '50'), 10) || 50);
     const role = req.query.role ? String(req.query.role).toUpperCase() : undefined;
     const where = {};
     if (role) where.role = role;
@@ -693,7 +693,7 @@ router.post('/notifications/broadcast', requireAdminSession, validateBody(adminB
 router.get('/notifications', requireAdminSession, validateQuery(adminNotificationsQuerySchema), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
     const skip = (page - 1) * limit;
     const rawQuery = String(req.query.query || req.query.q || '').trim().slice(0, 160);
     const startDate = parseDateOnlyFilter(req.query.startDate);
@@ -894,20 +894,42 @@ router.get('/settings', requireAdminSession, (_req, res) => {
   res.json(getPlatformSettings());
 });
 
-// PUT /settings
-router.put('/settings', requireAdminSession, validateBody(z.object({}).passthrough()), (req, res) => {
+// PUT /settings — schema strict (anti-mass-assignment).
+// Toute extension du shape doit passer par cette whitelist explicite.
+const moderationRulesSchema = z.object({
+  autoApproveAfterPosts: z.number().int().min(0).max(1000).optional(),
+  blockedKeywords: z.array(z.string().trim().min(1).max(120)).max(200).optional(),
+}).strict();
+
+const notificationPreferencesSchema = z.object({
+  emailOnNewReport: z.boolean().optional(),
+  whatsappOnNewJob: z.boolean().optional(),
+  emailOnInternalAdminAlert: z.boolean().optional(),
+  whatsappOnInternalAdminAlert: z.boolean().optional(),
+}).strict();
+
+const platformSettingsSchema = z.object({
+  platformName: z.string().trim().min(1).max(80).optional(),
+  maintenanceMode: z.boolean().optional(),
+  moderationRules: moderationRulesSchema.optional(),
+  notificationPreferences: notificationPreferencesSchema.optional(),
+}).strict();
+
+router.put('/settings', requireAdminSession, validateBody(platformSettingsSchema), (req, res) => {
   try {
     const current = getPlatformSettings();
+    const incoming = req.body || {};
     const next = setPlatformSettings({
       ...current,
-      ...(req.body && typeof req.body === 'object' ? req.body : {}),
+      ...(incoming.platformName !== undefined ? { platformName: incoming.platformName } : {}),
+      ...(incoming.maintenanceMode !== undefined ? { maintenanceMode: incoming.maintenanceMode } : {}),
       moderationRules: {
         ...(current?.moderationRules || {}),
-        ...(req.body?.moderationRules && typeof req.body.moderationRules === 'object' ? req.body.moderationRules : {}),
+        ...(incoming.moderationRules || {}),
       },
       notificationPreferences: {
         ...(current?.notificationPreferences || {}),
-        ...(req.body?.notificationPreferences && typeof req.body.notificationPreferences === 'object' ? req.body.notificationPreferences : {}),
+        ...(incoming.notificationPreferences || {}),
       },
     });
     res.json(next);

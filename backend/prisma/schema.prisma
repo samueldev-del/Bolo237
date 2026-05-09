@@ -52,7 +52,13 @@ model User {
   email            String              @unique
   password         String
   name             String?
+  // PII chiffrée au repos (AES-256-GCM, cf. backend/lib/crypto.js).
+  // Phase A : `phone` reste en clair pour rétro-compat. Phase B : code lit
+  // `phoneEnc` quand présent et `phoneHash` pour les findUnique. Phase C :
+  // `phone` peut être dropé après backfill complet via scripts/encrypt-phones.js.
   phone            String?             @unique
+  phoneEnc         String?
+  phoneHash        String?             @unique
   photoUrl         String?
   bio_fr           String?             @db.Text
   bio_en           String?             @db.Text
@@ -62,6 +68,11 @@ model User {
   isBanned         Boolean             @default(false)
   bannedAt         DateTime?
   banReason        String?
+  // Soft-delete RGPD : `deletedAt` non-null marque la suppression demandée par
+  // l'utilisateur. Les données PII sont anonymisées immédiatement par
+  // /api/users/me/delete ; la purge définitive intervient après 30 jours via
+  // backend/cron/purgeDeletedUsers.js (droit à l'effacement RGPD art. 17).
+  deletedAt        DateTime?
   createdAt        DateTime            @default(now())
   jobs             Job[]
   notifications    Notification[]
@@ -83,6 +94,7 @@ model User {
   @@index([role, isVerified])
   @@index([role, isVerified, createdAt])
   @@index([isBanned, bannedAt])
+  @@index([deletedAt])
   @@index([name(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_name_trgm_idx")
   @@index([email(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_email_trgm_idx")
   @@index([phone(ops: raw("gin_trgm_ops"))], type: Gin, map: "User_phone_trgm_idx")
@@ -112,7 +124,10 @@ model ArtisanService {
   userId      Int
   name        String
   description String?  @db.Text
+  // `price` reste un texte libre (rétro-compat : "5000 FCFA / heure", "À partir de 10000"…).
+  // `priceAmount` est la valeur numérique exacte pour les calculs/filtres.
   price       String?
+  priceAmount Decimal? @db.Decimal(12, 2)
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -155,6 +170,8 @@ model Job {
   status       JobStatus     @default(PENDING)
   author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId     Int
+  // Soft-delete : utilisé pour archiver une offre sans rompre les candidatures.
+  deletedAt    DateTime?
   createdAt    DateTime      @default(now())
   viewCount    Int           @default(0)
   applyClickCount Int       @default(0)
@@ -165,6 +182,7 @@ model Job {
   @@index([status, createdAt])
   @@index([authorId, createdAt])
   @@index([slug])
+  @@index([deletedAt])
   @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_title_trgm_idx")
   @@index([company(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_company_trgm_idx")
   @@index([location(ops: raw("gin_trgm_ops"))], type: Gin, map: "Job_location_trgm_idx")
@@ -346,7 +364,13 @@ model VerificationSubmission {
   role        String
   accountKey  String
   displayName String
+  // Phase A : `phone` reste en clair pour rétro-compat. Phase B : code écrit
+  // `phoneEnc` (AES-256-GCM) et `phoneHash` (HMAC pour les recherches).
+  // `payload` peut contenir des images de doc d'identité encodées : à terme
+  // chiffrer via une migration séparée si critique RGPD.
   phone       String
+  phoneEnc    String?
+  phoneHash   String?
   status      String    @default("pending")
   submittedAt DateTime  @default(now())
   reviewedAt  DateTime?
@@ -358,12 +382,18 @@ model VerificationSubmission {
   @@index([submittedAt])
   @@index([status, submittedAt])
   @@index([phone, submittedAt])
+  @@index([phoneHash])
 }
 
 model OtpCode {
   id        Int      @id @default(autoincrement())
   phone     String   @unique
-  code      String
+  // PHASE A transitoire : `code` reste rempli en parallèle de `codeHash` pour
+  // permettre un rollback rapide. À supprimer en phase B après bascule complète.
+  code      String?
+  codeHash  String?
+  attempts  Int      @default(0)
+  consumed  Boolean  @default(false)
   expiresAt DateTime
   createdAt DateTime @default(now())
 
@@ -403,6 +433,9 @@ model Application {
   message     String   @db.Text
   cvUrl       String
   status      String   @default("APPLIED") // Ex: APPLIED, REVIEWING, INTERVIEW, REJECTED, HIRED
+  // Soft-delete : permet au candidat de retirer une candidature sans
+  // perdre les statistiques de recrutement côté entreprise.
+  deletedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

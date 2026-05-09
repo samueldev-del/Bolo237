@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import {
+  PROMPT_INJECTION_GUARD,
+  checkAiRateLimit,
+  rateLimitResponse,
+  wrapUserContent,
+} from '../_lib/guard';
 
 type CvInput = {
   fullName: string;
@@ -44,9 +50,10 @@ async function callGemini(payload: OptimizePayload, apiKey: string): Promise<CvI
     'gemini-1.5-flash',
   ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i);
 
-  const systemInstruction = payload.language === 'EN'
+  const baseSystem = payload.language === 'EN'
     ? 'You are a professional CV writer. Return ONLY valid JSON with improved content while preserving factual information. Never invent jobs, degrees, dates, or certifications.'
     : 'Tu es un redacteur professionnel de CV. Retourne UNIQUEMENT du JSON valide avec un contenu optimise en preservant les faits. N invente jamais experiences, diplomes, dates ou certifications.';
+  const systemInstruction = `${baseSystem}\n\n${PROMPT_INJECTION_GUARD}`;
 
   const userPrompt = {
     task: payload.language === 'EN' ? 'Optimize this CV for clarity and impact.' : 'Optimise ce CV pour la clarte et l impact.',
@@ -66,17 +73,16 @@ async function callGemini(payload: OptimizePayload, apiKey: string): Promise<CvI
     role: payload.role,
     companyContext: payload.companyContext || {},
     input: {
-      ...payload.cvData,
-      fullName: sanitizeText(payload.cvData.fullName),
-      title: sanitizeText(payload.cvData.title),
-      location: sanitizeText(payload.cvData.location),
-      phone: sanitizeText(payload.cvData.phone),
-      email: sanitizeText(payload.cvData.email),
-      profile: sanitizeText(payload.cvData.profile),
-      experience: sanitizeText(payload.cvData.experience),
-      education: sanitizeText(payload.cvData.education),
-      skillsText: sanitizeText(payload.cvData.skillsText),
-      languagesText: sanitizeText(payload.cvData.languagesText),
+      fullName: wrapUserContent(payload.cvData.fullName),
+      title: wrapUserContent(payload.cvData.title),
+      location: wrapUserContent(payload.cvData.location),
+      phone: wrapUserContent(payload.cvData.phone),
+      email: wrapUserContent(payload.cvData.email),
+      profile: wrapUserContent(payload.cvData.profile),
+      experience: wrapUserContent(payload.cvData.experience),
+      education: wrapUserContent(payload.cvData.education),
+      skillsText: wrapUserContent(payload.cvData.skillsText),
+      languagesText: wrapUserContent(payload.cvData.languagesText),
     },
     outputShape: {
       fullName: 'string',
@@ -169,6 +175,9 @@ async function callGemini(payload: OptimizePayload, apiKey: string): Promise<CvI
 
 export async function POST(request: Request) {
   try {
+    const limit = checkAiRateLimit(request, 'cv-optimize');
+    if (!limit.ok) return rateLimitResponse(limit.retryAfterSec);
+
     const body = (await request.json()) as OptimizePayload;
 
     if (!body?.cvData?.fullName && !body?.cvData?.title && !body?.cvData?.profile) {

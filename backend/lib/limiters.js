@@ -128,6 +128,7 @@ const jobApplicationLimiter = createLimiter('job-apply', {
   windowMs: 60 * 60 * 1000,
   max: getPositiveIntegerEnv('JOB_APPLICATION_HOURLY_LIMIT', 30),
   keyGenerator: (req) => {
+    // Priorité session, fallback body legacy, puis IP. getSessionUserId gère les deux.
     const candidateId = getSessionUserId(req) || parseInt(String(req.body?.candidateId || ''), 10);
     return Number.isFinite(candidateId) && candidateId > 0 ? `job-apply:${candidateId}` : getRequestIpKey(req);
   },

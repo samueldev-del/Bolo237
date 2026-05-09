@@ -10,12 +10,15 @@ const {
   uploadsRoot,
   sniffFileType,
   safeExtensionForMime,
+  ALLOWED_UPLOAD_MIME,
+  withAvScan,
   isUploadMimeAllowedForFolder,
   buildUploadUrl,
   buildPrivateFileName,
   buildPrivateRemoteUploadUrl,
 } = require('../lib/uploads');
 const { readSessionToken, requireUserSession } = require('../lib/session');
+const { isPublicHttpsUrl } = require('../lib/urlGuard');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
 const { TranslationServiceError, buildBilingualJobContent } = require('../lib/translation.service');
@@ -134,7 +137,13 @@ const jobSchema = z.object({
   location: z.string().trim().min(2, 'La localisation est requise'),
   company: z.string().trim().min(2, "Le nom de l'entreprise est requis").max(120).optional(),
   salary: z.string().optional().nullable(),
-  externalApplyUrl: z.string().trim().url('URL de candidature externe invalide').optional().nullable(),
+  externalApplyUrl: z
+    .string()
+    .trim()
+    .url('URL de candidature externe invalide')
+    .refine((value) => isPublicHttpsUrl(value), { message: 'URL externe non autorisee.' })
+    .optional()
+    .nullable(),
 }).strict();
 
 router.get('/', async (req, res) => {
@@ -682,9 +691,17 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
   }
 });
 
+// 🛡️ Schéma Zod pour la candidature.
+// Anti-SSRF : cvUrl doit être une URL HTTPS publique (pas localhost ni RFC1918)
+// pour empêcher le backend de pivoter vers des ressources internes.
 const applySchema = z.object({
   message: z.string().trim().min(20, 'Votre message de motivation doit faire au moins 20 caracteres.').max(2000),
-  cvUrl: z.string().trim().url().optional(),
+  cvUrl: z
+    .string()
+    .trim()
+    .url()
+    .refine((value) => isPublicHttpsUrl(value), { message: 'URL CV non autorisee.' })
+    .optional(),
 });
 
 const validateApply = async (req, res, next) => {
@@ -743,7 +760,12 @@ async function persistUploadedCv(file, req, ownerId) {
   return buildUploadUrl(req, 'cv', fileName);
 }
 
-router.post('/:id/apply', requireUserSession, jobApplicationLimiter, upload.single('cv'), validateApply, async (req, res) => {
+// ==========================================
+// 🚀 ROUTE : POSTULER À UNE OFFRE
+// ==========================================
+// Ordre des middlewares :
+// 1. Auth → 2. Rate-limit (avant I/O) → 3. Upload + scan antivirus → 4. Validation → 5. Logique.
+router.post('/:id/apply', requireUserSession, jobApplicationLimiter, withAvScan(upload, 'cv'), validateApply, async (req, res) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const candidateId = req.sessionUser.id;
@@ -792,6 +814,8 @@ router.post('/:id/apply', requireUserSession, jobApplicationLimiter, upload.sing
       return res.status(400).json({ success: false, message: 'Vous ne pouvez pas postuler a votre propre offre.' });
     }
 
+    // Création atomique — la contrainte @@unique([jobId, candidateId]) garantit
+    // l'unicité même en concurrence. On capte P2002 pour rendre le 409 idempotent.
     let application;
     try {
       application = await prisma.application.create({

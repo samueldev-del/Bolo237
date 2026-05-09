@@ -93,3 +93,74 @@ Si vous etes entierement derriere Cloudflare ou un reverse proxy TLS deja en pla
 1. Lancer `BASE_URL=https://api-237jobs.onrender.com node backend/session-cookie-smoke.js`.
 2. Verifier qu'un login puis un logout via `https://www.bolo237.com/api/backend/auth/*` donnent respectivement `200` puis `401` apres logout.
 3. Controler dans Neon que l'allowlist IP n'a pas ete rouverte a `0.0.0.0/0`.
+
+## 6. Secrets ajoutes par la remediation securite (sprints 1-5)
+
+Toutes ces variables sont stockees dans le coffre-fort Render (backend) ou Vercel (admin).
+
+### Backend (Render)
+
+| Variable | Obligatoire | Generation | Role |
+|---|---|---|---|
+| `DATA_ENCRYPTION_KEY` | prod | `openssl rand -hex 32` | Cle AES-256-GCM pour le chiffrement applicatif des PII (telephones). Perte = donnees chiffrees irrecuperables. |
+| `DATA_LOOKUP_HMAC_KEY` | prod | `openssl rand -hex 32` | Cle HMAC-SHA256 pour les hashes de lookup (`phoneHash`). Distincte de la cle de chiffrement. |
+| `OTP_VALIDITY_MINUTES` | non | entier | Defaut 5. Duree de validite d'un OTP. |
+| `OTP_MAX_ATTEMPTS` | non | entier | Defaut 5. Plafond d'essais erronnes avant 429. |
+| `JOB_APPLICATION_HOURLY_LIMIT` | non | entier | Defaut 30. |
+| `RGPD_PURGE_DELAY_DAYS` | non | entier | Defaut 30. Delai entre soft-delete et hard-delete. |
+| `RGPD_PURGE_ENABLED` | non | `true`/`false` | Defaut `true`. Permet de couper le cron en pre-prod. |
+| `CLAMAV_ENABLED` | non | `true`/`false` | Defaut `false`. Active le scan antivirus opt-in. |
+| `CLAMAV_HOST` / `CLAMAV_PORT` | si activé | host/port | Sidecar ClamAV. |
+
+### Admin (Vercel)
+
+| Variable | Obligatoire | Role |
+|---|---|---|
+| `ADMIN_SESSION_SECRET` | prod | >= 32 caracteres. Le service admin throw au demarrage si manquant ou trop court. |
+| `ADMIN_ALLOWED_IPS` | non | Allowlist IPs admin (auth IP-based optionnelle). |
+
+### Backup obligatoire des cles de chiffrement
+
+`DATA_ENCRYPTION_KEY` et `DATA_LOOKUP_HMAC_KEY` doivent etre sauvegardees dans **deux** coffres-forts distincts (1Password equipe + bunker offline). Sans elles, les `phoneEnc`/`phoneHash` ne peuvent plus etre lus.
+
+## 7. Procedures de rotation des secrets
+
+### Rotation `SESSION_JWT_SECRET`
+
+1. Generer une nouvelle cle (`openssl rand -hex 64`).
+2. Deployer le backend avec la nouvelle valeur.
+3. Tous les utilisateurs sont deconnectes (cookies invalides) — communiquer en avance si possible.
+
+### Rotation `ADMIN_SESSION_SECRET`
+
+1. Idem `SESSION_JWT_SECRET` cote admin.
+
+### Rotation `DATA_ENCRYPTION_KEY`
+
+Plus complexe car les anciennes valeurs sont liees a l'ancienne cle.
+
+1. Ajouter une nouvelle cle `DATA_ENCRYPTION_KEY_V2` (ne pas remplacer V1).
+2. Etendre `backend/lib/crypto.js` pour gerer plusieurs versions (deja preparé : prefixe `v1:` permet d'ajouter `v2:`).
+3. Re-encrypter en boucle via un script `re-encrypt-pii.js` (lit avec V1, ecrit avec V2).
+4. Apres convergence, supprimer V1 du coffre.
+
+## 8. Migrations Prisma additives a appliquer
+
+Toutes sans downtime :
+
+```bash
+cd backend
+npx prisma migrate deploy
+npx prisma generate
+node scripts/encrypt-phones.js --dry-run    # verifier
+node scripts/encrypt-phones.js              # backfill reel
+```
+
+Migrations livrees :
+
+1. `20260509094413_otp_hardening_phase1` — codeHash, attempts, consumed.
+2. `20260509094414_artisan_service_price_amount` — priceAmount Decimal.
+3. `20260509094415_pii_encryption_phase1` — phoneEnc, phoneHash + index uniques.
+4. `20260509094416_soft_delete_phase1` — deletedAt + index.
+
+Les phases B/C (drop des colonnes plain) sont **planifiees separement**, pas dans cette release.

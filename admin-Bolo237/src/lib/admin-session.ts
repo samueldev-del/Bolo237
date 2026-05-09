@@ -1,25 +1,57 @@
 export const ADMIN_SESSION_COOKIE_NAME = "admin_session";
 export const ADMIN_SESSION_MAX_AGE = 60 * 60 * 8;
 
-const DEVELOPMENT_FALLBACK_SECRET = "local-dev-admin-session-secret";
+// Secret dev-only marqué explicitement comme tel pour éviter toute fuite en prod.
+// 64 caractères pour passer la même validation de longueur que la prod.
+const DEVELOPMENT_FALLBACK_SECRET =
+  "dev-only-insecure-admin-session-secret-do-not-use-in-prod-xxxxxxx";
 
-type ParsedAdminSessionToken = {
-  payload: string;
-  signature: string;
-  createdAt: number;
-};
+const MIN_SECRET_LENGTH = 32;
 
 export function getAdminSessionSecret() {
   const configuredSecret = String(process.env.ADMIN_SESSION_SECRET || "").trim();
-  if (configuredSecret) {
+
+  if (process.env.NODE_ENV === "production") {
+    if (!configuredSecret) {
+      throw new Error(
+        "ADMIN_SESSION_SECRET est requis en production. Generez une clef avec `openssl rand -hex 32`.",
+      );
+    }
+    if (configuredSecret.length < MIN_SECRET_LENGTH) {
+      throw new Error(
+        `ADMIN_SESSION_SECRET doit faire au moins ${MIN_SECRET_LENGTH} caracteres en production.`,
+      );
+    }
     return configuredSecret;
   }
 
-  if (process.env.NODE_ENV !== "production") {
-    return DEVELOPMENT_FALLBACK_SECRET;
+  if (configuredSecret) {
+    if (configuredSecret.length < MIN_SECRET_LENGTH) {
+      // Log mais ne casse pas le dev — facilite l'onboarding tout en signalant le risque.
+      console.warn(
+        `[admin] ADMIN_SESSION_SECRET (${configuredSecret.length} chars) < ${MIN_SECRET_LENGTH}. ` +
+          `Generez une clef longue avec \`openssl rand -hex 32\`.`,
+      );
+    }
+    return configuredSecret;
   }
 
-  return null;
+  console.warn(
+    "[admin] ADMIN_SESSION_SECRET non defini : utilisation d'un secret de developpement non securise.",
+  );
+  return DEVELOPMENT_FALLBACK_SECRET;
+}
+
+// Vérifie le secret de session (throw en prod si invalide), puis enchaîne les
+// vérifications auth (username/password) et IP allowlist. Retourne le premier
+// message d'erreur rencontré ou null si tout est conforme.
+export function getAdminSessionConfigurationError(): string | null {
+  try {
+    getAdminSessionSecret();
+  } catch (error) {
+    return error instanceof Error ? error.message : "Configuration admin invalide.";
+  }
+  return getAdminAuthConfigurationError() || getAdminIpRestrictionConfigurationError();
 }
 
 export function getAdminLoginUsername() {
@@ -63,13 +95,11 @@ export function getAdminIpRestrictionConfigurationError() {
   return null;
 }
 
-export function getAdminSessionConfigurationError() {
-  if (!getAdminSessionSecret()) {
-    return "ADMIN_SESSION_SECRET doit etre defini en production.";
-  }
-
-  return getAdminAuthConfigurationError() || getAdminIpRestrictionConfigurationError();
-}
+type ParsedAdminSessionToken = {
+  payload: string;
+  signature: string;
+  createdAt: number;
+};
 
 export function parseAdminSessionToken(token: string): ParsedAdminSessionToken | null {
   const normalizedToken = String(token || "").trim();

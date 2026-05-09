@@ -49,10 +49,12 @@
 
 | ID | Tâche | Statut |
 |---|---|---|
-| S4-T1 | MIN-2 Phase A (lib/crypto.js + colonnes additives) | 🟦 PENDING |
-| S4-T2 | MIN-2 Phase B (backfill + bascule routes) | 🟦 PENDING |
-| S4-T3 | MIN-2 Phase C (drop colonnes plain) | 🟦 PENDING |
-| S4-T4 | MIN-4 Soft-delete + cron purge RGPD | 🟦 PENDING |
+| S4-T1 | MIN-2 lib/crypto.js + helper backfill | 🟩 DONE | AES-256-GCM + HMAC lookup. Throw en prod sans clés. |
+| S4-T2 | MIN-2 Migration phase A (additive) | 🟩 DONE | Colonnes phoneEnc/phoneHash sur User + VerificationSubmission. |
+| S4-T3 | MIN-2 Script backfill encrypt-phones.js | 🟩 DONE | Idempotent, batch 500, --dry-run, à lancer côté user. |
+| S4-T4 | MIN-2 Bascule routes (lecture/écriture phoneEnc) | ⏭️ DEFERRED | À faire APRÈS backfill. Routes signalées. |
+| S4-T5 | MIN-2 Phase C drop colonne `phone` | ⏭️ DEFERRED | À planifier après stabilité phase B. |
+| S4-T6 | MIN-4 Soft-delete + endpoint + cron purge | 🟩 DONE | DELETE /api/users/me + cron 03h15 + RGPD_PURGE_DELAY_DAYS. |
 
 ## SPRINT 5 — Hardening
 
@@ -148,5 +150,39 @@
 - Whitelist `PERSISTABLE_KEYS` en vigueur dans [frontend/src/lib/session.ts](frontend/src/lib/session.ts) : seuls `name`, `role`, `isVerified`, `photoUrl` sont persistés. ID, email, téléphone, tokens — jamais.
 - Cross-tab logout fonctionnel via `FORCE_LOGOUT_KEY` (broadcast `localStorage`).
 - Conclusion : pas de modification nécessaire ; le risque XSS sur localStorage est connu et mitigé par le périmètre non-sensible.
+
+### 2026-05-09 — Sprint 4 code-complete (RGPD/PII phase A)
+
+**Fichiers modifiés :**
+- `backend/prisma/schema.prisma` — `User.phoneEnc/phoneHash/deletedAt`, `VerificationSubmission.phoneEnc/phoneHash`, `Job.deletedAt`, `Application.deletedAt` + index.
+- `backend/server.js` — endpoint `DELETE /api/users/me` + import `revokeCurrentSessionToken` + démarrage `startPurgeDeletedUsers()`.
+
+**Fichiers créés :**
+- `backend/lib/crypto.js` — AES-256-GCM (encrypt/decrypt) + HMAC-SHA256 lookup hash.
+- `backend/lib/softDelete.js` — `excludeDeleted()`, `softDeleteUser()` (anonymise + tombstone email), `purgeExpiredUsers()`.
+- `backend/scripts/encrypt-phones.js` — backfill idempotent batch 500 avec `--dry-run`.
+- `backend/cron/purgeDeletedUsers.js` — cron quotidien 03h15, désactivable via `RGPD_PURGE_ENABLED=false`.
+- `backend/prisma/migrations/20260509094415_pii_encryption_phase1/migration.sql` — colonnes additives.
+- `backend/prisma/migrations/20260509094416_soft_delete_phase1/migration.sql` — `deletedAt` + index.
+
+**Actions ⏭️ utilisateur OBLIGATOIRES AVANT prod :**
+1. **Générer les clés** :
+   ```bash
+   openssl rand -hex 32   # → DATA_ENCRYPTION_KEY
+   openssl rand -hex 32   # → DATA_LOOKUP_HMAC_KEY
+   ```
+   Les ajouter à `.env` backend (et au gestionnaire de secrets prod).
+2. **Sauvegarder ces clés hors-bande** (1Password, Vault…). Sans elles, les données chiffrées sont irrécupérables.
+3. `cd backend && npx prisma migrate deploy && npx prisma generate`.
+4. `node backend/scripts/encrypt-phones.js --dry-run` puis sans `--dry-run`.
+5. Vérifier : aucun crash au démarrage du backend (les clés sont validées au load).
+
+**Sprints suivants prévus (NON exécutés ici) :**
+- **S4-T4 (bascule routes)** : modifier les routes auth/users pour écrire dans `phoneEnc`+`phoneHash` et lire en priorité depuis ces champs. Les routes existantes continuent à fonctionner (rétro-compat phase A).
+- **S4-T5 (phase C)** : `ALTER TABLE "User" DROP COLUMN "phone"` et `ALTER TABLE "VerificationSubmission" DROP COLUMN "phone"` après stabilité 2 semaines + audit logs.
+
+**Limitations connues :**
+- L'endpoint `DELETE /api/users/me` ne déclenche pas (pour l'instant) un mail de confirmation/notification au support — à ajouter selon process compliance.
+- Le soft-delete n'est PAS appliqué automatiquement aux Jobs et Applications via une extension Prisma globale : les routes admin peuvent les voir tels quels. C'est intentionnel (audit) mais à documenter dans CLAUDE.md frontend.
 
 

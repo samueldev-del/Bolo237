@@ -92,6 +92,7 @@ Sentry.init({
 const express = require('express');
 const startJobArchiver = require('./cron/jobArchiver');
 const startJobAlertsCron = require('./cron/jobAlerts');
+const startPurgeDeletedUsers = require('./cron/purgeDeletedUsers');
 const cors = require('cors');
 const helmet = require('helmet');
 const { rateLimit, ipKeyGenerator } = require('express-rate-limit');
@@ -166,6 +167,7 @@ const {
   readSessionToken,
   requireAdminSession,
   requireUserSession,
+  revokeCurrentSessionToken,
 } = require('./lib/session');
 const { validateBody, validateParams, validateQuery } = require('./lib/requestValidation');
 const { requireSelfOrAdmin, hasRequiredSslMode, getDatabaseUsername } = require('./lib/security');
@@ -3014,6 +3016,36 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// =====================================================================
+// 🗑️  RGPD : Suppression du compte (soft-delete + anonymisation immédiate)
+// =====================================================================
+// Le compte est marqué `deletedAt`, ses PII anonymisées dans la même transaction.
+// Le hard-delete final intervient à J+30 via backend/cron/purgeDeletedUsers.js.
+const { softDeleteUser } = require('./lib/softDelete');
+app.delete('/api/users/me', requireUserSession, async (req, res) => {
+  try {
+    const userId = Number(req.sessionUser?.id);
+    if (!Number.isFinite(userId) || userId <= 0) {
+      return res.status(401).json({ error: 'Session requise.' });
+    }
+
+    await softDeleteUser(userId);
+
+    // Révoque le JWT courant et purge le cookie pour empêcher toute action
+    // ultérieure avec une session encore en vol.
+    await revokeCurrentSessionToken(req).catch(() => {});
+    clearSessionCookie(res);
+
+    return res.json({
+      success: true,
+      message: 'Compte supprime. Vos donnees seront definitivement effacees sous 30 jours.',
+    });
+  } catch (error) {
+    console.error('DELETE /api/users/me error:', error);
+    return res.status(500).json({ error: 'Erreur lors de la suppression du compte.' });
+  }
+});
+
 Sentry.setupExpressErrorHandler(app);
 
 // Global error handler — catches any error passed via next(err) or thrown
@@ -3047,6 +3079,7 @@ app.use((err, req, res, next) => {
 // Démarrage des tâches automatisées
 startJobArchiver(prisma);
 startJobAlertsCron(prisma);
+startPurgeDeletedUsers();
 
 // --- Start server ---
 const PORT = process.env.PORT || 5000;

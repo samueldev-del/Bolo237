@@ -518,6 +518,11 @@ async function syncAdminInbox(prisma, options = {}) {
 
           const existingByMessageId = new Map(existingTickets.map((item) => [item.messageId, item]));
 
+          // Anti-N+1 : split upsert séquentiel en (createMany + Promise.all(update)).
+          // Le statut "REPLIED" est sticky côté serveur même si le miroir IMAP régresse.
+          const toCreate = [];
+          const toUpdate = [];
+
           for (const item of normalizedMessages) {
             const existing = existingByMessageId.get(item.messageId);
             const nextStatus = item.status === 'REPLIED'
@@ -526,19 +531,16 @@ async function syncAdminInbox(prisma, options = {}) {
                 ? 'REPLIED'
                 : item.status;
 
-            await prisma.supportTicket.upsert({
-              where: { messageId: item.messageId },
-              update: {
-                imapUid: item.imapUid,
-                mailboxPath: resolvedMailboxPath,
-                senderEmail: item.senderEmail,
-                senderName: item.senderName,
-                subject: item.subject,
-                body: item.body,
-                attachments: item.attachments,
-                status: nextStatus,
-              },
-              create: {
+            if (existing) {
+              toUpdate.push({ ...item, nextStatus });
+            } else {
+              toCreate.push({ ...item, nextStatus });
+            }
+          }
+
+          if (toCreate.length > 0) {
+            await prisma.supportTicket.createMany({
+              data: toCreate.map((item) => ({
                 messageId: item.messageId,
                 imapUid: item.imapUid,
                 mailboxPath: resolvedMailboxPath,
@@ -547,10 +549,31 @@ async function syncAdminInbox(prisma, options = {}) {
                 subject: item.subject,
                 body: item.body,
                 attachments: item.attachments,
-                status: nextStatus,
+                status: item.nextStatus,
                 createdAt: item.createdAt,
-              },
+              })),
+              skipDuplicates: true,
             });
+          }
+
+          if (toUpdate.length > 0) {
+            await Promise.all(
+              toUpdate.map((item) =>
+                prisma.supportTicket.update({
+                  where: { messageId: item.messageId },
+                  data: {
+                    imapUid: item.imapUid,
+                    mailboxPath: resolvedMailboxPath,
+                    senderEmail: item.senderEmail,
+                    senderName: item.senderName,
+                    subject: item.subject,
+                    body: item.body,
+                    attachments: item.attachments,
+                    status: item.nextStatus,
+                  },
+                }),
+              ),
+            );
           }
         } finally {
           lock.release();

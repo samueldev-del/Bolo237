@@ -17,6 +17,7 @@ const {
   getSessionCookieOptions,
   clearSessionCookie,
   createSessionToken,
+  revokeCurrentSessionToken,
   readSessionToken,
 } = require('../lib/session');
 const {
@@ -80,6 +81,10 @@ router.post('/login', loginIpLimiter, loginIdentifierLimiter, validateBody(login
     if (user.isBanned) {
       return res.status(403).json({ error: 'Compte banni.', reason: user.banReason });
     }
+
+    // Rotation : révoque l'éventuel JWT déjà présent sur la requête avant d'en émettre un nouveau
+    // pour empêcher un token volé/copié de rester valide après un re-login.
+    await revokeCurrentSessionToken(req);
 
     const token = createSessionToken(user);
     res.cookie(SESSION_COOKIE_NAME, token, getSessionCookieOptions());

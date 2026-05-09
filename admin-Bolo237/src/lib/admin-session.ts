@@ -1,34 +1,61 @@
 export const ADMIN_SESSION_COOKIE_NAME = "admin_session";
 export const ADMIN_SESSION_MAX_AGE = 60 * 60 * 8;
 
-const DEVELOPMENT_FALLBACK_SECRET = "local-dev-admin-session-secret";
+// Secret dev-only marqué explicitement comme tel pour éviter toute fuite en prod.
+// 64 caractères pour passer la même validation de longueur que la prod.
+const DEVELOPMENT_FALLBACK_SECRET =
+  "dev-only-insecure-admin-session-secret-do-not-use-in-prod-xxxxxxx";
+
+const MIN_SECRET_LENGTH = 32;
+
+export function getAdminSessionSecret() {
+  const configuredSecret = String(process.env.ADMIN_SESSION_SECRET || "").trim();
+
+  if (process.env.NODE_ENV === "production") {
+    if (!configuredSecret) {
+      throw new Error(
+        "ADMIN_SESSION_SECRET est requis en production. Generez une clef avec `openssl rand -hex 32`.",
+      );
+    }
+    if (configuredSecret.length < MIN_SECRET_LENGTH) {
+      throw new Error(
+        `ADMIN_SESSION_SECRET doit faire au moins ${MIN_SECRET_LENGTH} caracteres en production.`,
+      );
+    }
+    return configuredSecret;
+  }
+
+  if (configuredSecret) {
+    if (configuredSecret.length < MIN_SECRET_LENGTH) {
+      // Log mais ne casse pas le dev — facilite l'onboarding tout en signalant le risque.
+      console.warn(
+        `[admin] ADMIN_SESSION_SECRET (${configuredSecret.length} chars) < ${MIN_SECRET_LENGTH}. ` +
+          `Generez une clef longue avec \`openssl rand -hex 32\`.`,
+      );
+    }
+    return configuredSecret;
+  }
+
+  console.warn(
+    "[admin] ADMIN_SESSION_SECRET non defini : utilisation d'un secret de developpement non securise.",
+  );
+  return DEVELOPMENT_FALLBACK_SECRET;
+}
+
+export function getAdminSessionConfigurationError(): string | null {
+  try {
+    getAdminSessionSecret();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? error.message : "Configuration admin invalide.";
+  }
+}
 
 type ParsedAdminSessionToken = {
   payload: string;
   signature: string;
   createdAt: number;
 };
-
-export function getAdminSessionSecret() {
-  const configuredSecret = String(process.env.ADMIN_SESSION_SECRET || "").trim();
-  if (configuredSecret) {
-    return configuredSecret;
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    return DEVELOPMENT_FALLBACK_SECRET;
-  }
-
-  return null;
-}
-
-export function getAdminSessionConfigurationError() {
-  if (getAdminSessionSecret()) {
-    return null;
-  }
-
-  return "ADMIN_SESSION_SECRET doit etre defini en production.";
-}
 
 export function parseAdminSessionToken(token: string): ParsedAdminSessionToken | null {
   const normalizedToken = String(token || "").trim();

@@ -15,40 +15,68 @@ if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && proce
   console.warn('⚠️ Cloudinary not configured — file uploads will fail');
 }
 
-const ALLOWED_UPLOAD_MIME = new Set([
-  // Images (Profils, Logos)
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-
-  // Documents (CVs)
+const IMAGE_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const DOCUMENT_MIME = new Set([
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 ]);
+
+const ALLOWED_UPLOAD_MIME = new Set([...IMAGE_MIME, ...DOCUMENT_MIME]);
 
 const uploadsRoot = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsRoot)) {
   fs.mkdirSync(uploadsRoot, { recursive: true });
 }
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
-  fileFilter: (_req, file, cb) => {
-    if (!ALLOWED_UPLOAD_MIME.has(String(file.mimetype || '').toLowerCase())) {
-      return cb(new Error('Format de fichier non supporte. Veuillez envoyer un PDF, DOC, DOCX, JPG ou PNG.'));
-    }
-    cb(null, true);
-  },
-});
+/**
+ * Crée une instance multer avec une whitelist mime + une taille max dédiée.
+ * On préfère des instances spécialisées (uploadCv, uploadImage…) à un seul
+ * upload générique, pour réduire la surface d'attaque (DOS via gros fichiers
+ * sur des endpoints qui ne devraient accepter que des miniatures).
+ */
+function createUpload({ allowedMime, maxBytes }) {
+  return multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: maxBytes, files: 1 },
+    fileFilter: (_req, file, cb) => {
+      const mime = String(file.mimetype || '').toLowerCase();
+      if (!allowedMime.has(mime)) {
+        return cb(new Error('Format de fichier non supporte.'));
+      }
+      cb(null, true);
+    },
+  });
+}
+
+const MB = 1024 * 1024;
+
+// CVs : PDF/DOC/DOCX/images jusqu'à 5 MB.
+const uploadCv = createUpload({ allowedMime: ALLOWED_UPLOAD_MIME, maxBytes: 5 * MB });
+
+// Images seules (profils, logos, miniatures) : jusqu'à 2 MB.
+const uploadImage = createUpload({ allowedMime: IMAGE_MIME, maxBytes: 2 * MB });
+
+// Documents de vérification (carte d'identité, justificatifs) : jusqu'à 8 MB
+// pour absorber les scans haute résolution.
+const uploadVerificationDoc = createUpload({ allowedMime: ALLOWED_UPLOAD_MIME, maxBytes: 8 * MB });
+
+// Backward-compat : l'ancienne instance `upload` reste générique 5 MB.
+// Migrez les nouveaux call sites vers les instances spécialisées ci-dessus.
+const upload = uploadCv;
 
 const { sniffFileType, safeExtensionForMime } = require('./fileSniff');
 
 module.exports = {
   cloudinary,
   upload,
+  uploadCv,
+  uploadImage,
+  uploadVerificationDoc,
+  createUpload,
   ALLOWED_UPLOAD_MIME,
+  IMAGE_MIME,
+  DOCUMENT_MIME,
   uploadsRoot,
   sniffFileType,
   safeExtensionForMime,

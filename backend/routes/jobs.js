@@ -15,6 +15,7 @@ const {
 } = require('../lib/uploads');
 const { readSessionToken, requireUserSession } = require('../lib/session');
 const { jobApplicationLimiter } = require('../lib/limiters');
+const { isPublicHttpsUrl } = require('../lib/urlGuard');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
 const { TranslationServiceError, buildBilingualJobContent } = require('../lib/translation.service');
@@ -29,7 +30,13 @@ const jobSchema = z.object({
   location: z.string().trim().min(2, "La localisation est requise"),
   company: z.string().trim().min(2, "Le nom de l'entreprise est requis").max(120).optional(),
   salary: z.string().optional().nullable(),
-  externalApplyUrl: z.string().trim().url("URL de candidature externe invalide").optional().nullable(),
+  externalApplyUrl: z
+    .string()
+    .trim()
+    .url("URL de candidature externe invalide")
+    .refine((value) => isPublicHttpsUrl(value), { message: 'URL externe non autorisee.' })
+    .optional()
+    .nullable(),
 }).strict();
 
 // ==========================================
@@ -523,9 +530,16 @@ router.patch('/applications/:id/status', requireUserSession, async (req, res) =>
 });
 
 // 🛡️ 1. LE SCHÉMA ZOD POUR LA CANDIDATURE
+// Anti-SSRF : cvUrl doit être une URL HTTPS publique (pas localhost ni RFC1918).
+// Cela protège le backend contre l'utilisation d'URLs internes pour pivoter.
 const applySchema = z.object({
   message: z.string().trim().min(20, "Votre message de motivation doit faire au moins 20 caractères.").max(2000),
-  cvUrl: z.string().trim().url().optional(),
+  cvUrl: z
+    .string()
+    .trim()
+    .url()
+    .refine((value) => isPublicHttpsUrl(value), { message: 'URL CV non autorisee.' })
+    .optional(),
 });
 
 // 🛑 2. MIDDLEWARE DE VALIDATION POUR LES FORMULAIRES MULTIPART (fichiers)

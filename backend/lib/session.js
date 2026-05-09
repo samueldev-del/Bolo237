@@ -57,6 +57,38 @@ function createSessionToken(user) {
   return token;
 }
 
+/**
+ * Révoque le JWT actuellement présent sur la requête (s'il y en a un).
+ * À appeler AVANT d'émettre un nouveau token au login pour éviter qu'un
+ * token volé/anciennement copié reste valide en parallèle du nouveau.
+ */
+async function revokeCurrentSessionToken(req) {
+  const raw = req?.cookies?.[SESSION_COOKIE_NAME];
+  if (!raw) return;
+
+  let decoded;
+  try {
+    decoded = jwt.verify(raw, SESSION_JWT_SECRET);
+  } catch {
+    // Token invalide ou expiré : rien à révoquer.
+    return;
+  }
+  if (!decoded?.jti) return;
+
+  const expMs = decoded?.exp ? Number(decoded.exp) * 1000 : Date.now() + 7 * 24 * 60 * 60 * 1000;
+  const expiresAt = new Date(expMs);
+
+  try {
+    await prisma.revokedSession.upsert({
+      where: { jti: String(decoded.jti) },
+      update: { expiresAt },
+      create: { jti: String(decoded.jti), expiresAt },
+    });
+  } catch (error) {
+    console.error('revokeCurrentSessionToken error:', error);
+  }
+}
+
 async function readSessionToken(req) {
   const raw = req.cookies?.[SESSION_COOKIE_NAME];
   if (!raw) return null;
@@ -167,6 +199,7 @@ module.exports = {
   getSessionCookieClearOptions,
   clearSessionCookie,
   createSessionToken,
+  revokeCurrentSessionToken,
   readSessionToken,
   requireAdminSession,
   requireModeratorSession,

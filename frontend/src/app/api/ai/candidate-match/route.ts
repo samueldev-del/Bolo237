@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import {
+  PROMPT_INJECTION_GUARD,
+  checkAiRateLimit,
+  rateLimitResponse,
+  wrapUserContent,
+} from '../_lib/guard';
 
 type JobInput = {
   title: string;
@@ -104,9 +110,10 @@ async function callGemini(payload: MatchPayload, apiKey: string): Promise<MatchI
     'gemini-1.5-flash',
   ].filter((m, i, arr): m is string => Boolean(m) && arr.indexOf(m) === i);
 
-  const systemInstruction = payload.language === 'EN'
+  const baseSystem = payload.language === 'EN'
     ? 'You are a recruitment matching analyst. Return ONLY valid JSON. Compare the job posting with each candidate CV and score compatibility from 0 to 100. No hallucinations.'
     : 'Tu es un analyste de matching recrutement. Retourne UNIQUEMENT du JSON valide. Compare l annonce avec chaque CV et donne un score de compatibilite de 0 a 100. Aucune hallucination.';
+  const systemInstruction = `${baseSystem}\n\n${PROMPT_INJECTION_GUARD}`;
 
   const prompt = {
     task: payload.language === 'EN' ? 'Rank candidates by relevance for this job.' : 'Classe les candidats par pertinence pour cette annonce.',
@@ -124,21 +131,21 @@ async function callGemini(payload: MatchPayload, apiKey: string): Promise<MatchI
           'Utilise uniquement les informations fournies.',
         ],
     job: {
-      title: sanitizeText(payload.jobData.title),
-      description: sanitizeText(payload.jobData.description),
-      location: sanitizeText(payload.jobData.location || ''),
-      contract: sanitizeText(payload.jobData.contract || ''),
-      salary: sanitizeText(payload.jobData.salary || ''),
+      title: wrapUserContent(payload.jobData.title),
+      description: wrapUserContent(payload.jobData.description),
+      location: wrapUserContent(payload.jobData.location ?? ''),
+      contract: wrapUserContent(payload.jobData.contract ?? ''),
+      salary: wrapUserContent(payload.jobData.salary ?? ''),
     },
     candidates: payload.candidates.map((candidate) => ({
       candidateId: candidate.candidateId,
-      fullName: sanitizeText(candidate.fullName),
-      title: sanitizeText(candidate.title),
-      location: sanitizeText(candidate.location),
-      skillsText: sanitizeText(candidate.skillsText),
-      profile: sanitizeText(candidate.profile),
-      experience: sanitizeText(candidate.experience),
-      education: sanitizeText(candidate.education),
+      fullName: wrapUserContent(candidate.fullName),
+      title: wrapUserContent(candidate.title),
+      location: wrapUserContent(candidate.location),
+      skillsText: wrapUserContent(candidate.skillsText),
+      profile: wrapUserContent(candidate.profile),
+      experience: wrapUserContent(candidate.experience),
+      education: wrapUserContent(candidate.education),
     })),
     outputShape: {
       matches: [
@@ -232,6 +239,9 @@ async function callGemini(payload: MatchPayload, apiKey: string): Promise<MatchI
 
 export async function POST(request: Request) {
   try {
+    const limit = checkAiRateLimit(request, 'candidate-match');
+    if (!limit.ok) return rateLimitResponse(limit.retryAfterSec);
+
     const body = (await request.json()) as MatchPayload;
 
     if (!body?.jobData?.title?.trim() || !body?.jobData?.description?.trim()) {

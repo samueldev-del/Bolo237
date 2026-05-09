@@ -30,8 +30,11 @@ function buildCsrfCookieOptions() {
     : (isProd ? 'none' : 'lax');
   const secure = sameSite === 'none' || isProd || String(process.env.CSRF_COOKIE_SECURE || '').trim().toLowerCase() === 'true';
 
+  // httpOnly:true protège contre la lecture du cookie en cas de XSS.
+  // Les clients récupèrent le token via GET /api/csrf-token (body JSON ou
+  // header X-CSRF-Token), pattern double-submit toujours valable.
   const options = {
-    httpOnly: false,
+    httpOnly: true,
     secure,
     sameSite,
     path: '/',
@@ -98,8 +101,19 @@ function verifyCsrfToken(req, res, next) {
   return next();
 }
 
-function csrfTokenRoute(_req, res) {
-  res.status(200).json({ csrfToken: res.getHeader('X-CSRF-Token') || null });
+function csrfTokenRoute(req, res) {
+  // Force la création/lecture du token au cas où le middleware aurait été
+  // contourné (mounting custom). Garantit qu'un body non vide est toujours retourné.
+  let token = normalizeToken(req.csrfToken);
+  if (!token) {
+    token = normalizeToken(req.cookies?.[CSRF_COOKIE_NAME]);
+  }
+  if (!token) {
+    token = generateToken();
+    res.cookie(CSRF_COOKIE_NAME, token, buildCsrfCookieOptions());
+    res.setHeader('X-CSRF-Token', token);
+  }
+  res.status(200).json({ csrfToken: token });
 }
 
 module.exports = {

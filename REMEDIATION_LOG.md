@@ -28,16 +28,16 @@
 
 | ID | Tâche | Statut |
 |---|---|---|
-| S2-T1 | M-1 CSRF httpOnly + endpoint /csrf-token | 🟦 PENDING |
-| S2-T2 | M-2 Rotation JWT post-login | 🟦 PENDING |
-| S2-T3 | M-3 Admin secret strict (≥32 chars, throw) | 🟦 PENDING |
-| S2-T4 | M-4 Admin settings whitelist (no passthrough) | 🟦 PENDING |
-| S2-T5 | M-5 Validation cvUrl anti-SSRF + lib/urlGuard.js | 🟦 PENDING |
-| S2-T6 | M-6 Rate-limit + anti-prompt-injection AI Gemini | 🟦 PENDING |
-| S2-T7 | M-7 Backoff exponentiel admin login | 🟦 PENDING |
-| S2-T8 | M-8 Limite upload différenciée par fieldname | 🟦 PENDING |
-| S2-T9 | M-9 updateMany batch alertes (anti-N+1) | 🟦 PENDING |
-| S2-T10 | M-10 Job slug/reference @unique + Decimal price | 🟦 PENDING |
+| S2-T1 | M-3 Admin secret strict (≥32 chars, throw) | 🟩 DONE | Throw en prod ; warning + fallback sécurisé en dev. |
+| S2-T2 | M-2 Rotation JWT post-login | 🟩 DONE | Helper `revokeCurrentSessionToken()` câblé sur `/login`. |
+| S2-T3 | M-7 Backoff exponentiel admin login | 🟩 DONE | In-memory par IP, 800ms→8s. Migration Upstash recommandée pour scale-out. |
+| S2-T4 | M-4 Admin settings whitelist | 🟩 DONE | Schéma Zod strict, plus de `passthrough()`. |
+| S2-T5 | M-8 Limite upload différenciée | 🟩 DONE | `uploadCv` 5MB / `uploadImage` 2MB / `uploadVerificationDoc` 8MB. |
+| S2-T6 | M-9 updateMany batch alertes | 🟩 DONE | Split createMany + Promise.all(update). |
+| S2-T7 | M-1 CSRF httpOnly + endpoint /csrf-token | 🟩 DONE | Frontend a déjà fallback fetch. |
+| S2-T8 | M-5 Anti-SSRF cvUrl + externalApplyUrl | 🟩 DONE | Nouveau lib `urlGuard.js` (RFC1918, link-local, métadata cloud). |
+| S2-T9 | M-10 ArtisanService.priceAmount Decimal | 🟩 DONE | Job.slug/reference déjà @unique. Migration phase A additive. |
+| S2-T10 | M-6 Rate-limit + anti-prompt-injection AI | 🟩 DONE | `_lib/guard.ts` partagé : 10 req/min/IP + délimiteurs `<USER_INPUT>`. |
 
 ## SPRINT 3 — Mineurs
 
@@ -96,4 +96,43 @@
 **Risques résiduels (à traiter en sprints ultérieurs) :**
 - Phase B OTP (drop colonne `code`) à planifier après vérification stabilité phase A.
 - Cycle complet hors-prod nécessaire avant promotion (Twilio + Redis réels).
+
+### 2026-05-09 — Sprint 2 code-complete (10 majeurs)
+
+**Fichiers modifiés :**
+- `admin-Bolo237/src/lib/admin-session.ts` (M-3 — secret strict + fallback dev sécurisé)
+- `admin-Bolo237/src/app/api/admin-login/route.ts` (M-7 — backoff exponentiel)
+- `backend/lib/session.js` (M-2 — `revokeCurrentSessionToken`)
+- `backend/routes/auth.js` (M-2 — révocation au login)
+- `backend/routes/admin.js` (M-4 — schéma Zod strict)
+- `backend/lib/uploads.js` (M-8 — instances spécialisées)
+- `backend/lib/adminInboxService.js` (M-9 — anti-N+1)
+- `backend/lib/csrf.js` (M-1 — httpOnly + endpoint enrichi)
+- `backend/routes/jobs.js` (M-5 — guard cvUrl + externalApplyUrl)
+- `backend/prisma/schema.prisma` (M-10 — `ArtisanService.priceAmount`)
+- `backend/server.js` (M-10 — extraction priceAmount au create service)
+- `frontend/src/app/api/ai/cv-optimize/route.ts` (M-6)
+- `frontend/src/app/api/ai/job-optimize/route.ts` (M-6)
+- `frontend/src/app/api/ai/candidate-match/route.ts` (M-6)
+
+**Fichiers créés :**
+- `admin-Bolo237/src/lib/admin-login-backoff.ts` — backoff exp. 800ms→8s.
+- `backend/lib/urlGuard.js` — assertions URL anti-SSRF.
+- `backend/prisma/migrations/20260509094414_artisan_service_price_amount/migration.sql` — phase A.
+- `frontend/src/app/api/ai/_lib/guard.ts` — rate-limit + délimitation prompts.
+
+**Actions ⏭️ utilisateur AVANT déploiement prod :**
+1. `cd backend && npx prisma migrate deploy` (migration phase A `priceAmount`).
+2. `npx prisma generate`.
+3. Vérifier env optionnel : `AI_RATE_LIMIT_PER_MIN` (def. 10).
+4. Vérifier `ADMIN_SESSION_SECRET` ≥ 32 chars (sinon le service ne démarrera plus en prod — comportement voulu).
+
+**Bonnes surprises trouvées en cours de sprint (audit imprécis) :**
+- `Job.slug` et `Job.reference` ont **déjà** `@unique`.
+- Frontend [api.ts](frontend/src/lib/api.ts) a **déjà** un fallback fetch CSRF — passage `httpOnly:true` sans modif côté client.
+
+**Limitations connues à traiter sprint ultérieur :**
+- Backoff admin login + rate-limit AI sont in-memory : pas partagés entre instances Vercel. Migration vers Upstash Redis = M-7-bis / M-6-bis si trafic justifie.
+- `ArtisanService.priceAmount` reste Null pour les rows existantes — script de backfill à écrire si besoin de filtrage prix.
+
 

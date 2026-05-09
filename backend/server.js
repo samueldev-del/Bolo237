@@ -2369,12 +2369,18 @@ app.post('/api/users/:id/services', requireUserSession, validateParams(idParamSc
       return res.status(400).json({ error: 'Le nom du service est obligatoire.' });
     }
 
+    // Tentative d'extraction d'un montant numérique (les utilisateurs peuvent saisir
+    // "5000 FCFA / heure", "À partir de 10 000", etc.). Le texte libre reste préservé.
+    const numericMatch = price.replace(/[\s ]/g, '').match(/(\d+(?:[.,]\d+)?)/);
+    const priceAmount = numericMatch ? Number(numericMatch[1].replace(',', '.')) : null;
+
     const service = await prisma.artisanService.create({
       data: {
         userId,
         name,
         description: description || null,
         price: price || null,
+        priceAmount: Number.isFinite(priceAmount) && priceAmount > 0 ? priceAmount : null,
       },
     });
 

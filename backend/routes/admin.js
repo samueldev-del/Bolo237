@@ -788,20 +788,42 @@ router.get('/settings', requireAdminSession, (_req, res) => {
   res.json(getPlatformSettings());
 });
 
-// PUT /settings
-router.put('/settings', requireAdminSession, validateBody(z.object({}).passthrough()), (req, res) => {
+// PUT /settings — schema strict (anti-mass-assignment).
+// Toute extension du shape doit passer par cette whitelist explicite.
+const moderationRulesSchema = z.object({
+  autoApproveAfterPosts: z.number().int().min(0).max(1000).optional(),
+  blockedKeywords: z.array(z.string().trim().min(1).max(120)).max(200).optional(),
+}).strict();
+
+const notificationPreferencesSchema = z.object({
+  emailOnNewReport: z.boolean().optional(),
+  whatsappOnNewJob: z.boolean().optional(),
+  emailOnInternalAdminAlert: z.boolean().optional(),
+  whatsappOnInternalAdminAlert: z.boolean().optional(),
+}).strict();
+
+const platformSettingsSchema = z.object({
+  platformName: z.string().trim().min(1).max(80).optional(),
+  maintenanceMode: z.boolean().optional(),
+  moderationRules: moderationRulesSchema.optional(),
+  notificationPreferences: notificationPreferencesSchema.optional(),
+}).strict();
+
+router.put('/settings', requireAdminSession, validateBody(platformSettingsSchema), (req, res) => {
   try {
     const current = getPlatformSettings();
+    const incoming = req.body || {};
     const next = setPlatformSettings({
       ...current,
-      ...(req.body && typeof req.body === 'object' ? req.body : {}),
+      ...(incoming.platformName !== undefined ? { platformName: incoming.platformName } : {}),
+      ...(incoming.maintenanceMode !== undefined ? { maintenanceMode: incoming.maintenanceMode } : {}),
       moderationRules: {
         ...(current?.moderationRules || {}),
-        ...(req.body?.moderationRules && typeof req.body.moderationRules === 'object' ? req.body.moderationRules : {}),
+        ...(incoming.moderationRules || {}),
       },
       notificationPreferences: {
         ...(current?.notificationPreferences || {}),
-        ...(req.body?.notificationPreferences && typeof req.body.notificationPreferences === 'object' ? req.body.notificationPreferences : {}),
+        ...(incoming.notificationPreferences || {}),
       },
     });
     res.json(next);

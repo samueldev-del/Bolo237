@@ -112,7 +112,10 @@ model ArtisanService {
   userId      Int
   name        String
   description String?  @db.Text
+  // `price` reste un texte libre (rétro-compat : "5000 FCFA / heure", "À partir de 10000"…).
+  // `priceAmount` est la valeur numérique exacte pour les calculs/filtres.
   price       String?
+  priceAmount Decimal? @db.Decimal(12, 2)
   createdAt   DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

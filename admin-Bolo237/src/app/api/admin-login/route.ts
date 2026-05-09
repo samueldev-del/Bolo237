@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createSession, verifyPassword } from "@/lib/auth";
-import { getAdminSessionConfigurationError } from "@/lib/admin-session";
+import { getAdminSessionConfigurationError, getClientIpFromHeaders } from "@/lib/admin-session";
 import { ensureBackendAdminSession } from "@/lib/backend-admin";
+import { clearFailures, getBackoffDelay, registerFailure } from "@/lib/admin-login-backoff";
 
 export const maxDuration = 60;
 
@@ -10,6 +11,7 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
     const password = String(body?.password || "");
     const sessionConfigurationError = getAdminSessionConfigurationError();
+    const clientIp = getClientIpFromHeaders(request.headers);
 
     if (sessionConfigurationError) {
       return NextResponse.json(
@@ -26,12 +28,16 @@ export async function POST(request: Request) {
     }
 
     if (!verifyPassword(password)) {
-      await new Promise((r) => setTimeout(r, 800));
+      const delay = getBackoffDelay(clientIp);
+      registerFailure(clientIp);
+      await new Promise((r) => setTimeout(r, delay));
       return NextResponse.json(
         { success: false, error: "Mot de passe incorrect." },
         { status: 401 }
       );
     }
+
+    clearFailures(clientIp);
 
     // La session admin locale (cookie) est creee meme si le backend est temporairement
     // injoignable. La session backend sera re-acquise au prochain appel API via

@@ -53,7 +53,7 @@ assertMatch(
 
 assertMatch(
   jobsSource,
-  /router\.post\('\/:id\/apply',\s*requireUserSession,\s*jobApplicationLimiter,\s*upload\.single\('cv'\),\s*validateApply/,
+  /router\.post\('\/:id\/apply',\s*requireUserSession,\s*jobApplicationLimiter,\s*withAvScan\(upload,\s*'cv'\),\s*validateApply/,
   'job application limiter wired on active jobs router',
 );
 

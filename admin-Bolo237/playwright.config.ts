@@ -23,6 +23,9 @@ function applyEnvFile(filePath: string) {
 
     const key = line.slice(0, separatorIndex).trim();
     let value = line.slice(separatorIndex + 1).trim();
+    if (process.env[key] !== undefined) {
+      continue;
+    }
     if (
       (value.startsWith('"') && value.endsWith('"')) ||
       (value.startsWith("'") && value.endsWith("'"))
@@ -47,6 +50,7 @@ export default defineConfig({
   outputDir: '/tmp/admin-bolo237-playwright',
   use: {
     baseURL: 'http://localhost:3110',
+    ignoreHTTPSErrors: true,
     trace: 'on-first-retry',
   },
   projects: [
@@ -56,10 +60,14 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: './node_modules/.bin/next dev -p 3110',
+    command: 'npm run dev',
     url: 'http://localhost:3110/login',
     reuseExistingServer: false,
     timeout: 120_000,
-    cwd: '/Users/samuel/Bolo237/admin-Bolo237',
+    cwd: workspaceDir,
+    env: {
+      ...process.env,
+      PORT: '3110',
+    },
   },
 });

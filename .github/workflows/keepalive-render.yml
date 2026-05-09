@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Ping /api/health
         env:
-          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://api-237jobs.onrender.com' }}
+          BACKEND_URL: https://api-237jobs.onrender.com
         run: |
           set -euo pipefail
           echo "Pinging $BACKEND_URL/api/health"

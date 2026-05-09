@@ -225,7 +225,7 @@ router.get('/analytics/jobs', requireAdminSession, async (_req, res) => {
 router.get('/privacy-requests', requireAdminSession, validateQuery(adminPrivacyRequestsQuerySchema), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
     const skip = (page - 1) * limit;
     const rawStatus = req.query.status ? String(req.query.status).trim() : '';
     const rawKind = req.query.kind ? String(req.query.kind).trim() : '';
@@ -406,7 +406,7 @@ router.patch('/privacy-requests/:reference', requireAdminSession, validateParams
 // GET /reviews
 router.get('/reviews', requireAdminSession, async (req, res) => {
   try {
-    const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
+    const limit = Math.min(100, parseInt(String(req.query.limit || '50'), 10) || 50);
     const reviews = await prisma.userReview.findMany({
       orderBy: { createdAt: 'desc' },
       take: limit,
@@ -445,7 +445,7 @@ router.get('/reviews', requireAdminSession, async (req, res) => {
 // GET /users
 router.get('/users', requireAdminSession, async (req, res) => {
   try {
-    const limit = Math.min(200, parseInt(String(req.query.limit || '50'), 10) || 50);
+    const limit = Math.min(100, parseInt(String(req.query.limit || '50'), 10) || 50);
     const role = req.query.role ? String(req.query.role).toUpperCase() : undefined;
     const where = {};
     if (role) where.role = role;
@@ -587,7 +587,7 @@ router.post('/notifications/broadcast', requireAdminSession, validateBody(adminB
 router.get('/notifications', requireAdminSession, validateQuery(adminNotificationsQuerySchema), async (req, res) => {
   try {
     const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
+    const limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit || '50'), 10) || 50));
     const skip = (page - 1) * limit;
     const rawQuery = String(req.query.query || req.query.q || '').trim().slice(0, 160);
     const startDate = parseDateOnlyFilter(req.query.startDate);

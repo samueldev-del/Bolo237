@@ -43,7 +43,7 @@
 
 | ID | Tâche | Statut |
 |---|---|---|
-| S3-T1 | MIN-1 + 3 + 5 + 7 (consolidé) | 🟦 PENDING |
+| S3-T1 | MIN-1 + 3 + 5 + 7 (consolidé) | 🟩 DONE | MIN-1 + MIN-5 déjà couverts par S1-T5. MIN-3 plafonds 200→100 sur admin (4 occ). MIN-7 localStorage frontend audité : whitelist `PERSISTABLE_KEYS` déjà en place, pas de PII (id/email/phone) persisté → RAS. |
 
 ## SPRINT 4 — RGPD / PII
 
@@ -134,5 +134,19 @@
 **Limitations connues à traiter sprint ultérieur :**
 - Backoff admin login + rate-limit AI sont in-memory : pas partagés entre instances Vercel. Migration vers Upstash Redis = M-7-bis / M-6-bis si trafic justifie.
 - `ArtisanService.priceAmount` reste Null pour les rows existantes — script de backfill à écrire si besoin de filtrage prix.
+
+### 2026-05-09 — Sprint 3 code-complete (mineurs consolidés)
+
+**Fichiers modifiés :**
+- `backend/routes/admin.js` — 4× `Math.min(200, ...)` → `Math.min(100, ...)` pour `/privacy-requests`, `/reviews`, `/users`, `/notifications`. Réduit la surface d'extraction massive d'un compte admin compromis.
+
+**Trouvailles MIN-* déjà résolues en sprint 1 :**
+- MIN-1 : `console.warn(otp)` strictement gardé par `NODE_ENV === 'development'` (cf. [routes/otp.js:33-35](backend/routes/otp.js)).
+- MIN-5 : OTP TTL paramétrable via `OTP_VALIDITY_MINUTES` (cf. [lib/otp.js:8-10](backend/lib/otp.js)).
+
+**MIN-7 (localStorage frontend)** — audit complet :
+- Whitelist `PERSISTABLE_KEYS` en vigueur dans [frontend/src/lib/session.ts](frontend/src/lib/session.ts) : seuls `name`, `role`, `isVerified`, `photoUrl` sont persistés. ID, email, téléphone, tokens — jamais.
+- Cross-tab logout fonctionnel via `FORCE_LOGOUT_KEY` (broadcast `localStorage`).
+- Conclusion : pas de modification nécessaire ; le risque XSS sur localStorage est connu et mitigé par le périmètre non-sensible.
 
 

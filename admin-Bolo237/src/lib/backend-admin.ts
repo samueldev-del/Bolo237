@@ -191,9 +191,12 @@ function setBackendLoginBackoff(waitSeconds: number, baseMessage: string) {
   const safeWaitSeconds = Number.isFinite(waitSeconds) && waitSeconds > 0 ? waitSeconds : 900;
   const minutes = Math.max(1, Math.ceil(safeWaitSeconds / 60));
   const suffix = `Reessayez dans ${minutes} minute${minutes > 1 ? "s" : ""}.`;
+  // Si le backend renvoie déjà "Reessayez dans X minutes" dans baseMessage,
+  // on évite de le dupliquer dans la réponse côté admin.
+  const alreadyHasRetrySuffix = /reessayez dans/i.test(baseMessage);
   backendLoginBackoff = {
     until: Date.now() + safeWaitSeconds * 1000,
-    message: `${baseMessage} ${suffix}`.trim(),
+    message: alreadyHasRetrySuffix ? baseMessage.trim() : `${baseMessage} ${suffix}`.trim(),
   };
 }
 

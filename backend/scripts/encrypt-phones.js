@@ -1,5 +1,12 @@
 'use strict';
 
+// Charge .env.local (override) puis .env. Sans ça, DATABASE_URL n'est pas
+// disponible côté Node natif (Prisma CLI le fait via prisma.config.ts).
+const path = require('path');
+const dotenv = require('dotenv');
+dotenv.config({ path: path.resolve(__dirname, '..', '.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
+
 /**
  * Backfill : chiffre les téléphones existants (User + VerificationSubmission)
  * et calcule leur hash de lookup. Idempotent : passe les rows déjà migrées.

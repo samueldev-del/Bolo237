@@ -3,6 +3,10 @@ services:
     name: bolo237-backend
     runtime: node
     rootDir: backend
+    buildFilter:
+      paths:
+        - backend/**
+        - render.yaml
     buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /api/health

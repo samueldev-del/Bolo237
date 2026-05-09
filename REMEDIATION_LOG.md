@@ -60,9 +60,9 @@
 
 | ID | Tâche | Statut |
 |---|---|---|
-| S5-T1 | MIN-6 ClamAV antivirus uploads | 🟦 PENDING |
-| S5-T2 | E2E Playwright (5 scénarios) | 🟦 PENDING |
-| S5-T3 | Brief pentest + maj documentation | 🟦 PENDING |
+| S5-T1 | MIN-6 ClamAV antivirus uploads | 🟩 DONE | Opt-in via `CLAMAV_ENABLED=true`. Helper `withAvScan(upload, 'cv')` câblé sur `/jobs/:id/apply`. Fail-open volontaire si daemon down. |
+| S5-T2 | E2E Playwright sécurité | 🟩 DONE | `frontend/tests/security.spec.ts` : OTP brute-force (429), messages uniformes, double candidature (409), open redirect, headers HSTS/CSP (fixme: nécessite ADMIN_BASE_URL). |
+| S5-T3 | Brief pentest + maj doc sécurité | 🟩 DONE | `PENTEST_BRIEF.md` créé. `SECURITE_DEPLOIEMENT_INFRA.md` étendu avec tableaux secrets + procédures de rotation. |
 
 ---
 
@@ -184,5 +184,46 @@
 **Limitations connues :**
 - L'endpoint `DELETE /api/users/me` ne déclenche pas (pour l'instant) un mail de confirmation/notification au support — à ajouter selon process compliance.
 - Le soft-delete n'est PAS appliqué automatiquement aux Jobs et Applications via une extension Prisma globale : les routes admin peuvent les voir tels quels. C'est intentionnel (audit) mais à documenter dans CLAUDE.md frontend.
+
+### 2026-05-09 — Sprint 5 code-complete (hardening final)
+
+**Fichiers modifiés :**
+- `backend/lib/uploads.js` — wrapper `withAvScan()` qui scanne tout buffer multer si ClamAV est activé.
+- `backend/routes/jobs.js` — câblage `withAvScan(upload, 'cv')` sur `POST /jobs/:id/apply`.
+- `SECURITE_DEPLOIEMENT_INFRA.md` — sections 6, 7, 8 ajoutées (secrets, rotation, migrations).
+
+**Fichiers créés :**
+- `backend/lib/antivirus.js` — intégration ClamAV opt-in (chargement paresseux, fail-open).
+- `frontend/tests/security.spec.ts` — 5 scénarios E2E (4 actifs + 2 fixme pour staging réel).
+- `PENTEST_BRIEF.md` — brief complet pour prestataire pentest externe (5 j de test, 3500-6000€ indicatif).
+
+**Variables env nouvelles (toutes opt-in) :**
+```
+CLAMAV_ENABLED        default false (opt-in)
+CLAMAV_HOST           default localhost
+CLAMAV_PORT           default 3310
+CLAMAV_TIMEOUT_MS     default 30000
+```
+
+**Activation ClamAV en prod (procédure) :**
+1. Déployer un sidecar ClamAV (`clamav/clamav-debian:latest`) dans la même VPC que le backend.
+2. `cd backend && npm install clamscan`.
+3. Définir `CLAMAV_ENABLED=true`, `CLAMAV_HOST=<ip-sidecar>`, `CLAMAV_PORT=3310`.
+4. Vérifier les logs : `✅ [antivirus] ClamAV connecté sur <host>:<port>`.
+5. Tester avec un fichier EICAR : POST `/jobs/:id/apply` avec un PDF EICAR-encadré → 422.
+
+**Limitation** : ClamAV est fail-open volontaire (si le daemon est down, l'upload passe sans scan). Pour un fail-closed, ajouter une assertion explicite dans `withAvScan` selon politique compliance.
+
+## 📊 Bilan global remédiation (sprints 1-5)
+
+| Sprint | Correctifs | Commits | Statut |
+|---|---|---|---|
+| 1 — Blockers prod | 8 critiques | c02f600 | ✅ Mergé via PR #1 |
+| 2 — Majeurs | 10 majeurs | 61bf26b | ✅ Mergé via PR #1 |
+| 3 — Mineurs | 4 mineurs (3 déjà couverts) | 9b91ee4 | ✅ Mergé via PR #1 |
+| 4 — RGPD/PII | 2 grosses tâches (chiffrement + soft-delete) | 417d977 | ✅ Mergé via PR #1 |
+| 5 — Hardening | 3 (ClamAV + E2E + brief pentest) | (à pousser) | ✅ Code complet |
+
+**Total : 27 correctifs livrés sur 29 prévus.** Les 2 reportés (bascule routes PII phase B et phase C drop colonne `phone`) sont volontairement séparés pour dérisquer le déploiement (~2 semaines de stabilité requise).
 
 

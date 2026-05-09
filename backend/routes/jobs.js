@@ -12,6 +12,7 @@ const {
   sniffFileType,
   safeExtensionForMime,
   ALLOWED_UPLOAD_MIME,
+  withAvScan,
 } = require('../lib/uploads');
 const { readSessionToken, requireUserSession } = require('../lib/session');
 const { jobApplicationLimiter } = require('../lib/limiters');
@@ -604,7 +605,7 @@ async function persistUploadedCv(file, req) {
 
 // L'ordre des middlewares est crucial :
 // 1. Authentification -> 2. Rate-limit (avant le coût I/O upload) -> 3. Upload -> 4. Validation -> 5. Logique
-router.post('/:id/apply', requireUserSession, jobApplicationLimiter, upload.single('cv'), validateApply, async (req, res) => {
+router.post('/:id/apply', requireUserSession, jobApplicationLimiter, withAvScan(upload, 'cv'), validateApply, async (req, res) => {
   try {
     const jobId = parseInt(req.params.id, 10);
     const candidateId = req.sessionUser.id;

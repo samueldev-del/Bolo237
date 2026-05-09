@@ -66,6 +66,34 @@ const uploadVerificationDoc = createUpload({ allowedMime: ALLOWED_UPLOAD_MIME, m
 const upload = uploadCv;
 
 const { sniffFileType, safeExtensionForMime } = require('./fileSniff');
+const { scanBuffer } = require('./antivirus');
+
+/**
+ * Wrap multer middleware pour scanner systématiquement les uploads avec ClamAV
+ * quand activé. Renvoie 422 si infecté, sinon laisse passer. Si l'antivirus
+ * n'est pas configuré, c'est un no-op silencieux.
+ */
+function withAvScan(uploadInstance, fieldName) {
+  const single = uploadInstance.single(fieldName);
+  return (req, res, next) => {
+    single(req, res, async (err) => {
+      if (err) return next(err);
+      if (!req.file?.buffer) return next();
+      try {
+        await scanBuffer(req.file.buffer, fieldName);
+        return next();
+      } catch (avErr) {
+        if (avErr.code === 'AV_INFECTED') {
+          return res.status(422).json({
+            success: false,
+            message: 'Le fichier transmis a ete refuse pour cause de detection antivirus.',
+          });
+        }
+        return next(avErr);
+      }
+    });
+  };
+}
 
 module.exports = {
   cloudinary,
@@ -74,6 +102,7 @@ module.exports = {
   uploadImage,
   uploadVerificationDoc,
   createUpload,
+  withAvScan,
   ALLOWED_UPLOAD_MIME,
   IMAGE_MIME,
   DOCUMENT_MIME,

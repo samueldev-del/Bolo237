@@ -113,6 +113,7 @@ export default function LoginPage() {
                 type="text"
                 inputMode="text"
                 autoComplete="username"
+                suppressHydrationWarning
                 required
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
@@ -133,6 +134,7 @@ export default function LoginPage() {
                   type={showPassword ? "text" : "password"}
                   inputMode="text"
                   autoComplete="current-password"
+                  suppressHydrationWarning
                   required
                   autoFocus
                   placeholder="Entrez le mot de passe..."
@@ -141,6 +143,7 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  suppressHydrationWarning
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2 rounded-md"
                 >
                   {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -152,6 +155,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isPending}
+              suppressHydrationWarning
               className="relative h-12 w-full rounded-xl bg-gradient-to-b from-[#DA7756] to-[#C4623F] text-sm font-semibold text-white shadow-sm transition hover:from-[#E8A87C] hover:to-[#DA7756] disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#DA7756] focus-visible:ring-offset-2"
             >
               {isPending ? (

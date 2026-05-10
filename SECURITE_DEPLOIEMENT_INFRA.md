@@ -27,13 +27,13 @@ Cette checklist couvre Neon, Render et Vercel pour Bolo237.
 ### Flux applicatifs verifies dans le code
 
 - Frontend web vers backend:
-	`frontend/src/lib/api.ts` et `frontend/src/app/api/backend/[...path]/route.ts` montrent que le navigateur passe par le proxy Next `/api/backend/*`, puis le serveur frontend appelle le backend via `BACKEND_INTERNAL_URL` ou `NEXT_PUBLIC_API_URL`. En production, ce flux doit passer en `443/tcp`.
+  `frontend/src/lib/api.ts` et `frontend/src/app/api/backend/[...path]/route.ts` montrent que le navigateur passe par le proxy Next `/api/backend/*`, puis le serveur frontend appelle le backend via `BACKEND_INTERNAL_URL` ou `NEXT_PUBLIC_API_URL`. En production, ce flux doit passer en `443/tcp`.
 - Admin vers backend:
-	`admin-Bolo237/src/lib/backend-admin.ts` appelle le backend via `NEXT_PUBLIC_API_URL` ou `https://api-237jobs.onrender.com`, donc en production ce flux passe aussi en `443/tcp`.
+  `admin-Bolo237/src/lib/backend-admin.ts` appelle le backend via `NEXT_PUBLIC_API_URL` ou `https://api-237jobs.onrender.com`, donc en production ce flux passe aussi en `443/tcp`.
 - Backend vers base de donnees:
-	`backend/server.js` lit `DATABASE_URL` et ouvre la connexion Postgres. Le format d'URL de `backend/.env.example` montre un port Postgres `5432`, donc le flux backend -> base passe en `5432/tcp`.
+  `backend/server.js` lit `DATABASE_URL` et ouvre la connexion Postgres. Le format d'URL de `backend/.env.example` montre un port Postgres `5432`, donc le flux backend -> base passe en `5432/tcp`.
 - Backend local:
-	`backend/server.js` ecoute sur `PORT` avec defaut `5000`; votre environnement local le force actuellement a `5001`.
+  `backend/server.js` ecoute sur `PORT` avec defaut `5000`; votre environnement local le force actuellement a `5001`.
 
 ### Regle pratique si vous avez un serveur Linux a vous
 
@@ -101,7 +101,7 @@ Toutes ces variables sont stockees dans le coffre-fort Render (backend) ou Verce
 ### Backend (Render)
 
 | Variable | Obligatoire | Generation | Role |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `DATA_ENCRYPTION_KEY` | prod | `openssl rand -hex 32` | Cle AES-256-GCM pour le chiffrement applicatif des PII (telephones). Perte = donnees chiffrees irrecuperables. |
 | `DATA_LOOKUP_HMAC_KEY` | prod | `openssl rand -hex 32` | Cle HMAC-SHA256 pour les hashes de lookup (`phoneHash`). Distincte de la cle de chiffrement. |
 | `OTP_VALIDITY_MINUTES` | non | entier | Defaut 5. Duree de validite d'un OTP. |
@@ -115,7 +115,7 @@ Toutes ces variables sont stockees dans le coffre-fort Render (backend) ou Verce
 ### Admin (Vercel)
 
 | Variable | Obligatoire | Role |
-|---|---|---|
+| --- | --- | --- |
 | `ADMIN_SESSION_SECRET` | prod | >= 32 caracteres. Le service admin throw au demarrage si manquant ou trop court. |
 | `ADMIN_ALLOWED_IPS` | non | Allowlist IPs admin (auth IP-based optionnelle). |
 
@@ -170,7 +170,7 @@ Les phases B/C (drop des colonnes plain) sont **planifiees separement**, pas dan
 Depuis la bascule de mai 2026, le backend Render utilise deux URLs Neon distinctes :
 
 | Variable | Role Postgres | Privileges | Usage |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `DATABASE_URL` | `api_worker` | SELECT, INSERT, UPDATE, DELETE, USAGE sur sequences | Runtime Express (toutes les requetes utilisateur) |
 | `DATABASE_MIGRATION_URL` | `neondb_owner` | DDL complet (CREATE, ALTER, DROP) + DML | `prisma migrate deploy` au boot uniquement |
 
@@ -181,20 +181,24 @@ En cas de compromission du backend (XSS exploite, dependance verolee, session ad
 ### Procedure de mise en place sur Neon
 
 1. Dans Neon SQL Editor (connecte avec `neondb_owner`) :
-	 ```sql
-	 CREATE ROLE api_worker LOGIN PASSWORD '<strong_password>';
-	 GRANT USAGE ON SCHEMA public TO api_worker;
-	 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO api_worker;
-	 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO api_worker;
-	 ALTER DEFAULT PRIVILEGES IN SCHEMA public
-		 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO api_worker;
-	 ALTER DEFAULT PRIVILEGES IN SCHEMA public
-		 GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO api_worker;
-	 ```
+
+   ```sql
+   CREATE ROLE api_worker LOGIN PASSWORD '<strong_password>';
+   GRANT USAGE ON SCHEMA public TO api_worker;
+   GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO api_worker;
+   GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO api_worker;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public
+     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO api_worker;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA public
+     GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO api_worker;
+   ```
+
 2. Construire l'URL `postgresql://api_worker:<password>@<host>-pooler.<region>.aws.neon.tech/neondb?sslmode=require`.
 3. Dans Render -> Environment :
-	 - `DATABASE_URL` <- URL `api_worker`
-	 - `DATABASE_MIGRATION_URL` <- URL `neondb_owner`
+
+   - `DATABASE_URL` <- URL `api_worker`
+   - `DATABASE_MIGRATION_URL` <- URL `neondb_owner`
+
 4. Redeployer. Le `prestart` lance `migrate deploy` avec l'URL owner ; le runtime utilise l'URL worker.
 
 ### Audit de validation
@@ -202,9 +206,9 @@ En cas de compromission du backend (XSS exploite, dependance verolee, session ad
 ```sql
 -- Doit retourner true / 0 / 0
 SELECT
-	has_schema_privilege('api_worker', 'public', 'USAGE') AS schema_usage,
-	COUNT(*) FILTER (WHERE NOT has_table_privilege('api_worker', schemaname || '.' || tablename, 'SELECT,INSERT,UPDATE,DELETE')) AS table_gap_count
-	FROM pg_tables WHERE schemaname = 'public';
+  has_schema_privilege('api_worker', 'public', 'USAGE') AS schema_usage,
+  COUNT(*) FILTER (WHERE NOT has_table_privilege('api_worker', schemaname || '.' || tablename, 'SELECT,INSERT,UPDATE,DELETE')) AS table_gap_count
+FROM pg_tables WHERE schemaname = 'public';
 ```
 
 ### Rotation du mot de passe api_worker
@@ -212,4 +216,5 @@ SELECT
 ```sql
 ALTER ROLE api_worker PASSWORD '<new_strong_password>';
 ```
+
 Puis mise a jour de `DATABASE_URL` dans Render. Le `DATABASE_MIGRATION_URL` (owner) n'est pas affecte.

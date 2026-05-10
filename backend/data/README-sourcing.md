@@ -6,7 +6,7 @@ Pré-requis: la migration Prisma de sourcing doit être appliquée, et le backen
 
 1. Ouvrir `backend/data/manual-jobs.json` et ajouter une nouvelle entrée dans le tableau.
    Champs obligatoires: `title`, `companyName`, `companyLogo`, `location`, `description`, `externalApplyUrl`, `sourceUrl`, `outreachEmailSentAt`.
-   Règles pratiques: description reformulée manuellement, pas de copier-coller, URLs officielles en `https`, date au format `YYYY-MM-DD`.
+   Règles pratiques: description reformulée manuellement, pas de copier-coller, URLs officielles en `https`, domaines publics résolus en DNS pour `externalApplyUrl` et `sourceUrl`, date au format `YYYY-MM-DD`.
 
 2. Préparer le logo de l'entreprise avant de remplir `companyLogo`.
    Le script attend une URL publique `https`. Héberger donc l'image sur votre stockage public habituel, par exemple Cloudinary, puis copier cette URL finale dans `companyLogo`.
@@ -18,10 +18,11 @@ cd backend
 node scripts/seed-manual-jobs.js --dry-run
 ```
 
-4. Contrôler la sortie.
+1. Contrôler la sortie.
    Attendu: une ligne `[CREATE] ...` ou `[UPDATE] ...` par offre, puis un résumé final. Si une erreur apparaît, corriger le JSON avant de continuer.
+   Le dry-run échoue désormais si le domaine de `externalApplyUrl` ou `sourceUrl` n'est pas publiquement résoluble.
 
-5. Exécuter le seed réel.
+1. Exécuter le seed réel.
 
 ```bash
 cd backend

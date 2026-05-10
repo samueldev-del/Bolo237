@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const dns = require('node:dns').promises;
 const dotenv = require('dotenv');
 const bcrypt = require('bcryptjs');
 
@@ -50,6 +51,18 @@ function assertHttpsUrl(value, label, index) {
   }
 
   return parsed.toString();
+}
+
+async function assertResolvableHostname(urlValue, label, index) {
+  const hostname = new URL(urlValue).hostname;
+
+  try {
+    await dns.lookup(hostname);
+  } catch {
+    throw new Error(`Entry #${index + 1}: ${label} hostname does not resolve publicly (${hostname}).`);
+  }
+
+  return urlValue;
 }
 
 function parseOutreachDate(value, index) {
@@ -136,7 +149,16 @@ async function readManualJobsFile() {
     throw new Error(`Manual jobs file must contain a JSON array: ${INPUT_FILE}`);
   }
 
-  return parsed.map((entry, index) => normalizeJobEntry(entry, index));
+  return Promise.all(parsed.map(async (entry, index) => {
+    const job = normalizeJobEntry(entry, index);
+
+    await Promise.all([
+      assertResolvableHostname(job.externalApplyUrl, 'externalApplyUrl', index),
+      assertResolvableHostname(job.sourceUrl, 'sourceUrl', index),
+    ]);
+
+    return job;
+  }));
 }
 
 async function loadReferenceFactory() {

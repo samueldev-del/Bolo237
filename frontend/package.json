@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p ${PORT:-3001}",
-    "dev:clean": "pkill -f \"next dev\" || true; sleep 1; rm -rf .next || true; next dev -p ${PORT:-3001}",
+    "dev": "next dev -p ${FRONTEND_PORT:-3001}",
+    "dev:clean": "pkill -f \"next dev\" || true; sleep 1; rm -rf .next || true; next dev -p ${FRONTEND_PORT:-3001}",
     "build": "next build",
     "start": "PORT=${PORT:-3001} node .next/standalone/server.js",
     "lint": "eslint",

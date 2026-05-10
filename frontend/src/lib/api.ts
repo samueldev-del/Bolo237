@@ -50,6 +50,7 @@ export type ApiJob = {
   reference?: string | null;
   slug?: string | null;
   externalApplyUrl?: string | null;
+  logoUrl?: string | null;
   title: string;
   titleFr?: string | null;
   titleEn?: string | null;
@@ -60,6 +61,11 @@ export type ApiJob = {
   descriptionEn?: string | null;
   salary: string | null;
   status: string;
+  verified?: boolean;
+  sourceType?: string | null;
+  sourceUrl?: string | null;
+  sourceHash?: string | null;
+  outreachEmailSentAt?: string | null;
   authorId: number;
   createdAt: string;
   author?: { id: number; name: string | null; email: string; role?: string; isVerified?: boolean; photoUrl?: string | null };

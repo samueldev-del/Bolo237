@@ -154,6 +154,7 @@ model Job {
   reference    String?       @unique
   slug         String?       @unique
   externalApplyUrl String?
+  logoUrl      String?
   title        String
   titleFr      String?
   titleEn      String?
@@ -168,6 +169,11 @@ model Job {
   description_en String?     @db.Text
   salary       String?
   status       JobStatus     @default(PENDING)
+  verified     Boolean       @default(false)
+  sourceType   String?
+  sourceUrl    String?
+  sourceHash   String?       @unique
+  outreachEmailSentAt DateTime?
   author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId     Int
   // Soft-delete : utilisé pour archiver une offre sans rompre les candidatures.

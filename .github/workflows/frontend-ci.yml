@@ -1,0 +1,50 @@
+name: Frontend Core E2E CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+  pull_request:
+    branches:
+      - main
+      - master
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-core-e2e:
+    name: Frontend Core E2E
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./frontend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: './frontend/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: ./node_modules/.bin/playwright install --with-deps chromium
+
+      - name: Run frontend core E2E tests
+        run: ./node_modules/.bin/playwright test tests/candidate.spec.ts tests/company.spec.ts tests/artisan.spec.ts --project=chromium --workers=3 --reporter=line

@@ -56,5 +56,5 @@ jobs:
       - name: Install Playwright Chromium
         run: ./node_modules/.bin/playwright install --with-deps chromium
 
-      - name: Run admin security E2E tests
-        run: ./node_modules/.bin/playwright test tests/admin-uploads-proxy.spec.ts tests/admin-inbox-attachments.spec.ts --project=chromium --reporter=line
+      - name: Run admin E2E tests (Chromium)
+        run: ./node_modules/.bin/playwright test tests/admin-uploads-proxy.spec.ts tests/admin-inbox-attachments.spec.ts tests/admin-core.spec.ts --project=chromium --reporter=line

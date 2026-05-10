@@ -1,6 +1,8 @@
 const { ipKeyGenerator } = require('express-rate-limit');
 const { isProduction } = require('./env');
 
+let hasWarnedOwnerLevelDatabaseRole = false;
+
 function hasRequiredSslMode(connectionString) {
   try {
     const parsed = new URL(connectionString);
@@ -65,7 +67,8 @@ function validateSecurityConfiguration(databaseUrl) {
   }
 
   const databaseUsername = getDatabaseUsername(databaseUrl).toLowerCase();
-  if (databaseUsername === 'neondb_owner' || databaseUsername.endsWith('_owner')) {
+  if (!hasWarnedOwnerLevelDatabaseRole && (databaseUsername === 'neondb_owner' || databaseUsername.endsWith('_owner'))) {
+    hasWarnedOwnerLevelDatabaseRole = true;
     console.warn('⚠️ DATABASE_URL is using an owner-level database role. Prefer a least-privilege Postgres role for the API.');
   }
 }

@@ -226,4 +226,21 @@ CLAMAV_TIMEOUT_MS     default 30000
 
 **Total : 27 correctifs livrés sur 29 prévus.** Les 2 reportés (bascule routes PII phase B et phase C drop colonne `phone`) sont volontairement séparés pour dérisquer le déploiement (~2 semaines de stabilité requise).
 
+### 2026-05-10 — Least-privilege Postgres role split (operationnel)
+
+**Mise en place opérationnelle (non versionnée jusqu'à cette PR) :**
+- Rôle Neon `api_worker` créé avec DML-only.
+- `DATABASE_URL` Render basculée vers `api_worker`.
+- Nouvelle env var `DATABASE_MIGRATION_URL` (owner, pour les migrations).
+
+**Cette PR :**
+- `backend/.env.example` documente le split.
+- `backend/package.json` `prestart` utilise `DATABASE_MIGRATION_URL` si défini.
+- `SECURITE_DEPLOIEMENT_INFRA.md` section 9 ajoutée (procédure complète + audit SQL).
+
+**Validation prod :**
+- `schema_usage=true`, `table_gap_count=0`, `sequence_gap_count=0`.
+- Plus de warning `owner-level database role` dans les logs Render.
+- `/api/health` et `/api/jobs?limit=1` répondent 200.
+
 

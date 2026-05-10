@@ -550,35 +550,6 @@ function DashboardEntrepriseContent() {
       setPublishMessageType('error');
       return;
     }
-    if (!hasApprovedEnterpriseVerification) {
-      if (profileReviewStatus === 'pending') {
-        setPublishMessage(
-          isEn
-            ? 'Your company account is being validated by our administrators. Publication is locked until approval.'
-            : 'Votre compte entreprise est en cours de validation par nos administrateurs. La publication reste bloquee jusqu a approbation.'
-        );
-        setPublishMessageType('info');
-        return;
-      }
-
-      if (profileReviewStatus === 'rejected') {
-        setPublishMessage(
-          isEn
-            ? 'Your company verification was rejected. Update your RCCM or registration documents before publishing again.'
-            : 'La vérification de votre entreprise a été refusée. Mettez à jour votre RCCM ou registre de commerce avant de republier.'
-        );
-        setPublishMessageType('error');
-        return;
-      }
-
-      setPublishMessage(
-        isEn
-          ? 'Submit and validate your RCCM or company registration documents before publishing a job.'
-          : 'Soumettez et faites valider votre RCCM ou registre de commerce avant de publier une offre.'
-      );
-      setPublishMessageType('error');
-      return;
-    }
     if (blocked) {
       setPublishMessage(`${isEn ? 'Blocked by anti-fraud filter keyword:' : 'Bloque par le filtre anti-fraude, mot-cle:'} "${blocked}"`);
       setPublishMessageType('error');

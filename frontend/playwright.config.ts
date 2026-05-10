@@ -72,9 +72,19 @@ export default defineConfig({
   ],
 
   /* Run your local dev server before starting the tests */
-  // webServer: {
-  //   command: 'npm run start',
-  //   url: 'http://localhost:3001',
-  //   reuseExistingServer: !process.env.CI,
-  // },
+  webServer: {
+    command: 'npm run dev',
+    url: 'http://localhost:3001',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    env: {
+      ...process.env,
+      FRONTEND_PORT: '3001',
+      BACKEND_INTERNAL_URL: process.env.BACKEND_INTERNAL_URL || 'http://127.0.0.1:59999',
+      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:59999',
+      SESSION_JWT_SECRET: process.env.SESSION_JWT_SECRET || 'playwright-session-secret',
+      DATA_ENCRYPTION_KEY:
+        process.env.DATA_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef',
+    },
+  },
 });

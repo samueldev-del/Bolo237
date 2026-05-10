@@ -68,6 +68,11 @@ export default defineConfig({
     env: {
       ...process.env,
       PORT: '3110',
+      NEXT_PUBLIC_API_URL: 'http://127.0.0.1:59998',
+      ADMIN_SESSION_SECRET:
+        process.env.ADMIN_SESSION_SECRET || 'local-dev-admin-session-secret',
+      DATA_ENCRYPTION_KEY:
+        process.env.DATA_ENCRYPTION_KEY || '0123456789abcdef0123456789abcdef',
     },
   },
 });

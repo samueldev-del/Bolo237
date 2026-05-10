@@ -1,4 +1,4 @@
-const { translate } = require('@vitalets/google-translate-api');
+const { translateText: translateViaGoogle } = require('../services/translation.service');
 
 class JobTranslationError extends Error {
   constructor(message, options = {}) {
@@ -15,19 +15,10 @@ function normalizeText(value) {
 async function translateText(text, to) {
   const normalizedText = normalizeText(text);
   if (!normalizedText) {
-    return '';
+    return null;
   }
 
-  try {
-    const result = await translate(normalizedText, {
-      from: 'fr',
-      to,
-    });
-
-    return normalizeText(result.text);
-  } catch (error) {
-    throw new JobTranslationError(`Impossible de traduire le contenu vers ${to}.`, { cause: error });
-  }
+  return translateViaGoogle(normalizedText, to);
 }
 
 async function buildLocalizedJobFields({ title, description }) {

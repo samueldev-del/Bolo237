@@ -11,6 +11,7 @@ dotenv.config({ path: path.join(backendRoot, '.env.local') });
 dotenv.config({ path: path.join(backendRoot, '.env') });
 
 const { prisma, pool } = require('../lib/db');
+const { translateText } = require('../services/translation.service');
 
 const INPUT_FILE = path.join(backendRoot, 'data', 'manual-jobs.json');
 const DEFAULT_BOT_EMAIL = 'bot-sourcing@bolo237.com';
@@ -28,6 +29,11 @@ function assertNonEmptyString(value, label, index) {
     throw new Error(`Entry #${index + 1}: ${label} is required.`);
   }
   return normalized;
+}
+
+function optionalString(value) {
+  const normalized = String(value || '').trim();
+  return normalized || null;
 }
 
 function assertHttpsUrl(value, label, index) {
@@ -81,6 +87,8 @@ function normalizeJobEntry(rawEntry, index) {
   const companyLogo = assertHttpsUrl(rawEntry?.companyLogo, 'companyLogo', index);
   const location = assertNonEmptyString(rawEntry?.location, 'location', index);
   const description = assertNonEmptyString(rawEntry?.description, 'description', index);
+  const titleEn = optionalString(rawEntry?.titleEn);
+  const descriptionEn = optionalString(rawEntry?.descriptionEn);
   const externalApplyUrl = assertHttpsUrl(rawEntry?.externalApplyUrl, 'externalApplyUrl', index);
   const sourceUrl = assertHttpsUrl(rawEntry?.sourceUrl, 'sourceUrl', index);
   const outreachEmailSentAt = parseOutreachDate(rawEntry?.outreachEmailSentAt, index);
@@ -91,9 +99,23 @@ function normalizeJobEntry(rawEntry, index) {
     companyLogo,
     location,
     description,
+    titleEn,
+    descriptionEn,
     externalApplyUrl,
     sourceUrl,
     outreachEmailSentAt,
+  };
+}
+
+async function resolveEnglishFields(job) {
+  const [resolvedTitleEn, resolvedDescriptionEn] = await Promise.all([
+    job.titleEn || translateText(job.title, 'en'),
+    job.descriptionEn || translateText(job.description, 'en'),
+  ]);
+
+  return {
+    titleEn: resolvedTitleEn,
+    descriptionEn: resolvedDescriptionEn,
   };
 }
 
@@ -185,6 +207,7 @@ async function persistManualJob(job, botUser, dryRun, makeReferenceSuffix, reser
     where: { sourceHash },
     select: { id: true, reference: true },
   });
+  const localizedFields = await resolveEnglishFields(job);
 
   const reference = existing?.reference || (await generateUniqueReference(makeReferenceSuffix, reservedReferences));
   const mode = existing ? 'UPDATE' : 'CREATE';
@@ -197,16 +220,16 @@ async function persistManualJob(job, botUser, dryRun, makeReferenceSuffix, reser
   const baseData = {
     title: job.title,
     titleFr: job.title,
-    titleEn: null,
+    titleEn: localizedFields.titleEn,
     title_fr: job.title,
-    title_en: null,
+    title_en: localizedFields.titleEn,
     company: job.companyName,
     location: job.location,
     description: job.description,
     descriptionFr: job.description,
-    descriptionEn: null,
+    descriptionEn: localizedFields.descriptionEn,
     description_fr: job.description,
-    description_en: null,
+    description_en: localizedFields.descriptionEn,
     externalApplyUrl: job.externalApplyUrl,
     logoUrl: job.companyLogo,
     status: 'APPROVED',

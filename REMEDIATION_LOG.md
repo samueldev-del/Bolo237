@@ -5,6 +5,7 @@
 **Orchestrateur** : Claude Code (Opus 4.7)
 
 ## Légende statuts
+
 - 🟦 PENDING : non commencé
 - 🟨 IN_PROGRESS : en cours
 - 🟩 DONE : terminé + vérifié
@@ -16,7 +17,7 @@
 ## SPRINT 1 — Blockers prod
 
 | ID | Tâche | Fichiers | Statut | Notes |
-|---|---|---|---|---|
+| --- | --- | --- | --- | --- |
 | S1-T1 | C-7 + C-8 — Headers admin + image domains | admin-Bolo237/next.config.ts | 🟩 DONE | CSP, HSTS, X-Frame-Options, COOP. localhost limité à dev. |
 | S1-T2 | C-1 — Uniformiser messages auth/OTP | backend/routes/auth.js, otp.js | 🟩 DONE | + délai constant 600ms sur /forgot-password. |
 | S1-T3 | C-6 — Rate-limit POST /jobs/:id/apply | backend/routes/jobs.js, lib/limiters.js | 🟩 DONE | KeyGen étendu pour fallback `req.sessionUser.id`. |
@@ -26,8 +27,8 @@
 
 ## SPRINT 2 — Majeurs
 
-| ID | Tâche | Statut |
-|---|---|---|
+| ID | Tâche | Statut | Notes |
+| --- | --- | --- | --- |
 | S2-T1 | M-3 Admin secret strict (≥32 chars, throw) | 🟩 DONE | Throw en prod ; warning + fallback sécurisé en dev. |
 | S2-T2 | M-2 Rotation JWT post-login | 🟩 DONE | Helper `revokeCurrentSessionToken()` câblé sur `/login`. |
 | S2-T3 | M-7 Backoff exponentiel admin login | 🟩 DONE | In-memory par IP, 800ms→8s. Migration Upstash recommandée pour scale-out. |
@@ -41,14 +42,14 @@
 
 ## SPRINT 3 — Mineurs
 
-| ID | Tâche | Statut |
-|---|---|---|
+| ID | Tâche | Statut | Notes |
+| --- | --- | --- | --- |
 | S3-T1 | MIN-1 + 3 + 5 + 7 (consolidé) | 🟩 DONE | MIN-1 + MIN-5 déjà couverts par S1-T5. MIN-3 plafonds 200→100 sur admin (4 occ). MIN-7 localStorage frontend audité : whitelist `PERSISTABLE_KEYS` déjà en place, pas de PII (id/email/phone) persisté → RAS. |
 
 ## SPRINT 4 — RGPD / PII
 
-| ID | Tâche | Statut |
-|---|---|---|
+| ID | Tâche | Statut | Notes |
+| --- | --- | --- | --- |
 | S4-T1 | MIN-2 lib/crypto.js + helper backfill | 🟩 DONE | AES-256-GCM + HMAC lookup. Throw en prod sans clés. |
 | S4-T2 | MIN-2 Migration phase A (additive) | 🟩 DONE | Colonnes phoneEnc/phoneHash sur User + VerificationSubmission. |
 | S4-T3 | MIN-2 Script backfill encrypt-phones.js | 🟩 DONE | Idempotent, batch 500, --dry-run, à lancer côté user. |
@@ -58,8 +59,8 @@
 
 ## SPRINT 5 — Hardening
 
-| ID | Tâche | Statut |
-|---|---|---|
+| ID | Tâche | Statut | Notes |
+| --- | --- | --- | --- |
 | S5-T1 | MIN-6 ClamAV antivirus uploads | 🟩 DONE | Opt-in via `CLAMAV_ENABLED=true`. Helper `withAvScan(upload, 'cv')` câblé sur `/jobs/:id/apply`. Fail-open volontaire si daemon down. |
 | S5-T2 | E2E Playwright sécurité | 🟩 DONE | `frontend/tests/security.spec.ts` : OTP brute-force (429), messages uniformes, double candidature (409), open redirect, headers HSTS/CSP (fixme: nécessite ADMIN_BASE_URL). |
 | S5-T3 | Brief pentest + maj doc sécurité | 🟩 DONE | `PENTEST_BRIEF.md` créé. `SECURITE_DEPLOIEMENT_INFRA.md` étendu avec tableaux secrets + procédures de rotation. |
@@ -71,6 +72,7 @@
 ### 2026-05-09 — Sprint 1 code-complete
 
 **Fichiers modifiés :**
+
 - `admin-Bolo237/next.config.ts` (S1-T1)
 - `backend/routes/auth.js` (S1-T2, S1-T5)
 - `backend/routes/otp.js` (S1-T2, S1-T5)
@@ -79,16 +81,19 @@
 - `backend/prisma/schema.prisma` (S1-T5 — modèle OtpCode étendu)
 
 **Fichiers créés :**
+
 - `backend/lib/otp.js` — helper `issueOtp` / `verifyOtp` (bcryptjs, attempts, consumed, fallback legacy).
 - `backend/prisma/migrations/20260509094413_otp_hardening_phase1/migration.sql` — phase A additive, sans downtime.
 
 **Actions ⏭️ utilisateur AVANT déploiement prod :**
+
 1. `cd backend && npm install` (worktree fraîche).
 2. `cd backend && npx prisma migrate deploy` (ou `npx prisma migrate dev` en dev) pour appliquer la migration phase A.
 3. `npx prisma generate` pour régénérer le client TypeScript avec les nouveaux champs.
 4. Vérifier env optionnel : `OTP_VALIDITY_MINUTES` (def. 5), `OTP_MAX_ATTEMPTS` (def. 5).
 
 **Vérifications staging recommandées avant prod :**
+
 - Build admin OK : `cd admin-Bolo237 && npm run build`.
 - Headers admin présents : `curl -I https://admin-staging.bolo237.com/login` → CSP/HSTS/XFO.
 - Cycle OTP candidat : send → verify (bon code) → consumed=true en BD.
@@ -96,12 +101,14 @@
 - Double candidature : 2× POST `/jobs/:id/apply` même user → 1× 201, 2e× 409.
 
 **Risques résiduels (à traiter en sprints ultérieurs) :**
+
 - Phase B OTP (drop colonne `code`) à planifier après vérification stabilité phase A.
 - Cycle complet hors-prod nécessaire avant promotion (Twilio + Redis réels).
 
 ### 2026-05-09 — Sprint 2 code-complete (10 majeurs)
 
 **Fichiers modifiés :**
+
 - `admin-Bolo237/src/lib/admin-session.ts` (M-3 — secret strict + fallback dev sécurisé)
 - `admin-Bolo237/src/app/api/admin-login/route.ts` (M-7 — backoff exponentiel)
 - `backend/lib/session.js` (M-2 — `revokeCurrentSessionToken`)
@@ -118,35 +125,42 @@
 - `frontend/src/app/api/ai/candidate-match/route.ts` (M-6)
 
 **Fichiers créés :**
+
 - `admin-Bolo237/src/lib/admin-login-backoff.ts` — backoff exp. 800ms→8s.
 - `backend/lib/urlGuard.js` — assertions URL anti-SSRF.
 - `backend/prisma/migrations/20260509094414_artisan_service_price_amount/migration.sql` — phase A.
 - `frontend/src/app/api/ai/_lib/guard.ts` — rate-limit + délimitation prompts.
 
 **Actions ⏭️ utilisateur AVANT déploiement prod :**
+
 1. `cd backend && npx prisma migrate deploy` (migration phase A `priceAmount`).
 2. `npx prisma generate`.
 3. Vérifier env optionnel : `AI_RATE_LIMIT_PER_MIN` (def. 10).
 4. Vérifier `ADMIN_SESSION_SECRET` ≥ 32 chars (sinon le service ne démarrera plus en prod — comportement voulu).
 
 **Bonnes surprises trouvées en cours de sprint (audit imprécis) :**
+
 - `Job.slug` et `Job.reference` ont **déjà** `@unique`.
 - Frontend [api.ts](frontend/src/lib/api.ts) a **déjà** un fallback fetch CSRF — passage `httpOnly:true` sans modif côté client.
 
 **Limitations connues à traiter sprint ultérieur :**
+
 - Backoff admin login + rate-limit AI sont in-memory : pas partagés entre instances Vercel. Migration vers Upstash Redis = M-7-bis / M-6-bis si trafic justifie.
 - `ArtisanService.priceAmount` reste Null pour les rows existantes — script de backfill à écrire si besoin de filtrage prix.
 
 ### 2026-05-09 — Sprint 3 code-complete (mineurs consolidés)
 
 **Fichiers modifiés :**
+
 - `backend/routes/admin.js` — 4× `Math.min(200, ...)` → `Math.min(100, ...)` pour `/privacy-requests`, `/reviews`, `/users`, `/notifications`. Réduit la surface d'extraction massive d'un compte admin compromis.
 
 **Trouvailles MIN-* déjà résolues en sprint 1 :**
+
 - MIN-1 : `console.warn(otp)` strictement gardé par `NODE_ENV === 'development'` (cf. [routes/otp.js:33-35](backend/routes/otp.js)).
 - MIN-5 : OTP TTL paramétrable via `OTP_VALIDITY_MINUTES` (cf. [lib/otp.js:8-10](backend/lib/otp.js)).
 
 **MIN-7 (localStorage frontend)** — audit complet :
+
 - Whitelist `PERSISTABLE_KEYS` en vigueur dans [frontend/src/lib/session.ts](frontend/src/lib/session.ts) : seuls `name`, `role`, `isVerified`, `photoUrl` sont persistés. ID, email, téléphone, tokens — jamais.
 - Cross-tab logout fonctionnel via `FORCE_LOGOUT_KEY` (broadcast `localStorage`).
 - Conclusion : pas de modification nécessaire ; le risque XSS sur localStorage est connu et mitigé par le périmètre non-sensible.
@@ -154,10 +168,12 @@
 ### 2026-05-09 — Sprint 4 code-complete (RGPD/PII phase A)
 
 **Fichiers modifiés :**
+
 - `backend/prisma/schema.prisma` — `User.phoneEnc/phoneHash/deletedAt`, `VerificationSubmission.phoneEnc/phoneHash`, `Job.deletedAt`, `Application.deletedAt` + index.
 - `backend/server.js` — endpoint `DELETE /api/users/me` + import `revokeCurrentSessionToken` + démarrage `startPurgeDeletedUsers()`.
 
 **Fichiers créés :**
+
 - `backend/lib/crypto.js` — AES-256-GCM (encrypt/decrypt) + HMAC-SHA256 lookup hash.
 - `backend/lib/softDelete.js` — `excludeDeleted()`, `softDeleteUser()` (anonymise + tombstone email), `purgeExpiredUsers()`.
 - `backend/scripts/encrypt-phones.js` — backfill idempotent batch 500 avec `--dry-run`.
@@ -166,11 +182,14 @@
 - `backend/prisma/migrations/20260509094416_soft_delete_phase1/migration.sql` — `deletedAt` + index.
 
 **Actions ⏭️ utilisateur OBLIGATOIRES AVANT prod :**
+
 1. **Générer les clés** :
+
    ```bash
    openssl rand -hex 32   # → DATA_ENCRYPTION_KEY
    openssl rand -hex 32   # → DATA_LOOKUP_HMAC_KEY
    ```
+
    Les ajouter à `.env` backend (et au gestionnaire de secrets prod).
 2. **Sauvegarder ces clés hors-bande** (1Password, Vault…). Sans elles, les données chiffrées sont irrécupérables.
 3. `cd backend && npx prisma migrate deploy && npx prisma generate`.
@@ -178,27 +197,32 @@
 5. Vérifier : aucun crash au démarrage du backend (les clés sont validées au load).
 
 **Sprints suivants prévus (NON exécutés ici) :**
+
 - **S4-T4 (bascule routes)** : modifier les routes auth/users pour écrire dans `phoneEnc`+`phoneHash` et lire en priorité depuis ces champs. Les routes existantes continuent à fonctionner (rétro-compat phase A).
 - **S4-T5 (phase C)** : `ALTER TABLE "User" DROP COLUMN "phone"` et `ALTER TABLE "VerificationSubmission" DROP COLUMN "phone"` après stabilité 2 semaines + audit logs.
 
 **Limitations connues :**
+
 - L'endpoint `DELETE /api/users/me` ne déclenche pas (pour l'instant) un mail de confirmation/notification au support — à ajouter selon process compliance.
 - Le soft-delete n'est PAS appliqué automatiquement aux Jobs et Applications via une extension Prisma globale : les routes admin peuvent les voir tels quels. C'est intentionnel (audit) mais à documenter dans CLAUDE.md frontend.
 
 ### 2026-05-09 — Sprint 5 code-complete (hardening final)
 
 **Fichiers modifiés :**
+
 - `backend/lib/uploads.js` — wrapper `withAvScan()` qui scanne tout buffer multer si ClamAV est activé.
 - `backend/routes/jobs.js` — câblage `withAvScan(upload, 'cv')` sur `POST /jobs/:id/apply`.
 - `SECURITE_DEPLOIEMENT_INFRA.md` — sections 6, 7, 8 ajoutées (secrets, rotation, migrations).
 
 **Fichiers créés :**
+
 - `backend/lib/antivirus.js` — intégration ClamAV opt-in (chargement paresseux, fail-open).
 - `frontend/tests/security.spec.ts` — 5 scénarios E2E (4 actifs + 2 fixme pour staging réel).
 - `PENTEST_BRIEF.md` — brief complet pour prestataire pentest externe (5 j de test, 3500-6000€ indicatif).
 
 **Variables env nouvelles (toutes opt-in) :**
-```
+
+```text
 CLAMAV_ENABLED        default false (opt-in)
 CLAMAV_HOST           default localhost
 CLAMAV_PORT           default 3310
@@ -206,6 +230,7 @@ CLAMAV_TIMEOUT_MS     default 30000
 ```
 
 **Activation ClamAV en prod (procédure) :**
+
 1. Déployer un sidecar ClamAV (`clamav/clamav-debian:latest`) dans la même VPC que le backend.
 2. `cd backend && npm install clamscan`.
 3. Définir `CLAMAV_ENABLED=true`, `CLAMAV_HOST=<ip-sidecar>`, `CLAMAV_PORT=3310`.
@@ -217,7 +242,7 @@ CLAMAV_TIMEOUT_MS     default 30000
 ## 📊 Bilan global remédiation (sprints 1-5)
 
 | Sprint | Correctifs | Commits | Statut |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 1 — Blockers prod | 8 critiques | c02f600 | ✅ Mergé via PR #1 |
 | 2 — Majeurs | 10 majeurs | 61bf26b | ✅ Mergé via PR #1 |
 | 3 — Mineurs | 4 mineurs (3 déjà couverts) | 9b91ee4 | ✅ Mergé via PR #1 |
@@ -229,18 +254,19 @@ CLAMAV_TIMEOUT_MS     default 30000
 ### 2026-05-10 — Least-privilege Postgres role split (operationnel)
 
 **Mise en place opérationnelle (non versionnée jusqu'à cette PR) :**
+
 - Rôle Neon `api_worker` créé avec DML-only.
 - `DATABASE_URL` Render basculée vers `api_worker`.
 - Nouvelle env var `DATABASE_MIGRATION_URL` (owner, pour les migrations).
 
 **Cette PR :**
+
 - `backend/.env.example` documente le split.
 - `backend/package.json` `prestart` utilise `DATABASE_MIGRATION_URL` si défini.
 - `SECURITE_DEPLOIEMENT_INFRA.md` section 9 ajoutée (procédure complète + audit SQL).
 
 **Validation prod :**
+
 - `schema_usage=true`, `table_gap_count=0`, `sequence_gap_count=0`.
 - Plus de warning `owner-level database role` dans les logs Render.
 - `/api/health` et `/api/jobs?limit=1` répondent 200.
-
-

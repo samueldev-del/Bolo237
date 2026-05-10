@@ -182,7 +182,7 @@ const {
   revokeCurrentSessionToken,
 } = require('./lib/session');
 const { validateBody, validateParams, validateQuery } = require('./lib/requestValidation');
-const { requireSelfOrAdmin, hasRequiredSslMode, getDatabaseUsername } = require('./lib/security');
+const { normalizeDatabaseUrlForPg, requireSelfOrAdmin, validateSecurityConfiguration } = require('./lib/security');
 const { getPositiveIntegerEnv } = require('./lib/env');
 const { ensureCsrfCookie, verifyCsrfToken, csrfTokenRoute } = require('./lib/csrf');
 
@@ -242,8 +242,6 @@ const { Pool } = require('pg');
 const { PrismaPg } = require('@prisma/adapter-pg');
 const { PrismaClient } = require('@prisma/client');
 
-const isProduction = process.env.NODE_ENV === 'production';
-
 function getDatabaseUrl() {
   const databaseUrl = String(process.env.DATABASE_URL || '').trim();
   if (!databaseUrl) {
@@ -257,35 +255,12 @@ function getRequestIpKey(req) {
   return ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
 }
 
-function validateSecurityConfiguration(databaseUrl) {
-  if (!isProduction) return;
-
-  if (!hasRequiredSslMode(databaseUrl)) {
-    throw new Error('DATABASE_URL must include sslmode=require in production.');
-  }
-
-  const sessionSecret = String(process.env.SESSION_JWT_SECRET || '').trim();
-  const masterOtp = String(process.env.MASTER_OTP || '').trim();
-  if (!sessionSecret || sessionSecret === 'change-me-in-production' || sessionSecret === masterOtp) {
-    throw new Error('SESSION_JWT_SECRET must be set in production and must be different from MASTER_OTP.');
-  }
-
-  const configuredOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '').trim();
-  if (configuredOrigins.includes('*')) {
-    throw new Error('CORS_ALLOWED_ORIGINS cannot contain wildcard values in production.');
-  }
-
-  const databaseUsername = getDatabaseUsername(databaseUrl).toLowerCase();
-  if (databaseUsername === 'neondb_owner' || databaseUsername.endsWith('_owner')) {
-    console.warn('⚠️ DATABASE_URL is using an owner-level database role. Prefer a least-privilege Postgres role for the API.');
-  }
-}
-
 // --- Database setup ---
 const DATABASE_URL = getDatabaseUrl();
 validateSecurityConfiguration(DATABASE_URL);
+const PG_DATABASE_URL = normalizeDatabaseUrlForPg(DATABASE_URL);
 
-const pool = new Pool({ connectionString: DATABASE_URL });
+const pool = new Pool({ connectionString: PG_DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
@@ -306,25 +281,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
-
-// Log Twilio status at startup
-if (twilioClient) {
-  console.log('✅ Twilio client initialized');
-  if (process.env.TWILIO_WHATSAPP_FROM && process.env.TWILIO_WHATSAPP_TO) {
-    console.log(`✅ WhatsApp alerts: FROM=${process.env.TWILIO_WHATSAPP_FROM} TO=${process.env.TWILIO_WHATSAPP_TO}`);
-  } else {
-    console.warn('⚠️ Twilio client OK but TWILIO_WHATSAPP_FROM or TWILIO_WHATSAPP_TO missing — WhatsApp alerts disabled');
-  }
-} else {
-  console.warn('⚠️ Twilio not configured (TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN missing) — WhatsApp alerts disabled');
-}
-
-// Log Cloudinary status
-if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
-  console.log('✅ Cloudinary configured');
-} else {
-  console.warn('⚠️ Cloudinary not configured — file uploads will fail');
-}
 
 async function sendWhatsAppModerationAlert(messageBody) {
   if (!twilioClient) {

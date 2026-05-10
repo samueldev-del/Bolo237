@@ -19,6 +19,23 @@ function getDatabaseUsername(connectionString) {
   }
 }
 
+function normalizeDatabaseUrlForPg(connectionString) {
+  try {
+    const parsed = new URL(connectionString);
+    const sslMode = String(parsed.searchParams.get('sslmode') || '').trim().toLowerCase();
+    const useLibpqCompat = String(parsed.searchParams.get('uselibpqcompat') || '').trim().toLowerCase();
+
+    if (sslMode !== 'require' || useLibpqCompat === 'true') {
+      return connectionString;
+    }
+
+    parsed.searchParams.set('uselibpqcompat', 'true');
+    return parsed.toString();
+  } catch {
+    return connectionString;
+  }
+}
+
 function getRequestIpKey(req) {
   return ipKeyGenerator(req.ip || req.socket?.remoteAddress || 'unknown');
 }
@@ -109,6 +126,7 @@ function requireSelfOrAdmin(options = {}) {
 module.exports = {
   hasRequiredSslMode,
   getDatabaseUsername,
+  normalizeDatabaseUrlForPg,
   getRequestIpKey,
   getRequestSourceIp,
   validateSecurityConfiguration,

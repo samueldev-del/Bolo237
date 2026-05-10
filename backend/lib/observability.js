@@ -4,20 +4,22 @@ const { getSampleRateFromEnv } = require('./env');
 const sentryDsn = String(process.env.SENTRY_DSN || '').trim();
 const sentryEnabled = Boolean(sentryDsn);
 
-Sentry.init({
-  enabled: sentryEnabled,
-  dsn: sentryDsn || undefined,
-  sendDefaultPii: true,
-  includeLocalVariables: true,
-  environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim() || 'development',
-  release: String(process.env.SENTRY_RELEASE || '').trim() || undefined,
-  tracesSampleRate: getSampleRateFromEnv(
-    'SENTRY_TRACES_SAMPLE_RATE',
-    process.env.NODE_ENV === 'production' ? 0.1 : 1,
-  ),
-  profilesSampleRate: getSampleRateFromEnv('SENTRY_PROFILES_SAMPLE_RATE', 0),
-  enableLogs: true,
-});
+if (!Sentry.getClient()) {
+  Sentry.init({
+    enabled: sentryEnabled,
+    dsn: sentryDsn || undefined,
+    sendDefaultPii: true,
+    includeLocalVariables: false,
+    environment: String(process.env.SENTRY_ENVIRONMENT || process.env.NODE_ENV || 'development').trim() || 'development',
+    release: String(process.env.SENTRY_RELEASE || '').trim() || undefined,
+    tracesSampleRate: getSampleRateFromEnv(
+      'SENTRY_TRACES_SAMPLE_RATE',
+      process.env.NODE_ENV === 'production' ? 0.1 : 1,
+    ),
+    profilesSampleRate: getSampleRateFromEnv('SENTRY_PROFILES_SAMPLE_RATE', 0),
+    enableLogs: true,
+  });
+}
 
 function logFatalError(label, error) {
   if (error instanceof Error) {

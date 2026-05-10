@@ -5,9 +5,9 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "build": "npx prisma generate && npx prisma migrate deploy",
+    "build": "npx prisma generate && DATABASE_URL=${DATABASE_MIGRATION_URL:-$DATABASE_URL} npx prisma migrate deploy",
     "postinstall": "npx prisma generate",
-    "prestart": "npx prisma migrate deploy",
+    "prestart": "DATABASE_URL=${DATABASE_MIGRATION_URL:-$DATABASE_URL} npx prisma migrate deploy",
     "start": "node server.js",
     "seed": "node prisma/seed.js",
     "seed:flex-living": "node scripts/seed-flex-living.js",

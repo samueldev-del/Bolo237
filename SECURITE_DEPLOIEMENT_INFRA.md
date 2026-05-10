@@ -164,3 +164,52 @@ Migrations livrees :
 4. `20260509094416_soft_delete_phase1` — deletedAt + index.
 
 Les phases B/C (drop des colonnes plain) sont **planifiees separement**, pas dans cette release.
+
+## 9. Bascule least-privilege (runtime vs. migration)
+
+Depuis la bascule de mai 2026, le backend Render utilise deux URLs Neon distinctes :
+
+| Variable | Role Postgres | Privileges | Usage |
+|---|---|---|---|
+| `DATABASE_URL` | `api_worker` | SELECT, INSERT, UPDATE, DELETE, USAGE sur sequences | Runtime Express (toutes les requetes utilisateur) |
+| `DATABASE_MIGRATION_URL` | `neondb_owner` | DDL complet (CREATE, ALTER, DROP) + DML | `prisma migrate deploy` au boot uniquement |
+
+### Benefice
+
+En cas de compromission du backend (XSS exploite, dependance verolee, session admin volee), l'attaquant ne peut plus executer de DDL : pas de DROP TABLE, pas d'ALTER pour exfiltrer/modifier la structure, pas de CREATE pour ajouter des triggers malveillants. La surface destructive est reduite aux DML sur les tables existantes.
+
+### Procedure de mise en place sur Neon
+
+1. Dans Neon SQL Editor (connecte avec `neondb_owner`) :
+	 ```sql
+	 CREATE ROLE api_worker LOGIN PASSWORD '<strong_password>';
+	 GRANT USAGE ON SCHEMA public TO api_worker;
+	 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO api_worker;
+	 GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO api_worker;
+	 ALTER DEFAULT PRIVILEGES IN SCHEMA public
+		 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO api_worker;
+	 ALTER DEFAULT PRIVILEGES IN SCHEMA public
+		 GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO api_worker;
+	 ```
+2. Construire l'URL `postgresql://api_worker:<password>@<host>-pooler.<region>.aws.neon.tech/neondb?sslmode=require`.
+3. Dans Render -> Environment :
+	 - `DATABASE_URL` <- URL `api_worker`
+	 - `DATABASE_MIGRATION_URL` <- URL `neondb_owner`
+4. Redeployer. Le `prestart` lance `migrate deploy` avec l'URL owner ; le runtime utilise l'URL worker.
+
+### Audit de validation
+
+```sql
+-- Doit retourner true / 0 / 0
+SELECT
+	has_schema_privilege('api_worker', 'public', 'USAGE') AS schema_usage,
+	COUNT(*) FILTER (WHERE NOT has_table_privilege('api_worker', schemaname || '.' || tablename, 'SELECT,INSERT,UPDATE,DELETE')) AS table_gap_count
+	FROM pg_tables WHERE schemaname = 'public';
+```
+
+### Rotation du mot de passe api_worker
+
+```sql
+ALTER ROLE api_worker PASSWORD '<new_strong_password>';
+```
+Puis mise a jour de `DATABASE_URL` dans Render. Le `DATABASE_MIGRATION_URL` (owner) n'est pas affecte.

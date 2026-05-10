@@ -10,7 +10,12 @@ const { parseDateOnlyFilter, buildDateRangeFilter, buildDateBuckets, toDayKey, f
 const { normalizePrivacyRequestStatus, normalizePrivacyRequestKind, normalizePrivacyNotes } = require('../lib/privacy');
 const { sendWhatsAppModerationAlert } = require('../lib/twilioService');
 const { transporter } = require('../lib/emailService');
-const { sendAccountVerifiedEmail } = require('../lib/transactionalEmail');
+const {
+  buildPublicUrl,
+  getDashboardPathForRole,
+  sendAccountVerifiedEmail,
+  sendTransactionalEmail,
+} = require('../lib/transactionalEmail');
 const {
   archiveAdminInboxTicket,
   downloadAdminInboxAttachment,
@@ -211,11 +216,116 @@ router.patch('/jobs/:id/status', requireAdminSession, validateBody(statusSchema)
     // Validation Zod du statut
     const { status } = req.body;
 
+    const existingJob = await prisma.job.findUnique({
+      where: { id: jobId },
+      select: {
+        id: true,
+        title: true,
+        company: true,
+        status: true,
+        authorId: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!existingJob) {
+      return res.status(404).json({ success: false, message: 'Offre introuvable.' });
+    }
+
     // Mise à jour directe (sans vérifier l'authorId car on est Admin !)
     const updatedJob = await prisma.job.update({
       where: { id: jobId },
-      data: { status }
+      data: { status },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
+      },
     });
+
+    if (existingJob.status !== status && updatedJob.authorId) {
+      const statusMetaByValue = {
+        APPROVED: {
+          notificationTitle: 'Offre approuvee',
+          notificationMessage: `Votre offre "${updatedJob.title}" a ete approuvee par l'equipe de moderation.`,
+          emailSubject: '[Bolo237] Offre approuvee',
+          emailHeadline: 'Votre offre a ete approuvee',
+          emailIntro: `Votre offre ${updatedJob.title} est maintenant validee et visible sur Bolo237.`,
+        },
+        REJECTED: {
+          notificationTitle: 'Offre rejetee',
+          notificationMessage: `Votre offre "${updatedJob.title}" a ete rejetee par l'equipe de moderation.`,
+          emailSubject: '[Bolo237] Offre rejetee',
+          emailHeadline: 'Votre offre a ete rejetee',
+          emailIntro: `Votre offre ${updatedJob.title} a ete rejetee par l'equipe de moderation.`,
+        },
+        PENDING: {
+          notificationTitle: 'Offre en attente',
+          notificationMessage: `Votre offre "${updatedJob.title}" est de nouveau en attente de moderation.`,
+          emailSubject: '[Bolo237] Offre en attente',
+          emailHeadline: 'Votre offre repasse en moderation',
+          emailIntro: `Votre offre ${updatedJob.title} est de nouveau en attente de validation.`,
+        },
+        CLOSED: {
+          notificationTitle: 'Offre cloturee',
+          notificationMessage: `Votre offre "${updatedJob.title}" a ete cloturee par l'equipe de moderation.`,
+          emailSubject: '[Bolo237] Offre cloturee',
+          emailHeadline: 'Votre offre a ete cloturee',
+          emailIntro: `Votre offre ${updatedJob.title} n'est plus active sur Bolo237.`,
+        },
+      };
+
+      const statusMeta = statusMetaByValue[status] || {
+        notificationTitle: 'Statut de l offre mis a jour',
+        notificationMessage: `Le statut de votre offre "${updatedJob.title}" est maintenant : ${status}.`,
+        emailSubject: '[Bolo237] Statut de l offre mis a jour',
+        emailHeadline: 'Le statut de votre offre a change',
+        emailIntro: `Le statut de votre offre ${updatedJob.title} est maintenant : ${status}.`,
+      };
+      const listingsPath = String(updatedJob.author?.role || '').trim().toUpperCase() === 'ENTREPRISE'
+        ? '/en/dashboard-entreprise?section=listings'
+        : getDashboardPathForRole(updatedJob.author?.role);
+
+      await Promise.allSettled([
+        createNotification({
+          userId: updatedJob.authorId,
+          type: 'job_status_changed',
+          title: statusMeta.notificationTitle,
+          message: statusMeta.notificationMessage,
+          data: {
+            jobId: updatedJob.id,
+            jobTitle: updatedJob.title,
+            status,
+          },
+        }),
+        sendTransactionalEmail({
+          transporter,
+          to: updatedJob.author?.email,
+          subject: statusMeta.emailSubject,
+          headline: statusMeta.emailHeadline,
+          intro: statusMeta.emailIntro,
+          details: [
+            `Offre: ${updatedJob.title}`,
+            `Entreprise: ${updatedJob.company || updatedJob.author?.name || 'Bolo237'}`,
+            `Nouveau statut: ${status}`,
+          ],
+          ctaLabel: 'Ouvrir mes annonces',
+          ctaUrl: buildPublicUrl(listingsPath),
+        }),
+      ]);
+    }
 
     res.json({
       success: true,
@@ -1126,41 +1236,82 @@ router.patch('/verifications/:id/status', requireAdminSession, validateBody(veri
       },
     });
 
+    const rawPayload = updated.payload || {};
+    const maybeUserId = Number((typeof rawPayload === 'object' && rawPayload ? rawPayload.userId : null) || 0);
+    let userToReview = null;
+
+    if (Number.isFinite(maybeUserId) && maybeUserId > 0) {
+      userToReview = await prisma.user.findUnique({ where: { id: maybeUserId } }).catch(() => null);
+    }
+
+    if (!userToReview && updated.accountKey) {
+      userToReview = await prisma.user.findUnique({ where: { email: updated.accountKey } }).catch(() => null);
+    }
+
     if (status === 'approved') {
-      const rawPayload = updated.payload || {};
-      const maybeUserId = Number((typeof rawPayload === 'object' && rawPayload ? rawPayload.userId : null) || 0);
-      let userToVerify = null;
-
-      if (Number.isFinite(maybeUserId) && maybeUserId > 0) {
-        userToVerify = await prisma.user.findUnique({ where: { id: maybeUserId } }).catch(() => null);
-      }
-
-      if (!userToVerify && updated.accountKey) {
-        userToVerify = await prisma.user.findUnique({ where: { email: updated.accountKey } }).catch(() => null);
-      }
-
-      if (userToVerify) {
+      if (userToReview) {
         await prisma.user.update({
-          where: { id: userToVerify.id },
+          where: { id: userToReview.id },
           data: { isVerified: true },
         }).catch(() => null);
 
-        const verifiedUser = { ...userToVerify, isVerified: true };
+        const verifiedUser = { ...userToReview, isVerified: true };
 
         await Promise.allSettled([
           createNotification({
-            userId: userToVerify.id,
+            userId: userToReview.id,
             type: 'account_verified',
             title: 'Compte certifie',
             message: 'Felicitations ! Votre identite a ete verifiee. Vous avez maintenant le badge certifie sur votre profil.',
             data: { verificationId: updated.id, role: updated.role },
           }),
           sendWhatsAppModerationAlert(
-            `✅ Identite verifiee\nUser: ${userToVerify.name || userToVerify.email}\nRole: ${updated.role}`,
+            `✅ Identite verifiee\nUser: ${userToReview.name || userToReview.email}\nRole: ${updated.role}`,
           ),
           sendAccountVerifiedEmail({ transporter, user: verifiedUser }),
         ]);
       }
+    }
+
+    if (status === 'rejected' && userToReview) {
+      await prisma.user.update({
+        where: { id: userToReview.id },
+        data: { isVerified: false },
+      }).catch(() => null);
+
+      const rejectionNote = String(notes || '').trim();
+      const dashboardPath = buildPublicUrl(getDashboardPathForRole(userToReview.role));
+
+      await Promise.allSettled([
+        createNotification({
+          userId: userToReview.id,
+          type: 'account_verification_rejected',
+          title: 'Verification rejetee',
+          message: rejectionNote
+            ? `Votre verification a ete rejetee. Motif: ${rejectionNote}`
+            : 'Votre verification a ete rejetee. Mettez a jour vos informations puis soumettez une nouvelle demande.',
+          data: {
+            verificationId: updated.id,
+            role: updated.role,
+            notes: rejectionNote || null,
+          },
+        }),
+        sendTransactionalEmail({
+          transporter,
+          to: userToReview.email,
+          subject: '[Bolo237] Verification rejetee',
+          headline: 'Votre verification a ete rejetee',
+          intro: rejectionNote
+            ? `Votre verification Bolo237 a ete rejetee. Motif: ${rejectionNote}`
+            : 'Votre verification Bolo237 a ete rejetee. Vous pouvez corriger votre dossier et soumettre une nouvelle demande.',
+          details: [
+            `Role: ${updated.role}`,
+            'Revoyez vos informations, mettez a jour vos justificatifs et relancez la verification depuis votre dashboard.',
+          ],
+          ctaLabel: 'Ouvrir mon dashboard',
+          ctaUrl: dashboardPath,
+        }),
+      ]);
     }
 
     res.json({ success: true, data: updated });

@@ -874,7 +874,7 @@ const verificationReviewBodySchema = z.object({
 });
 const createUserBodySchema = z.object({
   email: z.string().trim().optional(),
-  password: z.string().min(1),
+  password: z.string().min(6, 'Le mot de passe doit contenir au moins 6 caracteres.'),
   name: z.string().trim().optional(),
   role: z.enum(['CANDIDAT', 'ENTREPRISE', 'ARTISAN']).optional(),
   phone: z.string().trim().min(1),

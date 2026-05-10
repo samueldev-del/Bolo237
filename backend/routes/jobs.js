@@ -21,6 +21,10 @@ const { readSessionToken, requireUserSession } = require('../lib/session');
 const { isPublicHttpsUrl } = require('../lib/urlGuard');
 const { createNotification } = require('../lib/notifications');
 const { transporter } = require('../lib/emailService');
+const {
+  sendApplicationReceivedEmail,
+  sendApplicationSentEmail,
+} = require('../lib/transactionalEmail');
 const { translateText } = require('../services/translation.service');
 const {
   normalizeFrenchTypography,
@@ -824,6 +828,14 @@ router.post('/:id/apply', requireUserSession, jobApplicationLimiter, withAvScan(
         title: true,
         company: true,
         authorId: true,
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            role: true,
+          },
+        },
       },
     });
 
@@ -865,6 +877,47 @@ router.post('/:id/apply', requireUserSession, jobApplicationLimiter, withAvScan(
       }
       throw error;
     }
+
+    const candidateLabel = String(application.candidate?.name || req.sessionUser?.name || '').trim() || `Candidat #${candidateId}`;
+
+    await Promise.allSettled([
+      createNotification({
+        userId: candidateId,
+        type: 'application_sent',
+        title: 'Candidature envoyee',
+        message: `Votre candidature pour "${job.title}" chez ${job.company} a ete envoyee.`,
+        data: {
+          applicationId: application.id,
+          jobId: job.id,
+          jobTitle: job.title,
+          company: job.company,
+        },
+      }),
+      createNotification({
+        userId: job.authorId,
+        type: 'application_received',
+        title: 'Nouvelle candidature',
+        message: `${candidateLabel} a postule a votre offre "${job.title}".`,
+        data: {
+          applicationId: application.id,
+          candidateId,
+          candidateName: candidateLabel,
+          jobId: job.id,
+          jobTitle: job.title,
+        },
+      }),
+      sendApplicationSentEmail({
+        transporter,
+        user: application.candidate,
+        job,
+      }),
+      sendApplicationReceivedEmail({
+        transporter,
+        employer: job.author,
+        job,
+        candidateName: candidateLabel,
+      }),
+    ]);
 
     return res.status(201).json({
       success: true,

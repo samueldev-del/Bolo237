@@ -6,7 +6,7 @@ import {
   getAdminSessionConfigurationError,
   getClientIpFromHeaders,
 } from "@/lib/admin-session";
-import { ensureBackendAdminSession } from "@/lib/backend-admin";
+import { ensureBackendAdminSession, ensureProvidedBackendAdminSession } from "@/lib/backend-admin";
 import { clearFailures, getBackoffDelay, registerFailure } from "@/lib/admin-login-backoff";
 
 export const maxDuration = 60;
@@ -38,6 +38,20 @@ function isBlockingBackendSessionError(message: string) {
 function getAttemptKey(request: Request, username: string) {
   const clientIp = getClientIpFromHeaders(request.headers, new URL(request.url).hostname) || "unknown";
   return `${clientIp}:${String(username || "").trim().toLowerCase() || "unknown"}`;
+}
+
+function looksLikeBackendIdentifier(value: string) {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized.includes("@")) {
+    return true;
+  }
+
+  const digitsOnly = normalized.replace(/\s+/g, "");
+  return /^\+?\d{6,}$/.test(digitsOnly);
 }
 
 function getAttemptEntry(key: string) {
@@ -139,7 +153,31 @@ export async function POST(request: Request) {
       return tooManyAttemptsResponse(activeAttempt);
     }
 
-    if (!verifyCredentials(username, password)) {
+    const localCredentialsValid = verifyCredentials(username, password);
+    let backendFallbackAuthenticated = false;
+
+    if (!localCredentialsValid && looksLikeBackendIdentifier(username)) {
+      try {
+        await ensureProvidedBackendAdminSession(username, password);
+        backendFallbackAuthenticated = true;
+      } catch (backendErr) {
+        const message = backendErr instanceof Error ? backendErr.message : String(backendErr || "");
+        const normalized = message.toLowerCase();
+        const backendUnavailable = normalized.includes("timeout")
+          || normalized.includes("backend injoignable")
+          || normalized.includes("n'a pas repondu")
+          || normalized.includes("connexion au backend admin impossible");
+
+        if (backendUnavailable) {
+          return NextResponse.json(
+            { success: false, error: message || "Backend admin injoignable." },
+            { status: 503 }
+          );
+        }
+      }
+    }
+
+    if (!localCredentialsValid && !backendFallbackAuthenticated) {
       // Backoff exponentiel par IP (800ms → 8s) AVANT d'incrémenter le compteur,
       // pour que la première frappe soit déjà ralentie.
       const delay = getBackoffDelay(clientIp);
@@ -163,20 +201,22 @@ export async function POST(request: Request) {
     // fetchBackendAsAdmin (qui a deja un retry sur 401/403). Cela evite de bloquer
     // l'admin sur un cold-start Render ou un incident reseau.
     let backendSessionWarning: string | null = null;
-    try {
-      await ensureBackendAdminSession(true);
-    } catch (backendErr) {
-      const message = backendErr instanceof Error ? backendErr.message : String(backendErr);
-      console.warn("[admin-login] backend session warmup failed:", message);
+    if (!backendFallbackAuthenticated) {
+      try {
+        await ensureBackendAdminSession(true);
+      } catch (backendErr) {
+        const message = backendErr instanceof Error ? backendErr.message : String(backendErr);
+        console.warn("[admin-login] backend session warmup failed:", message);
 
-      if (isBlockingBackendSessionError(message)) {
-        return NextResponse.json(
-          { success: false, error: message },
-          { status: 503 }
-        );
+        if (isBlockingBackendSessionError(message)) {
+          return NextResponse.json(
+            { success: false, error: message },
+            { status: 503 }
+          );
+        }
+
+        backendSessionWarning = message;
       }
-
-      backendSessionWarning = message;
     }
 
     await createSession();

@@ -299,8 +299,58 @@ async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
   return pendingBackendLogin;
 }
 
+async function authenticateProvidedBackendAdmin(identifier: string, password: string): Promise<string> {
+  const normalizedIdentifier = String(identifier || "").trim();
+  const normalizedPassword = String(password || "").trim();
+
+  if (!normalizedIdentifier || !normalizedPassword) {
+    throw new Error("Identifiants backend admin invalides.");
+  }
+
+  const headers = new Headers({ "Content-Type": "application/json" });
+  headers.set("origin", PROD_ORIGIN);
+  headers.set("referer", `${PROD_ORIGIN}/`);
+
+  const csrf = await fetchCsrfContext();
+  if (csrf) {
+    headers.set("x-csrf-token", csrf.token);
+    headers.set("cookie", csrf.cookie);
+  }
+
+  const response = await fetchResilient(`${getBackendApiBase()}/api/auth/login`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ identifier: normalizedIdentifier, password: normalizedPassword }),
+    cache: "no-store",
+    timeoutMs: 50_000,
+  });
+
+  const payload = (await readJsonBody(response)) as { error?: string; role?: string };
+
+  if (!response.ok) {
+    throw new Error(String(payload.error || "Connexion au backend admin impossible.").trim());
+  }
+
+  if (!isAdminRole(payload.role)) {
+    throw new Error("Le compte fourni n'a pas les droits admin.");
+  }
+
+  const sessionCookie = parseSessionCookie(response.headers);
+  if (!sessionCookie) {
+    throw new Error("Le backend n'a pas retourne de cookie de session admin.");
+  }
+
+  cacheSession(sessionCookie, parseSessionMaxAge(response.headers));
+  backendLoginBackoff = null;
+  return sessionCookie;
+}
+
 export async function ensureBackendAdminSession(forceRefresh = false) {
   return loginAsBackendAdmin(forceRefresh);
+}
+
+export async function ensureProvidedBackendAdminSession(identifier: string, password: string) {
+  return authenticateProvidedBackendAdmin(identifier, password);
 }
 
 export function clearBackendAdminSession() {

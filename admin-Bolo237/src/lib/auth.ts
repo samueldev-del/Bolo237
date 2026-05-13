@@ -77,6 +77,19 @@ function safeEqualStrings(left: string, right: string) {
   return timingSafeEqual(leftBuf, rightBuf);
 }
 
+function matchesCredentialPair(
+  username: string,
+  password: string,
+  expectedUsername: string,
+  expectedPassword: string,
+) {
+  if (!expectedUsername || !expectedPassword) {
+    return false;
+  }
+
+  return safeEqualStrings(username, expectedUsername) && safeEqualStrings(password, expectedPassword);
+}
+
 export function verifyCredentials(username: string, password: string): boolean {
   const configurationError = getAdminAuthConfigurationError();
   if (configurationError) {
@@ -86,10 +99,15 @@ export function verifyCredentials(username: string, password: string): boolean {
 
   const expectedUsername = getAdminLoginUsername().toLowerCase();
   const expectedPassword = String(process.env.ADMIN_PASSWORD || "").trim();
+  const backendAdminEmail = String(process.env.ADMIN_BACKEND_EMAIL || "").trim().toLowerCase();
+  const backendAdminPassword = String(process.env.ADMIN_BACKEND_PASSWORD || "").trim();
   const normalizedUsername = String(username || "").trim().toLowerCase();
   const normalizedPassword = String(password || "").trim();
 
-  return safeEqualStrings(normalizedUsername, expectedUsername) && safeEqualStrings(normalizedPassword, expectedPassword);
+  return (
+    matchesCredentialPair(normalizedUsername, normalizedPassword, expectedUsername, expectedPassword)
+    || matchesCredentialPair(normalizedUsername, normalizedPassword, backendAdminEmail, backendAdminPassword)
+  );
 }
 
 /**

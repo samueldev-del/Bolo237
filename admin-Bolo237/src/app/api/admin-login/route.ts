@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSession, verifyCredentials } from "@/lib/auth";
+import { createSession, storeBackendSession, verifyCredentials } from "@/lib/auth";
 import {
   getAdminAllowedIps,
   getAdminIpRestrictionConfigurationError,
@@ -155,10 +155,11 @@ export async function POST(request: Request) {
 
     const localCredentialsValid = verifyCredentials(username, password);
     let backendFallbackAuthenticated = false;
+    let backendSessionCookie: string | null = null;
 
     if (!localCredentialsValid && looksLikeBackendIdentifier(username)) {
       try {
-        await ensureProvidedBackendAdminSession(username, password);
+        backendSessionCookie = await ensureProvidedBackendAdminSession(username, password);
         backendFallbackAuthenticated = true;
       } catch (backendErr) {
         const message = backendErr instanceof Error ? backendErr.message : String(backendErr || "");
@@ -203,7 +204,7 @@ export async function POST(request: Request) {
     let backendSessionWarning: string | null = null;
     if (!backendFallbackAuthenticated) {
       try {
-        await ensureBackendAdminSession(true);
+        backendSessionCookie = await ensureBackendAdminSession(true);
       } catch (backendErr) {
         const message = backendErr instanceof Error ? backendErr.message : String(backendErr);
         console.warn("[admin-login] backend session warmup failed:", message);
@@ -220,6 +221,9 @@ export async function POST(request: Request) {
     }
 
     await createSession();
+    if (backendSessionCookie) {
+      await storeBackendSession(backendSessionCookie);
+    }
     return NextResponse.json({
       success: true,
       ...(backendSessionWarning ? { warning: `Session backend differee: ${backendSessionWarning}` } : {}),

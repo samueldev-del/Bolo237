@@ -1,5 +1,7 @@
 import "server-only";
 
+import { readStoredBackendSession } from "@/lib/auth";
+
 const DEFAULT_BACKEND_API_URL = "https://api-237jobs.onrender.com";
 const SESSION_COOKIE_NAME = "bolo237_session";
 const CSRF_COOKIE_NAME = "bolo237_csrf";
@@ -374,7 +376,8 @@ async function fetchBackendWithAdminSession(path: string, init?: RequestInit) {
   const needsCsrf = !SAFE_METHODS.has(method);
 
   const execute = async (forceRefresh: boolean) => {
-    const sessionCookie = await loginAsBackendAdmin(forceRefresh);
+    const storedSessionCookie = forceRefresh ? null : await readStoredBackendSession();
+    const sessionCookie = storedSessionCookie || await loginAsBackendAdmin(forceRefresh);
     const headers = new Headers(init?.headers);
     headers.delete("connection");
     headers.delete("content-length");

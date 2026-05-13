@@ -154,15 +154,10 @@ export function verifyCredentials(username: string, password: string): boolean {
 
   const expectedUsername = getAdminLoginUsername().toLowerCase();
   const expectedPassword = String(process.env.ADMIN_PASSWORD || "").trim();
-  const backendAdminEmail = String(process.env.ADMIN_BACKEND_EMAIL || "").trim().toLowerCase();
-  const backendAdminPassword = String(process.env.ADMIN_BACKEND_PASSWORD || "").trim();
   const normalizedUsername = String(username || "").trim().toLowerCase();
   const normalizedPassword = String(password || "").trim();
 
-  return (
-    matchesCredentialPair(normalizedUsername, normalizedPassword, expectedUsername, expectedPassword)
-    || matchesCredentialPair(normalizedUsername, normalizedPassword, backendAdminEmail, backendAdminPassword)
-  );
+  return matchesCredentialPair(normalizedUsername, normalizedPassword, expectedUsername, expectedPassword);
 }
 
 /**

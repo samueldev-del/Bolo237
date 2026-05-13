@@ -7,7 +7,6 @@ import {
   getClientIpFromHeaders,
 } from "@/lib/admin-session";
 import {
-  BackendAdminAuthError,
   ensureBackendAdminSession,
   ensureProvidedBackendAdminSession,
 } from "@/lib/backend-admin";
@@ -41,22 +40,37 @@ function isBlockingBackendSessionError(message: string) {
 }
 
 function buildStructuredBackendErrorResponse(error: unknown) {
-  if (!(error instanceof BackendAdminAuthError)) {
+  if (!error || typeof error !== "object") {
     return null;
   }
 
+  const candidate = error as {
+    message?: unknown;
+    status?: unknown;
+    retryAfterSeconds?: unknown;
+  };
+  const status = Number(candidate.status);
+  if (!Number.isFinite(status) || status < 400 || status > 599) {
+    return null;
+  }
+
+  const message = typeof candidate.message === "string" && candidate.message.trim()
+    ? candidate.message.trim()
+    : "Connexion au backend admin impossible.";
+  const retryAfterSeconds = Number(candidate.retryAfterSeconds);
+
   const headers: Record<string, string> = {};
-  if (error.retryAfterSeconds && error.retryAfterSeconds > 0) {
-    headers["Retry-After"] = String(error.retryAfterSeconds);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    headers["Retry-After"] = String(retryAfterSeconds);
   }
 
   return NextResponse.json(
     {
       success: false,
-      error: error.message || "Connexion au backend admin impossible.",
+      error: message,
     },
     {
-      status: error.status,
+      status,
       headers,
     }
   );

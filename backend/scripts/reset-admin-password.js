@@ -1,9 +1,11 @@
-require('dotenv').config();
+const { loadBackendScriptEnv } = require('./_script-env');
 const bcrypt = require('bcryptjs');
 const { prisma, pool } = require('../lib/db');
 
+loadBackendScriptEnv();
+
 async function main() {
-  const adminEmail = String(process.env.ADMIN_TARGET_EMAIL || 'admin@bolo237.com')
+  const adminEmail = String(process.env.ADMIN_TARGET_EMAIL || process.env.ADMIN_BACKEND_EMAIL || 'admin@bolo237.com')
     .trim()
     .toLowerCase();
   const plainPassword = String(process.env.ADMIN_BACKEND_PASSWORD || '').trim();

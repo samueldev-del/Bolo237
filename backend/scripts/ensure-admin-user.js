@@ -1,10 +1,8 @@
-const path = require('path');
-const dotenv = require('dotenv');
-
-dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
-dotenv.config({ path: path.resolve(__dirname, '..', '.env.local'), override: true });
+const { loadBackendScriptEnv } = require('./_script-env');
 const bcrypt = require('bcryptjs');
 const { prisma, pool } = require('../lib/db');
+
+loadBackendScriptEnv();
 
 function normalizeRole(value) {
   const role = String(value || 'ADMIN').trim().toUpperCase();

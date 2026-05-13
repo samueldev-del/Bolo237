@@ -24,6 +24,18 @@ type CsrfContext = {
   expiresAt: number;
 };
 
+export class BackendAdminAuthError extends Error {
+  status: number;
+  retryAfterSeconds: number | null;
+
+  constructor(message: string, status: number, retryAfterSeconds: number | null = null) {
+    super(message);
+    this.name = "BackendAdminAuthError";
+    this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 let cachedBackendSession: CachedBackendSession | null = null;
 let pendingBackendLogin: Promise<string> | null = null;
 let backendLoginBackoff: BackendLoginBackoff | null = null;
@@ -223,6 +235,13 @@ async function readJsonBody(response: Response) {
   return response.json().catch(() => ({}));
 }
 
+function buildBackendAuthError(response: Response, fallbackMessage: string, payloadError?: string) {
+  const message = String(payloadError || fallbackMessage).trim() || fallbackMessage;
+  const retryAfterHeader = Number.parseInt(String(response.headers.get("retry-after") || "0"), 10);
+  const retryAfterSeconds = Number.isFinite(retryAfterHeader) && retryAfterHeader > 0 ? retryAfterHeader : null;
+  return new BackendAdminAuthError(message, response.status, retryAfterSeconds);
+}
+
 function isAdminRole(role: unknown) {
   return ADMIN_ROLES.has(String(role || "").toUpperCase());
 }
@@ -272,14 +291,21 @@ async function loginAsBackendAdmin(forceRefresh = false): Promise<string> {
         const retryAfterHeader = Number.parseInt(String(response.headers.get("retry-after") || "0"), 10);
         setBackendLoginBackoff(retryAfterHeader, backendError || "Connexion admin temporairement bloquee.");
         const blocked = getActiveBackendLoginBackoff();
-        throw new Error(blocked?.message || backendError || "Connexion admin temporairement bloquee.");
+        throw new BackendAdminAuthError(
+          blocked?.message || backendError || "Connexion admin temporairement bloquee.",
+          response.status,
+          Number.isFinite(retryAfterHeader) && retryAfterHeader > 0 ? retryAfterHeader : null,
+        );
       }
       if (response.status === 401) {
         setBackendInvalidCredentialsBackoff();
         const blocked = getActiveBackendLoginBackoff();
-        throw new Error(blocked?.message || "Les identifiants backend admin sont invalides.");
+        throw new BackendAdminAuthError(
+          blocked?.message || "Les identifiants backend admin sont invalides.",
+          response.status,
+        );
       }
-      throw new Error(backendError || "Connexion au backend admin impossible.");
+      throw buildBackendAuthError(response, "Connexion au backend admin impossible.", backendError);
     }
 
     if (!isAdminRole(payload.role)) {
@@ -330,7 +356,7 @@ async function authenticateProvidedBackendAdmin(identifier: string, password: st
   const payload = (await readJsonBody(response)) as { error?: string; role?: string };
 
   if (!response.ok) {
-    throw new Error(String(payload.error || "Connexion au backend admin impossible.").trim());
+    throw buildBackendAuthError(response, "Connexion au backend admin impossible.", payload.error);
   }
 
   if (!isAdminRole(payload.role)) {

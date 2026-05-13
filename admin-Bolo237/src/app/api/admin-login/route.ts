@@ -6,7 +6,11 @@ import {
   getAdminSessionConfigurationError,
   getClientIpFromHeaders,
 } from "@/lib/admin-session";
-import { ensureBackendAdminSession, ensureProvidedBackendAdminSession } from "@/lib/backend-admin";
+import {
+  BackendAdminAuthError,
+  ensureBackendAdminSession,
+  ensureProvidedBackendAdminSession,
+} from "@/lib/backend-admin";
 import { clearFailures, getBackoffDelay, registerFailure } from "@/lib/admin-login-backoff";
 
 export const maxDuration = 60;
@@ -31,7 +35,30 @@ function isBlockingBackendSessionError(message: string) {
   return (
     normalized.includes("identifiants backend admin") ||
     normalized.includes("backend admin non configures") ||
-    normalized.includes("droits admin")
+    normalized.includes("droits admin") ||
+    normalized.includes("trop de tentatives de connexion")
+  );
+}
+
+function buildStructuredBackendErrorResponse(error: unknown) {
+  if (!(error instanceof BackendAdminAuthError)) {
+    return null;
+  }
+
+  const headers: Record<string, string> = {};
+  if (error.retryAfterSeconds && error.retryAfterSeconds > 0) {
+    headers["Retry-After"] = String(error.retryAfterSeconds);
+  }
+
+  return NextResponse.json(
+    {
+      success: false,
+      error: error.message || "Connexion au backend admin impossible.",
+    },
+    {
+      status: error.status,
+      headers,
+    }
   );
 }
 
@@ -162,6 +189,11 @@ export async function POST(request: Request) {
         backendSessionCookie = await ensureProvidedBackendAdminSession(username, password);
         backendFallbackAuthenticated = true;
       } catch (backendErr) {
+        const structuredErrorResponse = buildStructuredBackendErrorResponse(backendErr);
+        if (structuredErrorResponse) {
+          return structuredErrorResponse;
+        }
+
         const message = backendErr instanceof Error ? backendErr.message : String(backendErr || "");
         const normalized = message.toLowerCase();
         const backendUnavailable = normalized.includes("timeout")
@@ -206,6 +238,11 @@ export async function POST(request: Request) {
       try {
         backendSessionCookie = await ensureBackendAdminSession(true);
       } catch (backendErr) {
+        const structuredErrorResponse = buildStructuredBackendErrorResponse(backendErr);
+        if (structuredErrorResponse) {
+          return structuredErrorResponse;
+        }
+
         const message = backendErr instanceof Error ? backendErr.message : String(backendErr);
         console.warn("[admin-login] backend session warmup failed:", message);
 

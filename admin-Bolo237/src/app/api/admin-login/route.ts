@@ -210,10 +210,19 @@ export async function POST(request: Request) {
 
         const message = backendErr instanceof Error ? backendErr.message : String(backendErr || "");
         const normalized = message.toLowerCase();
+        const backendRateLimited = normalized.includes("trop de tentatives de connexion")
+          || normalized.includes("connexion admin temporairement bloquee");
         const backendUnavailable = normalized.includes("timeout")
           || normalized.includes("backend injoignable")
           || normalized.includes("n'a pas repondu")
           || normalized.includes("connexion au backend admin impossible");
+
+        if (backendRateLimited) {
+          return NextResponse.json(
+            { success: false, error: message || "Connexion admin temporairement bloquee." },
+            { status: 429 }
+          );
+        }
 
         if (backendUnavailable) {
           return NextResponse.json(
@@ -258,7 +267,16 @@ export async function POST(request: Request) {
         }
 
         const message = backendErr instanceof Error ? backendErr.message : String(backendErr);
+        const normalized = message.toLowerCase();
         console.warn("[admin-login] backend session warmup failed:", message);
+
+        if (normalized.includes("trop de tentatives de connexion")
+          || normalized.includes("connexion admin temporairement bloquee")) {
+          return NextResponse.json(
+            { success: false, error: message || "Connexion admin temporairement bloquee." },
+            { status: 429 }
+          );
+        }
 
         if (isBlockingBackendSessionError(message)) {
           return NextResponse.json(

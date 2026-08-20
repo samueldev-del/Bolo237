@@ -26,3 +26,7 @@ build/
 .vercel
 .env*.local
 .claude/
+CLAUDE.md
+# Fichiers de cookies produits par curl -c / -b
+cookies.txt
+*.cookies

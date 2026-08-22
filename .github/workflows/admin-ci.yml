@@ -1,4 +1,5 @@
 name: Admin Security E2E CI
+
 on:
   workflow_dispatch:
   # Pas de filtre de chemins : un check requis qui ne s'exécute pas ne
@@ -11,13 +12,21 @@ on:
   pull_request:
     branches:
       - main
+
 permissions:
   contents: read
+
+concurrency:
+  # Groupe distinct de celui du frontend : deux workflows partageant le même
+  # groupe s'annuleraient mutuellement.
+  group: admin-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   admin-security-e2e:
     name: Admin Security E2E
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       DATA_ENCRYPTION_KEY: "111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000"
       DATA_LOOKUP_HMAC_KEY: "0000ffffeeeeccccbbbbaaaa9999888877776666555544443333222211110000"
@@ -52,3 +61,25 @@ jobs:
 
       - name: Run admin E2E tests (Chromium)
         run: ./node_modules/.bin/playwright test tests/admin-uploads-proxy.spec.ts tests/admin-inbox-attachments.spec.ts tests/admin-core.spec.ts --project=chromium --reporter=line
+
+  admin-docker:
+    name: Admin Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # hadolint valide le Dockerfile sans le construire : quelques secondes,
+      # et il attrape les mauvaises pratiques avant le build coûteux.
+      - name: Lint du Dockerfile
+        uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6
+        with:
+          dockerfile: admin-Bolo237/Dockerfile
+
+      # L'image n'est déployée nulle part aujourd'hui — Render et Vercel
+      # construisent autrement. Ce job vérifie qu'elle se construit malgré
+      # tout, faute de quoi un Dockerfile cassé dormirait des mois.
+      - name: Build de l'image
+        run: docker build -t bolo237-admin:ci ./admin-Bolo237

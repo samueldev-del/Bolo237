@@ -16,10 +16,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  # Un groupe par référence Git : les runs d'une même PR se remplacent.
+  group: frontend-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   frontend-core-e2e:
     name: Frontend Core E2E
     runs-on: ubuntu-latest
+    # Garde-fou : sans plafond, un job bloqué tourne jusqu'à la limite
+    # plateforme de six heures.
+    timeout-minutes: 15
 
     defaults:
       run:
@@ -44,3 +52,25 @@ jobs:
 
       - name: Run frontend core E2E tests
         run: ./node_modules/.bin/playwright test tests/candidate.spec.ts tests/company.spec.ts tests/artisan.spec.ts --project=chromium --workers=3 --reporter=line
+
+  frontend-docker:
+    name: Frontend Docker Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      # hadolint valide le Dockerfile sans le construire : quelques secondes,
+      # et il attrape les mauvaises pratiques avant le build coûteux.
+      - name: Lint du Dockerfile
+        uses: hadolint/hadolint-action@2a66e89f53d0771bb131a7fa31f3136336094aa6
+        with:
+          dockerfile: frontend/Dockerfile
+
+      # L'image n'est déployée nulle part aujourd'hui — Render et Vercel
+      # construisent autrement. Ce job vérifie qu'elle se construit malgré
+      # tout, faute de quoi un Dockerfile cassé dormirait des mois.
+      - name: Build de l'image
+        run: docker build -t bolo237-frontend:ci ./frontend

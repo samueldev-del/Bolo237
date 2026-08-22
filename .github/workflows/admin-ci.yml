@@ -1,22 +1,18 @@
 name: Admin Security E2E CI
-
 on:
   workflow_dispatch:
+  # Pas de filtre de chemins : un check requis qui ne s'exécute pas ne
+  # reporte jamais de statut, et la pull request reste bloquée sans cause
+  # visible. Les minutes Actions sont illimitées sur un dépôt public, et
+  # les trois workflows tournent en parallèle en moins de trois minutes.
   push:
     branches:
       - main
       - master
-    paths:
-      - 'admin-Bolo237/**'
-      - '.github/workflows/admin-ci.yml'
   pull_request:
     branches:
       - main
       - master
-    paths:
-      - 'admin-Bolo237/**'
-      - '.github/workflows/admin-ci.yml'
-
 permissions:
   contents: read
 

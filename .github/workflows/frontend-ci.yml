@@ -2,20 +2,18 @@ name: Frontend Core E2E CI
 
 on:
   workflow_dispatch:
+  # Pas de filtre de chemins : un check requis qui ne s'exécute pas ne
+  # reporte jamais de statut, et la pull request reste bloquée sans cause
+  # visible. Les minutes Actions sont illimitées sur un dépôt public, et
+  # les trois workflows tournent en parallèle en moins de trois minutes.
   push:
     branches:
       - main
       - master
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-ci.yml'
   pull_request:
     branches:
       - main
       - master
-    paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-ci.yml'
 
 permissions:
   contents: read

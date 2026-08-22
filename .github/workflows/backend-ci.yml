@@ -1,20 +1,19 @@
 name: Backend Security CI
 
 on:
+  workflow_dispatch:
+  # Pas de filtre de chemins : un check requis qui ne s'exécute pas ne
+  # reporte jamais de statut, et la pull request reste bloquée sans cause
+  # visible. Les minutes Actions sont illimitées sur un dépôt public, et
+  # les trois workflows tournent en parallèle en moins de trois minutes.
   push:
     branches:
       - main
       - master
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-ci.yml'
   pull_request:
     branches:
       - main
       - master
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-ci.yml'
 
 # Principe de moindre privilège : lecture seule sur le code source
 permissions:

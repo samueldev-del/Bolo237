@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "nodemon server.js",
     "build": "npx prisma generate && DATABASE_URL=${DATABASE_MIGRATION_URL:-$DATABASE_URL} npx prisma migrate deploy",
@@ -42,9 +45,6 @@
   "author": "",
   "license": "ISC",
   "type": "commonjs",
-  "engines": {
-    "node": ">=22.12.0 <25"
-  },
   "dependencies": {
     "@google-cloud/translate": "^9.4.1",
     "@prisma/adapter-pg": "^7.7.0",

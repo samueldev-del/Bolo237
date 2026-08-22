@@ -9,11 +9,9 @@ on:
   push:
     branches:
       - main
-      - master
   pull_request:
     branches:
       - main
-      - master
 
 # Principe de moindre privilège : lecture seule sur le code source
 permissions:
@@ -45,7 +43,7 @@ jobs:
         # Fixé à v4.4.0 via SHA immuable
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
-          node-version: '20' # LTS recommandée (ajuste selon ton moteur local)
+          node-version: '24' # LTS recommandée (ajuste selon ton moteur local)
           cache: 'npm'
           cache-dependency-path: './backend/package-lock.json'
 

@@ -10,7 +10,7 @@ Ce README sert de reference unique pour lancer le projet localement et comprendr
 
 ## 1. Prerequis
 
-- Node.js 22.12.x (recommande)
+- Node.js 24.x (recommande)
 - npm 10+
 - PostgreSQL (local ou distant)
 - Redis (optionnel mais recommande pour rate limiting distribue)
